@@ -1,0 +1,31 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>รายละเอียดงาน — Star Live Official</title>
+<link href="https://fonts.googleapis.com/css2?family=Prompt:wght@500;600;700;800&family=Sarabun:wght@400;500;600&display=swap" rel="stylesheet" />
+<link rel="stylesheet" href="./style.css" />
+</head>
+<body>
+<div class="stage-bg"></div>
+
+<header class="home-header">
+  <a href="./index.html" class="marquee-brand" style="text-decoration:none;"><span class="bulb"></span> STAR LIVE OFFICIAL</a>
+  <div class="home-header-right">
+    <div id="headerAuthArea"></div>
+  </div>
+</header>
+
+<main class="home-shell" style="text-align:center; padding-top:80px;">
+  <h1 class="display" style="font-size:20px;">รายละเอียดงาน</h1>
+  <p class="muted">หน้าเลือกแพ็กเกจ+รอบวันจะพร้อมใช้งานในเฟส 2</p>
+  <a href="./index.html" class="icon-btn ghost" style="text-decoration:none; display:inline-block; margin-top:12px;">กลับหน้าแรก</a>
+</main>
+
+<script type="module">
+  import { renderHeaderAuth } from "./js/auth.js";
+  renderHeaderAuth();
+</script>
+</body>
+</html>
