@@ -158,12 +158,6 @@ const evBannerPreview = document.getElementById("evBannerPreview");
 const evStatus = document.getElementById("evStatus");
 const evViewingMonths = document.getElementById("evViewingMonths");
 const evRerunMonths = document.getElementById("evRerunMonths");
-const evLivePlatform = document.getElementById("evLivePlatform");
-const evLiveYoutubeUrl = document.getElementById("evLiveYoutubeUrl");
-const evLiveCfUid = document.getElementById("evLiveCfUid");
-const evRerunPlatform = document.getElementById("evRerunPlatform");
-const evRerunYoutubeUrl = document.getElementById("evRerunYoutubeUrl");
-const evRerunCfUid = document.getElementById("evRerunCfUid");
 const dayRows = document.getElementById("dayRows");
 const packageRows = document.getElementById("packageRows");
 const eventFormError = document.getElementById("eventFormError");
@@ -172,18 +166,6 @@ const eventEmptyState = document.getElementById("eventEmptyState");
 
 let currentBannerUrl = "";
 let dayRowCount = 0;
-
-function togglePlatformField(select, youtubeField, cfField) {
-  const v = select.value;
-  youtubeField.style.display = v === "youtube" ? "block" : "none";
-  cfField.style.display = v === "cloudflare" ? "block" : "none";
-}
-evLivePlatform.addEventListener("change", () =>
-  togglePlatformField(evLivePlatform, document.getElementById("evLiveYoutubeField"), document.getElementById("evLiveCfField"))
-);
-evRerunPlatform.addEventListener("change", () =>
-  togglePlatformField(evRerunPlatform, document.getElementById("evRerunYoutubeField"), document.getElementById("evRerunCfField"))
-);
 
 evBannerFile.addEventListener("change", () => {
   const file = evBannerFile.files[0];
@@ -196,23 +178,62 @@ document.getElementById("addDayBtn").addEventListener("click", () => addDayRow()
 document.getElementById("newEventBtn").addEventListener("click", () => openEventForm());
 document.getElementById("cancelEventFormBtn").addEventListener("click", () => closeEventForm());
 
-function addDayRow(date = "", label = "") {
+function addDayRow(dayData = {}) {
   dayRowCount++;
   const n = dayRowCount;
+  
+  const date = dayData.event_date || "";
+  const label = dayData.label || "";
+  const livePlatform = dayData.live_platform || "";
+  const liveYt = dayData.live_youtube_url || "";
+  const liveCf = dayData.live_cloudflare_uid || "";
+  const rerunPlatform = dayData.rerun_platform || "";
+  const rerunYt = dayData.rerun_youtube_url || "";
+  const rerunCf = dayData.rerun_cloudflare_uid || "";
+
   const row = document.createElement("div");
   row.className = "day-row";
+  row.style.cssText = "background: rgba(255,255,255,0.02); border: 1px solid var(--border); padding: 14px; border-radius: 8px; margin-bottom: 12px;";
   row.dataset.dayNumber = n;
+
   row.innerHTML = `
-    <span class="muted" style="font-size:12.5px; flex-shrink:0;">วันที่ ${n}</span>
-    <input type="date" class="field-input day-date-input" value="${date}" style="flex:1;" required />
-    <input type="text" class="field-input day-label-input" placeholder="ป้ายกำกับ (ไม่บังคับ)" value="${escapeAttr(label)}" style="flex:1;" />
-    <button type="button" class="icon-btn ghost remove-day-btn" style="flex-shrink:0; padding:0 12px;">ลบ</button>
+    <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:10px;">
+      <span style="font-weight:600; font-size:14px;" class="day-title-label">วันที่ ${n}</span>
+      <button type="button" class="icon-btn ghost remove-day-btn" style="padding:4px 10px; font-size:12px;">ลบวันนี้</button>
+    </div>
+    
+    <div style="display:grid; grid-template-columns: 1fr 1fr; gap:10px; margin-bottom:10px;">
+      <input type="date" class="field-input day-date-input" value="${date}" required />
+      <input type="text" class="field-input day-label-input" placeholder="ป้ายกำกับ เช่น Day 1 (ไม่บังคับ)" value="${escapeAttr(label)}" />
+    </div>
+
+    <!-- ตั้งค่า Live ประจำวัน -->
+    <div style="display:grid; grid-template-columns: 1fr 2fr; gap:10px; margin-bottom:8px;">
+      <select class="field-input day-live-platform">
+        <option value="">-- ไลฟ์: ยังไม่ตั้งค่า --</option>
+        <option value="youtube" ${livePlatform === "youtube" ? "selected" : ""}>YouTube Live</option>
+        <option value="cloudflare" ${livePlatform === "cloudflare" ? "selected" : ""}>Cloudflare Stream</option>
+      </select>
+      <input type="text" class="field-input day-live-url" placeholder="YouTube URL หรือ Cloudflare UID" value="${escapeAttr(livePlatform === "youtube" ? liveYt : liveCf)}" />
+    </div>
+
+    <!-- ตั้งค่า Rerun ประจำวัน -->
+    <div style="display:grid; grid-template-columns: 1fr 2fr; gap:10px;">
+      <select class="field-input day-rerun-platform">
+        <option value="">-- รีรัน: ยังไม่ตั้งค่า --</option>
+        <option value="youtube" ${rerunPlatform === "youtube" ? "selected" : ""}>YouTube (รีรัน)</option>
+        <option value="cloudflare" ${rerunPlatform === "cloudflare" ? "selected" : ""}>Cloudflare (รีรัน)</option>
+      </select>
+      <input type="text" class="field-input day-rerun-url" placeholder="YouTube URL หรือ Cloudflare UID" value="${escapeAttr(rerunPlatform === "youtube" ? rerunYt : rerunCf)}" />
+    </div>
   `;
+
   row.querySelector(".remove-day-btn").addEventListener("click", () => {
     row.remove();
     renumberDayRows();
     rebuildPackageRows();
   });
+
   dayRows.appendChild(row);
   rebuildPackageRows();
 }
@@ -220,17 +241,30 @@ function addDayRow(date = "", label = "") {
 function renumberDayRows() {
   [...dayRows.children].forEach((row, i) => {
     row.dataset.dayNumber = i + 1;
-    row.querySelector("span").textContent = `วันที่ ${i + 1}`;
+    row.querySelector(".day-title-label").textContent = `วันที่ ${i + 1}`;
   });
   dayRowCount = dayRows.children.length;
 }
 
 function getDaysFromForm() {
-  return [...dayRows.children].map((row, i) => ({
-    day_number: i + 1,
-    event_date: row.querySelector(".day-date-input").value,
-    label: row.querySelector(".day-label-input").value.trim() || `วันที่ ${i + 1}`,
-  }));
+  return [...dayRows.children].map((row, i) => {
+    const livePlat = row.querySelector(".day-live-platform").value;
+    const liveVal = row.querySelector(".day-live-url").value.trim();
+    const rerunPlat = row.querySelector(".day-rerun-platform").value;
+    const rerunVal = row.querySelector(".day-rerun-url").value.trim();
+
+    return {
+      day_number: i + 1,
+      event_date: row.querySelector(".day-date-input").value,
+      label: row.querySelector(".day-label-input").value.trim() || `วันที่ ${i + 1}`,
+      live_platform: livePlat || null,
+      live_youtube_url: livePlat === "youtube" ? liveVal : null,
+      live_cloudflare_uid: livePlat === "cloudflare" ? liveVal : null,
+      rerun_platform: rerunPlat || null,
+      rerun_youtube_url: rerunPlat === "youtube" ? rerunVal : null,
+      rerun_cloudflare_uid: rerunPlat === "cloudflare" ? rerunVal : null,
+    };
+  });
 }
 
 function rebuildPackageRows() {
@@ -286,16 +320,9 @@ function openEventForm(event = null) {
       evBannerPreview.style.display = "block";
     }
 
-    evLivePlatform.value = event.live_platform || "";
-    evLiveYoutubeUrl.value = event.live_youtube_url || "";
-    evLiveCfUid.value = event.live_cloudflare_uid || "";
-    evRerunPlatform.value = event.rerun_platform || "";
-    evRerunYoutubeUrl.value = event.rerun_youtube_url || "";
-    evRerunCfUid.value = event.rerun_cloudflare_uid || "";
-
     const days = (event.event_days || []).sort((a, b) => a.day_number - b.day_number);
     if (days.length === 0) addDayRow();
-    days.forEach((d) => addDayRow(d.event_date, d.label));
+    days.forEach((d) => addDayRow(d));
 
     rebuildPackageRows();
     (event.ticket_packages || []).forEach((pkg) => {
@@ -313,9 +340,6 @@ function openEventForm(event = null) {
     evRerunMonths.value = 6;
     addDayRow();
   }
-
-  togglePlatformField(evLivePlatform, document.getElementById("evLiveYoutubeField"), document.getElementById("evLiveCfField"));
-  togglePlatformField(evRerunPlatform, document.getElementById("evRerunYoutubeField"), document.getElementById("evRerunCfField"));
 
   eventFormCard.style.display = "block";
   eventFormCard.scrollIntoView({ behavior: "smooth", block: "start" });
@@ -393,12 +417,6 @@ eventForm.addEventListener("submit", async (e) => {
       status: evStatus.value,
       viewing_duration_months: Number(evViewingMonths.value) || 6,
       rerun_duration_months: Number(evRerunMonths.value) || 6,
-      live_platform: evLivePlatform.value || null,
-      live_youtube_url: evLivePlatform.value === "youtube" ? evLiveYoutubeUrl.value.trim() || null : null,
-      live_cloudflare_uid: evLivePlatform.value === "cloudflare" ? evLiveCfUid.value.trim() || null : null,
-      rerun_platform: evRerunPlatform.value || null,
-      rerun_youtube_url: evRerunPlatform.value === "youtube" ? evRerunYoutubeUrl.value.trim() || null : null,
-      rerun_cloudflare_uid: evRerunPlatform.value === "cloudflare" ? evRerunCfUid.value.trim() || null : null,
     };
 
     const eventId = eventIdInput.value;
@@ -444,7 +462,6 @@ eventForm.addEventListener("submit", async (e) => {
         .single();
       if (pkgError) throw new Error(pkgError.message);
 
-      // ลบตัวเลือกวันเก่าทิ้งเสมอ ป้องกันปัญหาการสร้างซ้ำ
       await supabase.from("ticket_package_day_options").delete().eq("package_id", pkgRow.id);
 
       const combos = combinations(sortedDays, pkg.num_days);
