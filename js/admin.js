@@ -1,3 +1,4 @@
+
 import { supabase } from "./supabaseClient.js";
 import { SUPABASE_ANON_KEY, FUNCTIONS_URL } from "./config.js";
 
@@ -312,8 +313,8 @@ function openEventForm(event = null) {
     evTitle.value = event.title;
     evDescription.value = event.description || "";
     evStatus.value = event.status;
-    evViewingMonths.value = event.viewing_duration_months;
-    evRerunMonths.value = event.rerun_duration_months;
+    if (evViewingMonths) evViewingMonths.value = event.viewing_duration_months;
+    if (evRerunMonths) evRerunMonths.value = event.rerun_duration_months;
     currentBannerUrl = event.banner_url || "";
     if (currentBannerUrl) {
       evBannerPreview.src = currentBannerUrl;
@@ -336,8 +337,8 @@ function openEventForm(event = null) {
     eventFormTitle.textContent = "สร้างงานใหม่";
     eventIdInput.value = "";
     evStatus.value = "upcoming";
-    evViewingMonths.value = 6;
-    evRerunMonths.value = 6;
+    if (evViewingMonths) evViewingMonths.value = 6;
+    if (evRerunMonths) evRerunMonths.value = 6;
     addDayRow();
   }
 
@@ -409,14 +410,15 @@ eventForm.addEventListener("submit", async (e) => {
       bannerUrl = publicUrlData.publicUrl;
     }
 
-    // 2. Save Events (ไม่ส่งฟิลด์ไลฟ์ภาพรวมแล้ว)
+    // 2. Save Events
+    const rerunMonthsVal = Number(evRerunMonths.value) || 6;
     const eventPayload = {
       title: evTitle.value.trim(),
       description: evDescription.value.trim() || null,
       banner_url: bannerUrl || null,
       status: evStatus.value,
-      viewing_duration_months: Number(evViewingMonths.value) || 6,
-      rerun_duration_months: Number(evRerunMonths.value) || 6,
+      viewing_duration_months: rerunMonthsVal, // ใช้ค่าเดียวกับรีรัน
+      rerun_duration_months: rerunMonthsVal,
     };
 
     const eventId = eventIdInput.value;
@@ -455,7 +457,6 @@ eventForm.addEventListener("submit", async (e) => {
           await supabase.from("ticket_package_day_options").delete().eq("package_id", ep.id);
           const { error: delPkgErr } = await supabase.from("ticket_packages").delete().eq("id", ep.id);
           if (delPkgErr) {
-            // ถ้าติด Foreign Key เพราะมีคนซื้อไปแล้ว ให้ใช้วิธีเซ็ตราคาเป็น 0 หรือข้ามการลบแทน
             console.warn("ไม่สามารถลบแพ็กเกจที่มีออเดอร์อ้างอิงได้");
           }
         }
