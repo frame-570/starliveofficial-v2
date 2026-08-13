@@ -115,33 +115,60 @@ function selectPackage(pkg) {
   updateTotal();
 
   const options = pkg.ticket_package_day_options || [];
-  const dropdownWrap = document.getElementById("dayOptionWrap");
+  const dayOptionWrap = document.getElementById("dayOptionWrap");
   const singleWrap = document.getElementById("singleDayOptionWrap");
-  const select = document.getElementById("dayOptionSelect");
+  const grid = document.getElementById("dayOptionsGrid");
 
   if (options.length > 1) {
     singleWrap.style.display = "none";
-    dropdownWrap.style.display = "block";
-    select.innerHTML =
-      `<option value="">— เลือกรอบวัน —</option>` +
-      options.map((o) => `<option value="${o.id}">${escapeHtml(o.label)}</option>`).join("");
-    select.value = "";
-    select.onchange = () => {
-      selectedDayOptionId = select.value || null;
-      updatePayButton();
-    };
+    dayOptionWrap.style.display = "block";
+    
+    // แสดงปุ่มกรอบเลือกรอบวันแบบการ์ด
+    renderDayOptionCards(options, grid);
   } else if (options.length === 1) {
-    dropdownWrap.style.display = "none";
+    dayOptionWrap.style.display = "none";
     singleWrap.style.display = "block";
     document.getElementById("singleDayOptionLabel").textContent = options[0].label;
     selectedDayOptionId = options[0].id;
   } else {
-    dropdownWrap.style.display = "none";
+    dayOptionWrap.style.display = "none";
     singleWrap.style.display = "none";
     selectedDayOptionId = null;
   }
 
   updatePayButton();
+}
+
+function renderDayOptionCards(options, container) {
+  container.innerHTML = options
+    .map(
+      (o) => `
+      <button type="button" class="day-option-btn day-card-item ${selectedDayOptionId === o.id ? "active" : ""}" data-day-id="${o.id}">
+        <span style="font-weight:600;">${escapeHtml(o.label)}</span>
+        <span class="check-icon" style="
+          width:18px; 
+          height:18px; 
+          border-radius:50%; 
+          border:1.5px solid ${selectedDayOptionId === o.id ? "var(--amber)" : "var(--muted)"}; 
+          background:${selectedDayOptionId === o.id ? "var(--amber)" : "transparent"}; 
+          color:${selectedDayOptionId === o.id ? "#1a1400" : "transparent"}; 
+          display:inline-flex; 
+          align-items:center; 
+          justify-content:center; 
+          font-size:11px; 
+          font-weight:bold;
+          flex-shrink:0;">✓</span>
+      </button>`
+    )
+    .join("");
+
+  container.querySelectorAll(".day-card-item").forEach((btn) => {
+    btn.addEventListener("click", () => {
+      selectedDayOptionId = btn.dataset.dayId;
+      renderDayOptionCards(options, container); // Render ใหม่เพื่ออัปเดตสถานะปุ่มที่ถูกเลือก
+      updatePayButton();
+    });
+  });
 }
 
 function updateTotal() {
