@@ -18,7 +18,7 @@ const STATUS_LABEL = {
   cancelled: "ยกเลิก",
 };
 
-async function loadOrders() {
+async function loadOrders(user) { 
   const loadingText = document.getElementById("loadingText");
   const emptyText = document.getElementById("emptyText");
   const orderList = document.getElementById("orderList");
