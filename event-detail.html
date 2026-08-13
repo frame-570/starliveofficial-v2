@@ -37,16 +37,16 @@
       <h2 class="display" style="font-size:15px; margin:0 0 14px;">เลือกแพ็กเกจ</h2>
       <div id="packageTabs" style="display:flex; flex-direction:column; gap:10px;"></div>
 
-      <!-- dropdown สำหรับแพ็กเกจ 1 วัน / 2 วัน ที่มีหลายรอบให้เลือก -->
+      <!-- เปลี่ยนจาก dropdown มาเป็นกรอบปุ่มเลือกหลายรอบวัน -->
       <div id="dayOptionWrap" style="display:none; margin-top:16px;">
-        <label class="field-label" for="dayOptionSelect">เลือกรอบวันที่</label>
-        <select id="dayOptionSelect" class="field-input"></select>
+        <label class="field-label" style="margin-bottom:8px; display:block;">เลือกรอบวันที่</label>
+        <div id="dayOptionsGrid" style="display:flex; flex-direction:column; gap:10px;"></div>
       </div>
 
       <!-- ข้อความแสดงรอบวันแบบตายตัว เมื่อแพ็กเกจมีรอบเดียว (เช่น 3 วันเต็ม) -->
       <div id="singleDayOptionWrap" style="display:none; margin-top:16px;">
         <span class="field-label">รอบวันที่</span>
-        <p id="singleDayOptionLabel" style="margin:0; font-size:14.5px;"></p>
+        <p id="singleDayOptionLabel" style="margin:6px 0 0; font-size:14.5px; color:var(--text); font-weight:600;"></p>
       </div>
 
       <div class="perforation"></div>
