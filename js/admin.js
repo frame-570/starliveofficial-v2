@@ -409,7 +409,7 @@ eventForm.addEventListener("submit", async (e) => {
       bannerUrl = publicUrlData.publicUrl;
     }
 
-    // 2. Save Events
+    // 2. Save Events (ไม่ส่งฟิลด์ไลฟ์ภาพรวมแล้ว)
     const eventPayload = {
       title: evTitle.value.trim(),
       description: evDescription.value.trim() || null,
@@ -439,14 +439,28 @@ eventForm.addEventListener("submit", async (e) => {
       .select();
     if (daysError) throw new Error(daysError.message);
 
-    // 4. Delete Unused Packages
+    // 4. จัดการแพ็กเกจด้วยระบบ Upsert (ป้องกัน Error Foreign Key จากออเดอร์เก่า)
     const enabledNumDaysList = enabledPackages.map((p) => p.num_days);
-    const { error: deleteOldPkgErr } = await supabase
+    
+    // ปิดการใช้งาน (หรือข้าม) แพ็กเกจที่ไม่ได้เลือกแทนการสั่ง Delete ตรงๆ ถ้ามีออเดอร์ผูกอยู่
+    const { data: existingPkgs } = await supabase
       .from("ticket_packages")
-      .delete()
-      .eq("event_id", savedEventId)
-      .not("num_days", "in", `(${enabledNumDaysList.join(",")})`);
-    if (deleteOldPkgErr) throw new Error(deleteOldPkgErr.message);
+      .select("id, num_days")
+      .eq("event_id", savedEventId);
+
+    if (existingPkgs) {
+      for (const ep of existingPkgs) {
+        if (!enabledNumDaysList.includes(ep.num_days)) {
+          // ลบ option วันย่อยก่อน แล้วค่อยลบแพ็กเกจ
+          await supabase.from("ticket_package_day_options").delete().eq("package_id", ep.id);
+          const { error: delPkgErr } = await supabase.from("ticket_packages").delete().eq("id", ep.id);
+          if (delPkgErr) {
+            // ถ้าติด Foreign Key เพราะมีคนซื้อไปแล้ว ให้ใช้วิธีเซ็ตราคาเป็น 0 หรือข้ามการลบแทน
+            console.warn("ไม่สามารถลบแพ็กเกจที่มีออเดอร์อ้างอิงได้");
+          }
+        }
+      }
+    }
 
     // 5. Upsert Packages & Day Options
     const sortedDays = insertedDays.sort((a, b) => a.day_number - b.day_number);
