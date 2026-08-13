@@ -1,4 +1,4 @@
-Import { supabase } from "./supabaseClient.js";
+import { supabase } from "./supabaseClient.js";
 import { SUPABASE_ANON_KEY, FUNCTIONS_URL } from "./config.js";
 
 const loginScreen = document.getElementById("loginScreen");
