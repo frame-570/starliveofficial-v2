@@ -23,10 +23,12 @@ async function loadOrders(user) {
   const emptyText = document.getElementById("emptyText");
   const orderList = document.getElementById("orderList");
 
+  // ดึงเฉพาะข้อมูลออเดอร์ของ user นี้ และกรองเฉพาะสถานะ "paid" (ชำระเงินสำเร็จ) เท่านั้น
   const { data: orders, error } = await supabase
     .from("orders")
     .select("*, events(title), ticket_packages(num_days), ticket_package_day_options(label)")
     .eq('user_id', user.id)
+    .eq('status', 'paid') // <-- เพิ่มเงื่อนไขกรองเฉพาะที่จ่ายเงินสำเร็จแล้ว
     .order("created_at", { ascending: false });
 
   loadingText.style.display = "none";
