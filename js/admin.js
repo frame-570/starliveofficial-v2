@@ -427,9 +427,104 @@ eventForm.addEventListener("submit", async (e) => {
       const { data: pkgRow, error: pkgError } = await supabase
         .from("ticket_packages")
         .insert({ event_id: savedEventId, num_days: pkg.num_days, price: pkg.price })
+// ---------- Save event ----------
+eventForm.addEventListener("submit", async (e) => {
+  e.preventDefault();
+  eventFormError.textContent = "";
+
+  const days = getDaysFromForm();
+  if (days.length === 0) {
+    eventFormError.textContent = "กรุณาเพิ่มวันจัดงานอย่างน้อย 1 วัน";
+    return;
+  }
+  if (days.some((d) => !d.event_date)) {
+    eventFormError.textContent = "กรุณาเลือกวันที่ให้ครบทุกแถว";
+    return;
+  }
+
+  const enabledPackages = [...packageRows.querySelectorAll("[data-num-days]")]
+    .filter((row) => row.querySelector(".pkg-enable").checked)
+    .map((row) => ({
+      num_days: Number(row.dataset.numDays),
+      price: Number(row.querySelector(".pkg-price").value),
+    }));
+
+  if (enabledPackages.length === 0) {
+    eventFormError.textContent = "กรุณาเปิดใช้งานแพ็กเกจอย่างน้อย 1 แบบ พร้อมราคา";
+    return;
+  }
+  if (enabledPackages.some((p) => !p.price || p.price <= 0)) {
+    eventFormError.textContent = "กรุณากรอกราคาของแพ็กเกจที่เปิดใช้งานให้ครบ";
+    return;
+  }
+
+  const saveBtn = document.getElementById("saveEventBtn");
+  saveBtn.disabled = true;
+  saveBtn.textContent = "กำลังบันทึก...";
+
+  try {
+    // ---------- อัปโหลดโปสเตอร์ถ้ามีไฟล์ใหม่ ----------
+    let bannerUrl = currentBannerUrl;
+    const file = evBannerFile.files[0];
+    if (file) {
+      const ext = file.name.split(".").pop() || "jpg";
+      const path = `${crypto.randomUUID()}.${ext}`;
+      const { error: uploadError } = await supabase.storage.from("event-banners").upload(path, file, { upsert: false });
+      if (uploadError) throw new Error("อัปโหลดโปสเตอร์ไม่สำเร็จ");
+      const { data: publicUrlData } = supabase.storage.from("event-banners").getPublicUrl(path);
+      bannerUrl = publicUrlData.publicUrl;
+    }
+
+    const eventPayload = {
+      title: evTitle.value.trim(),
+      description: evDescription.value.trim() || null,
+      banner_url: bannerUrl || null,
+      status: evStatus.value,
+      viewing_duration_months: Number(evViewingMonths.value) || 6,
+      rerun_duration_months: Number(evRerunMonths.value) || 6,
+      live_platform: evLivePlatform.value || null,
+      live_youtube_url: evLivePlatform.value === "youtube" ? evLiveYoutubeUrl.value.trim() || null : null,
+      live_cloudflare_uid: evLivePlatform.value === "cloudflare" ? evLiveCfUid.value.trim() || null : null,
+      rerun_platform: evRerunPlatform.value || null,
+      rerun_youtube_url: evRerunPlatform.value === "youtube" ? evRerunYoutubeUrl.value.trim() || null : null,
+      rerun_cloudflare_uid: evRerunPlatform.value === "cloudflare" ? evRerunCfUid.value.trim() || null : null,
+    };
+
+    const eventId = eventIdInput.value;
+    let savedEventId = eventId;
+
+    if (eventId) {
+      const { error } = await supabase.from("events").update(eventPayload).eq("id", eventId);
+      if (error) throw new Error(error.message);
+    } else {
+      const { data, error } = await supabase.from("events").insert(eventPayload).select().single();
+      if (error) throw new Error(error.message);
+      savedEventId = data.id;
+    }
+
+    // ---------- Sync event_days (ลบเฉพาะวันแล้ว insert ใหม่) ----------
+    await supabase.from("event_days").delete().eq("event_id", savedEventId);
+    const { data: insertedDays, error: daysError } = await supabase
+      .from("event_days")
+      .insert(days.map((d) => ({ ...d, event_id: savedEventId })))
+      .select();
+    if (daysError) throw new Error(daysError.message);
+
+    // ---------- Sync ticket_packages (ใช้ Upsert เพื่อแก้ปัญหาติด Foreign Key) ----------
+    for (const pkg of enabledPackages) {
+      // ใช้ upsert เพื่ออัปเดตราคาถ้ามี (event_id, num_days) อยู่แล้ว หรือ insert ถ้ายังไม่มี
+      const { data: pkgRow, error: pkgError } = await supabase
+        .from("ticket_packages")
+        .upsert(
+          { event_id: savedEventId, num_days: pkg.num_days, price: pkg.price },
+          { onConflict: "event_id, num_days" }
+        )
         .select()
         .single();
       if (pkgError) throw new Error(pkgError.message);
+
+      // ลบเฉพาะ day options เก่าของแพ็กเกจนี้ แล้วสร้าง combo ใหม่
+      await supabase.from("ticket_package_day_options").delete().eq("package_id", pkgRow.id);
 
       const combos = combinations(insertedDays.sort((a, b) => a.day_number - b.day_number), pkg.num_days);
       const optionRows = combos.map((combo) => ({
@@ -453,6 +548,7 @@ eventForm.addEventListener("submit", async (e) => {
     saveBtn.textContent = "บันทึกงาน";
   }
 });
+
 
 function combinations(arr, size) {
   if (size === arr.length) return [arr];
