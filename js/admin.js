@@ -1,6 +1,7 @@
 import { supabase } from "./supabaseClient.js";
 import { SUPABASE_ANON_KEY, FUNCTIONS_URL } from "./config.js";
 
+// --- DOM Elements ---
 const loginScreen = document.getElementById("loginScreen");
 const dashboard = document.getElementById("dashboard");
 const loginForm = document.getElementById("loginForm");
@@ -144,7 +145,7 @@ document.querySelectorAll(".admin-tab-btn").forEach((btn) => {
 });
 
 // ============================================================
-// Events: form open/close, dynamic day + package rows
+// Events: Form, Dynamic Days & Packages
 // ============================================================
 const eventFormCard = document.getElementById("eventFormCard");
 const eventFormTitle = document.getElementById("eventFormTitle");
@@ -324,7 +325,19 @@ function closeEventForm() {
   eventFormCard.style.display = "none";
 }
 
-// ---------- Save event ----------
+// ---------- Helper Function: Combination ----------
+function combinations(arr, size) {
+  if (size === arr.length) return [arr];
+  if (size === 1) return arr.map((x) => [x]);
+  const result = [];
+  for (let i = 0; i <= arr.length - size; i++) {
+    const rest = combinations(arr.slice(i + 1), size - 1);
+    rest.forEach((r) => result.push([arr[i], ...r]));
+  }
+  return result;
+}
+
+// ---------- Save Event ----------
 eventForm.addEventListener("submit", async (e) => {
   e.preventDefault();
   eventFormError.textContent = "";
@@ -360,7 +373,7 @@ eventForm.addEventListener("submit", async (e) => {
   saveBtn.textContent = "กำลังบันทึก...";
 
   try {
-    // ---------- อัปโหลดโปสเตอร์ถ้ามีไฟล์ใหม่ ----------
+    // 1. Upload Banner
     let bannerUrl = currentBannerUrl;
     const file = evBannerFile.files[0];
     if (file) {
@@ -372,6 +385,7 @@ eventForm.addEventListener("submit", async (e) => {
       bannerUrl = publicUrlData.publicUrl;
     }
 
+    // 2. Save Events
     const eventPayload = {
       title: evTitle.value.trim(),
       description: evDescription.value.trim() || null,
@@ -399,7 +413,7 @@ eventForm.addEventListener("submit", async (e) => {
       savedEventId = data.id;
     }
 
-    // ---------- Sync event_days (ลบเฉพาะวันแล้ว insert ใหม่) ----------
+    // 3. Sync Event Days
     await supabase.from("event_days").delete().eq("event_id", savedEventId);
     const { data: insertedDays, error: daysError } = await supabase
       .from("event_days")
@@ -407,7 +421,18 @@ eventForm.addEventListener("submit", async (e) => {
       .select();
     if (daysError) throw new Error(daysError.message);
 
-    // ---------- Sync ticket_packages (ใช้ Upsert เพื่อแก้ปัญหาติด Foreign Key) ----------
+    // 4. Delete Unused Packages
+    const enabledNumDaysList = enabledPackages.map((p) => p.num_days);
+    const { error: deleteOldPkgErr } = await supabase
+      .from("ticket_packages")
+      .delete()
+      .eq("event_id", savedEventId)
+      .not("num_days", "in", `(${enabledNumDaysList.join(",")})`);
+    if (deleteOldPkgErr) throw new Error(deleteOldPkgErr.message);
+
+    // 5. Upsert Packages & Day Options
+    const sortedDays = insertedDays.sort((a, b) => a.day_number - b.day_number);
+
     for (const pkg of enabledPackages) {
       const { data: pkgRow, error: pkgError } = await supabase
         .from("ticket_packages")
@@ -419,18 +444,19 @@ eventForm.addEventListener("submit", async (e) => {
         .single();
       if (pkgError) throw new Error(pkgError.message);
 
-      // ลบเฉพาะ day options เก่าของแพ็กเกจนี้ แล้วสร้าง combo ใหม่
+      // ลบตัวเลือกวันเก่าทิ้งเสมอ ป้องกันปัญหาการสร้างซ้ำ
       await supabase.from("ticket_package_day_options").delete().eq("package_id", pkgRow.id);
 
-      const combos = combinations(insertedDays.sort((a, b) => a.day_number - b.day_number), pkg.num_days);
+      const combos = combinations(sortedDays, pkg.num_days);
       const optionRows = combos.map((combo) => ({
         package_id: pkgRow.id,
         day_numbers: combo.map((d) => d.day_number),
         label:
-          combo.length === insertedDays.length && insertedDays.length > 1
+          combo.length === sortedDays.length && sortedDays.length > 1
             ? `ทุกวัน (${combo.length} วัน)`
             : `วันที่ ${combo.map((d) => d.day_number).join("+")}`,
       }));
+
       const { error: optError } = await supabase.from("ticket_package_day_options").insert(optionRows);
       if (optError) throw new Error(optError.message);
     }
@@ -445,18 +471,7 @@ eventForm.addEventListener("submit", async (e) => {
   }
 });
 
-function combinations(arr, size) {
-  if (size === arr.length) return [arr];
-  if (size === 1) return arr.map((x) => [x]);
-  const result = [];
-  for (let i = 0; i <= arr.length - size; i++) {
-    const rest = combinations(arr.slice(i + 1), size - 1);
-    rest.forEach((r) => result.push([arr[i], ...r]));
-  }
-  return result;
-}
-
-// ---------- List events ----------
+// ---------- List Events ----------
 async function loadEvents() {
   const { data, error } = await supabase
     .from("events")
@@ -599,11 +614,14 @@ function escapeHtml(str) {
   div.textContent = str ?? "";
   return div.innerHTML;
 }
+
 function escapeAttr(str) {
   return escapeHtml(str).replace(/"/g, "&quot;");
 }
 
-// ---------- Settings modal (ปุ่มฟันเฟือง) ----------
+// ============================================================
+// Settings Modal (ปุ่มตั้งค่าระบบ)
+// ============================================================
 const settingsBtn = document.getElementById("settingsBtn");
 const settingsOverlay = document.getElementById("settingsOverlay");
 const settingsForm = document.getElementById("settingsForm");
