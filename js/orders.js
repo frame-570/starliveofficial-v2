@@ -26,6 +26,7 @@ async function loadOrders() {
   const { data: orders, error } = await supabase
     .from("orders")
     .select("*, events(title), ticket_packages(num_days), ticket_package_day_options(label)")
+    .eq('user_id', user.id)
     .order("created_at", { ascending: false });
 
   loadingText.style.display = "none";
