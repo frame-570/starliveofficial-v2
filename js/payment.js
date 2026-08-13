@@ -1,6 +1,7 @@
 import { supabase } from "./supabaseClient.js";
 import { renderHeaderAuth, getSession } from "./auth.js";
-import generatePayload from "https://esm.sh/promptpay-qr@0.7.0";
+// แก้ไขการ import promptpay-qr ชนิด ES Module ให้สมบูรณ์
+import promptpayQr from "https://cdn.jsdelivr.net/npm/promptpay-qr@0.5.0/+esm";
 import QRCode from "https://esm.sh/qrcode@1.5.3";
 
 renderHeaderAuth();
@@ -63,11 +64,13 @@ async function renderPaymentCard(order) {
   document.getElementById("eventTitleLabel").textContent = order.events?.title || "";
   document.getElementById("amountLabel").textContent = `${Number(order.amount).toLocaleString("th-TH")}฿`;
 
-  const { data: settings } = await supabase
+  // ดึงแถวแรกของ app_settings โดยไม่ต้องเจาะจง id = 1
+  const { data: settingsList } = await supabase
     .from("app_settings")
     .select("promptpay_id, promptpay_name, line_oa_url")
-    .eq("id", 1)
-    .maybeSingle();
+    .limit(1);
+
+  const settings = settingsList?.[0];
 
   const lineOaLink = document.getElementById("lineOaLink");
   if (settings?.line_oa_url) lineOaLink.href = settings.line_oa_url;
@@ -80,7 +83,8 @@ async function renderPaymentCard(order) {
 
   document.getElementById("promptpayNameLabel").textContent = settings.promptpay_name || "";
 
-  const payload = generatePayload(settings.promptpay_id, { amount: Number(order.amount) });
+  // สร้าง QR Code จาก payload พร้อมเพย์
+  const payload = promptpayQr(settings.promptpay_id, { amount: Number(order.amount) });
   const qrDataUrl = await QRCode.toDataURL(payload, { width: 280, margin: 1 });
   document.getElementById("qrImage").src = qrDataUrl;
 }
