@@ -565,9 +565,20 @@ html, body {
 
 .event-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
-  gap: 20px;
+  width: 100%;
+  gap: 16px;
+  /* 📱 บังคับให้เป็น 2 กล่องต่อแถวสำหรับโทรศัพท์มือถือเป็นค่าเริ่มต้น */
+  grid-template-columns: repeat(2, 1fr);
 }
+
+/* 💻 ตั้งแต่หน้าจอแท็บเล็ต / คอมพิวเตอร์ (768px ขึ้นไป) ให้เป็น 4 กล่องต่อแถว */
+@media (min-width: 768px) {
+  .event-grid {
+    grid-template-columns: repeat(4, 1fr);
+    gap: 20px;
+  }
+}
+
 .event-card {
   background: linear-gradient(180deg, var(--surface), var(--surface-2));
   border: 1px solid var(--line);
@@ -702,6 +713,11 @@ html, body {
   .login-form-panel { padding: 16px 20px 50px; }
   .home-hero-title { font-size: 24px; }
   .home-header { padding: 14px 16px; }
+  
+  /* ปรับแต่งรายละเอียดการ์ดให้กระชับพอดียามอยู่บนมือถือ 2 กล่อง */
+  .event-card-body { padding: 10px 12px 14px; }
+  .event-card-title { font-size: 13.5px; }
+  .event-card-meta { font-size: 11px; }
 }
 
 /* ---------- Event detail page ---------- */
