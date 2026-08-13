@@ -1,4 +1,4 @@
-import { supabase } from "./supabaseClient.js";
+Import { supabase } from "./supabaseClient.js";
 import { SUPABASE_ANON_KEY, FUNCTIONS_URL } from "./config.js";
 
 const loginScreen = document.getElementById("loginScreen");
@@ -407,9 +407,22 @@ eventForm.addEventListener("submit", async (e) => {
       .select();
     if (daysError) throw new Error(daysError.message);
 
-    // ---------- Sync ticket_packages + day options (ลบของเดิมแล้วสร้างใหม่) ----------
+    // ---------- Sync ticket_packages + day options ----------
+    // 1. ดึงแพ็กเกจเดิมทั้งหมดของ event นี้ขึ้นมาเพื่อลบตัวเลือกวัน (options) ย่อยก่อน
+    const { data: existingPkgs } = await supabase
+      .from("ticket_packages")
+      .select("id")
+      .eq("event_id", savedEventId);
+
+    if (existingPkgs && existingPkgs.length > 0) {
+      const pkgIds = existingPkgs.map((p) => p.id);
+      await supabase.from("ticket_package_day_options").delete().in("package_id", pkgIds);
+    }
+
+    // 2. ลบแพ็กเกจราคาเดิมออก
     await supabase.from("ticket_packages").delete().eq("event_id", savedEventId);
 
+    // 3. สร้างแพ็กเกจราคา + ตัวเลือกวันใหม่
     for (const pkg of enabledPackages) {
       const { data: pkgRow, error: pkgError } = await supabase
         .from("ticket_packages")
