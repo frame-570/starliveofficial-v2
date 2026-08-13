@@ -889,3 +889,68 @@ html, body {
   .viewer-badge, .live-badge { font-size: 10px; padding: 4px 8px; }
   .top-bar-right { gap: 4px; }
 }
+/* ---------- แท็บสลับวันชมถ่ายทอดสด / รีรัน ---------- */
+.day-tabs-wrapper {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  gap: 10px;
+  margin: 0 auto 16px;
+  width: min(920px, 94vw);
+  flex-wrap: wrap;
+}
+
+.day-tab-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 18px;
+  border-radius: 12px;
+  border: 1.5px solid var(--line);
+  background: rgba(27, 23, 48, 0.6);
+  color: var(--text);
+  font-family: "Prompt", sans-serif;
+  font-size: 13.5px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.day-tab-btn:hover:not(:disabled) {
+  border-color: var(--amber);
+  background: rgba(242, 183, 5, 0.12);
+  transform: translateY(-1px);
+}
+
+.day-tab-btn.active {
+  border-color: var(--amber);
+  background: linear-gradient(180deg, #ffd23c, var(--amber));
+  color: #1a1400;
+  box-shadow: 0 6px 18px -4px rgba(242, 183, 5, 0.4);
+}
+
+.day-tab-btn:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+  border-color: transparent;
+  background: rgba(0, 0, 0, 0.2);
+}
+
+/* ไอคอน SVG รูปภาพแทนอิโมจิ */
+.icon-svg {
+  width: 15px;
+  height: 15px;
+  display: inline-block;
+  vertical-align: middle;
+  flex-shrink: 0;
+}
+
+.icon-live-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background-color: var(--crimson);
+  display: inline-block;
+  box-shadow: 0 0 8px var(--crimson);
+}
+
