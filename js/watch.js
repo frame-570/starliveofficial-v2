@@ -80,7 +80,7 @@ codeForm.addEventListener("submit", async (e) => {
     } else if (body.locked) {
       startLockoutCountdown(300);
     } else {
-      showError("รหัสเข้าชมไม่ถูกต้อง หรือหมดอายุ");
+      showError(body.error || "รหัสเข้าชมไม่ถูกต้อง หรือหมดอายุ");
     }
     return;
   }
@@ -123,10 +123,18 @@ function enterStage(data) {
   let src = null;
 
   if (data.platform === "cloudflare") {
-    const code = data.customer_code;
-    src = `https://customer-${code}.cloudflarestream.com/${data.token}/iframe?autoplay=true`;
+    // 📌 แก้ไขจุดนี้: ใช้ streamUrl ที่ยิงมาจาก Edge Function หรือต่อ URL หากไม่ได้ส่ง streamUrl
+    if (data.streamUrl) {
+      src = data.streamUrl.includes("?") 
+        ? `${data.streamUrl}&autoplay=true` 
+        : `${data.streamUrl}?autoplay=true`;
+    } else {
+      const code = data.customer_code || "ohx74kd7koi6qp2a";
+      src = `https://customer-${code}.cloudflarestream.com/${data.token}/iframe?autoplay=true`;
+    }
   } else {
-    const videoId = extractYouTubeId(data.youtube_url);
+    const rawUrl = data.streamUrl || data.youtube_url;
+    const videoId = extractYouTubeId(rawUrl);
     if (!videoId) {
       showError("ลิงก์การถ่ายทอดสดไม่ถูกต้อง กรุณาติดต่อผู้ดูแลระบบ");
       return;
@@ -134,7 +142,7 @@ function enterStage(data) {
     src = `https://www.youtube.com/embed/${videoId}?autoplay=1&rel=0`;
   }
 
-  liveTitle.textContent = data.title;
+  liveTitle.textContent = data.eventTitle || data.title || "Star Live Official";
   streamFrame.src = src;
 
   if (data.status === "rerun") {
