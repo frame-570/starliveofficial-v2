@@ -1,0 +1,65 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>รายละเอียดงาน — Star Live Official</title>
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link href="https://fonts.googleapis.com/css2?family=Prompt:wght@500;600;700;800&family=Sarabun:wght@400;500;600&display=swap" rel="stylesheet" />
+<link rel="stylesheet" href="./style.css" />
+</head>
+<body>
+<div class="stage-bg"></div>
+
+<header class="home-header">
+  <a href="./index.html" class="marquee-brand" style="text-decoration:none;"><span class="bulb"></span> STAR LIVE OFFICIAL</a>
+  <div class="home-header-right">
+    <a href="./watch.html" class="icon-btn ghost home-watch-btn">ชมไลฟ์สด/รีรัน</a>
+    <div id="headerAuthArea"></div>
+  </div>
+</header>
+
+<main class="home-shell" style="max-width:640px;">
+
+  <p id="loadingText" class="muted" style="text-align:center; padding:60px 0;">กำลังโหลดข้อมูลงาน...</p>
+  <p id="notFoundText" class="muted" style="display:none; text-align:center; padding:60px 0;">ไม่พบงานนี้ อาจถูกลบหรือปิดการขายแล้ว</p>
+
+  <div id="eventDetailShell" style="display:none;">
+    <div class="event-detail-banner" id="eventBanner"></div>
+
+    <div style="text-align:center; margin: 22px 0 30px;">
+      <h1 class="display" id="eventTitle" style="font-size:24px; margin:0 0 6px;"></h1>
+      <p class="muted" id="eventDates" style="font-size:13.5px; margin:0 0 8px;"></p>
+      <p class="muted" id="eventDescription" style="font-size:14px; margin:0;"></p>
+    </div>
+
+    <div class="pass-card" style="width:100%; max-width:480px; margin:0 auto;">
+      <h2 class="display" style="font-size:15px; margin:0 0 14px;">เลือกแพ็กเกจ</h2>
+      <div id="packageTabs" style="display:flex; flex-direction:column; gap:10px;"></div>
+
+      <!-- dropdown สำหรับแพ็กเกจ 1 วัน / 2 วัน ที่มีหลายรอบให้เลือก -->
+      <div id="dayOptionWrap" style="display:none; margin-top:16px;">
+        <label class="field-label" for="dayOptionSelect">เลือกรอบวันที่</label>
+        <select id="dayOptionSelect" class="field-input"></select>
+      </div>
+
+      <!-- ข้อความแสดงรอบวันแบบตายตัว เมื่อแพ็กเกจมีรอบเดียว (เช่น 3 วันเต็ม) -->
+      <div id="singleDayOptionWrap" style="display:none; margin-top:16px;">
+        <span class="field-label">รอบวันที่</span>
+        <p id="singleDayOptionLabel" style="margin:0; font-size:14.5px;"></p>
+      </div>
+
+      <div class="perforation"></div>
+      <div style="display:flex; justify-content:space-between; align-items:baseline; margin-bottom:6px;">
+        <span class="muted" style="font-size:13px;">ยอดชำระ</span>
+        <span class="display" id="totalPrice" style="font-size:22px; color:var(--amber); font-weight:700;">—</span>
+      </div>
+      <p class="error-text" id="purchaseError"></p>
+      <button type="button" id="payBtn" class="btn-marquee" disabled>ชำระเงิน</button>
+    </div>
+  </div>
+</main>
+
+<script type="module" src="./js/event-detail.js"></script>
+</body>
+</html>

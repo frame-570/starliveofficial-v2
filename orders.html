@@ -1,0 +1,33 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>ประวัติการสั่งซื้อ — Star Live Official</title>
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link href="https://fonts.googleapis.com/css2?family=Prompt:wght@500;600;700;800&family=Sarabun:wght@400;500;600&display=swap" rel="stylesheet" />
+<link rel="stylesheet" href="./style.css" />
+</head>
+<body>
+<div class="stage-bg"></div>
+
+<header class="home-header">
+  <a href="./index.html" class="marquee-brand" style="text-decoration:none;"><span class="bulb"></span> STAR LIVE OFFICIAL</a>
+  <div class="home-header-right">
+    <a href="./watch.html" class="icon-btn ghost home-watch-btn">ชมไลฟ์สด/รีรัน</a>
+    <div id="headerAuthArea"></div>
+  </div>
+</header>
+
+<main class="home-shell" style="max-width:640px;">
+  <h1 class="display" style="font-size:20px; text-align:center; margin:10px 0 24px;">ประวัติการสั่งซื้อ</h1>
+
+  <p id="loadingText" class="muted" style="text-align:center; padding:40px 0;">กำลังโหลด...</p>
+  <p id="emptyText" class="muted" style="display:none; text-align:center; padding:40px 0;">ยังไม่มีคำสั่งซื้อ</p>
+
+  <div id="orderList" style="display:flex; flex-direction:column; gap:14px;"></div>
+</main>
+
+<script type="module" src="./js/orders.js"></script>
+</body>
+</html>
