@@ -12,14 +12,27 @@ const streamFrame = document.getElementById("streamFrame");
 const topBar = document.getElementById("topBar");
 const statusBadge = document.getElementById("statusBadge");
 const dayTabContainer = document.getElementById("dayTabContainer");
+const switchDayBtn = document.getElementById("switchDayBtn");
+
+// Modals
+const daySelectModal = document.getElementById("daySelectModal");
+const dayOptionsList = document.getElementById("dayOptionsList");
+const rulesModal = document.getElementById("rulesModal");
+const rulesContent = document.getElementById("rulesContent");
+const dontShowAgainCheck = document.getElementById("dontShowAgainCheck");
+const acceptRulesBtn = document.getElementById("acceptRulesBtn");
 
 let lockoutTimer = null;
+let heartbeatInterval = null;
+let currentSessionToken = null;
+let currentAccessCode = null;
+let activeEventData = null;
+let pendingSelectedDay = null;
 
-// รูปไอคอน SVG สำหรับแทนที่อิโมจิ
 const ICONS = {
-  lock: `<svg class="icon-svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>`,
+  lock: `<svg class="icon-svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>`,
   play: `<svg class="icon-svg" viewBox="0 0 24 24" fill="currentColor"><polygon points="5 3 19 12 5 21 5 3"/></svg>`,
-  clock: `<svg class="icon-svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>`,
+  clock: `<svg class="icon-svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>`,
   liveDot: `<span class="icon-live-dot"></span>`
 };
 
@@ -79,6 +92,8 @@ codeForm.addEventListener("submit", async (e) => {
   if (!res.ok) {
     if (body.error === "code_expired") {
       showError("รหัสเข้าชมนี้หมดอายุแล้ว");
+    } else if (body.error === "already_in_use") {
+      showError("รหัสนี้กำลังถูกใช้งานอยู่บนเครื่องอื่น (รับชมได้พร้อมกัน 1 เครื่อง)");
     } else if (body.error === "not_started") {
       showError(`"${body.title || "งานนี้"}" ยังไม่เริ่มถ่ายทอดสด กรุณากลับมาใหม่ในวันที่จัดงาน`);
     } else if (body.error === "ended") {
@@ -93,8 +108,252 @@ codeForm.addEventListener("submit", async (e) => {
     return;
   }
 
-  enterStage(body);
+  currentAccessCode = code;
+  currentSessionToken = body.session_token || null;
+  activeEventData = body;
+
+  // เริ่มส่ง Heartbeat เช็กสิทธิ์เครื่องเดียว
+  startHeartbeat();
+
+  // ตรวจสอบแพ็กเกจหลายวัน
+  const purchasedDays = body.purchased_days || [1];
+  if (purchasedDays.length > 1 && body.event_days && body.event_days.length > 1) {
+    showDaySelectionModal(body);
+  } else {
+    // แพ็กเกจวันเดียว
+    const targetDayNumber = purchasedDays[0] || 1;
+    const selectedDay = body.event_days?.find(d => d.day_number === targetDayNumber) || body.event_days?.[0];
+    proceedToRulesOrWatch(selectedDay);
+  }
 });
+
+// แสดง Modal เลือกวัน
+function showDaySelectionModal(data) {
+  dayOptionsList.innerHTML = "";
+  const purchasedDays = data.purchased_days || [1];
+  const days = (data.event_days || []).sort((a, b) => a.day_number - b.day_number);
+
+  days.forEach((day) => {
+    const isPurchased = purchasedDays.includes(day.day_number);
+    const btn = document.createElement("button");
+    btn.type = "button";
+    btn.className = "day-option-btn";
+
+    // 1. ไม่มีสิทธิ์
+    if (!isPurchased) {
+      btn.disabled = true;
+      btn.innerHTML = `<div class="day-title">${ICONS.lock} วันที่ ${day.day_number}</div><div class="day-status">ไม่มีสิทธิ์รับชม</div>`;
+    } 
+    // 2. ถ่ายทอดสด
+    else if (data.status === "live" && (day.live_youtube_url || day.live_cloudflare_uid)) {
+      btn.innerHTML = `<div class="day-title">${ICONS.liveDot} วันที่ ${day.day_number}</div><div class="day-status live">ถ่ายทอดสด</div>`;
+      btn.onclick = () => {
+        daySelectModal.style.display = "none";
+        proceedToRulesOrWatch(day, "live");
+      };
+    } 
+    // 3. รีรัน (ย้อนหลัง)
+    else if (day.rerun_youtube_url || day.rerun_cloudflare_uid) {
+      btn.innerHTML = `<div class="day-title">${ICONS.play} วันที่ ${day.day_number}</div><div class="day-status rerun">รับชมรีรัน</div>`;
+      btn.onclick = () => {
+        daySelectModal.style.display = "none";
+        proceedToRulesOrWatch(day, "rerun");
+      };
+    } 
+    // 4. ยังไม่ถึงกำหนดวัน (ซ่อน UID / ลิงก์ไว้)
+    else {
+      btn.disabled = true;
+      btn.innerHTML = `<div class="day-title">${ICONS.clock} วันที่ ${day.day_number}</div><div class="day-status">ยังไม่ถึงวันถ่ายทอดสด</div>`;
+    }
+
+    dayOptionsList.appendChild(btn);
+  });
+
+  daySelectModal.style.display = "flex";
+}
+
+// ตรวจสอบเรื่องกฎ/ข้อตกลง
+function proceedToRulesOrWatch(dayData, mode = null) {
+  pendingSelectedDay = { dayData, mode };
+  const hideRules = localStorage.getItem("hide_watch_rules") === "true";
+
+  if (!hideRules) {
+    const noticeText = activeEventData?.notice_message || 
+      "1. ห้ามบันทึกภาพหน้าจอหรือนำคลิปไปเผยแพร่โดยไม่ได้รับอนุญาต\n2. รหัสเข้าชมใช้งานได้ทีละ 1 เครื่องเท่านั้น\n3. หากมีการเข้าใช้งานซ้อน ระบบจะตัดการเชื่อมต่อทันที";
+    rulesContent.innerText = noticeText;
+    rulesModal.style.display = "flex";
+  } else {
+    startViewing(dayData, mode);
+  }
+}
+
+acceptRulesBtn.addEventListener("click", () => {
+  if (dontShowAgainCheck.checked) {
+    localStorage.setItem("hide_watch_rules", "true");
+  }
+  rulesModal.style.display = "none";
+  if (pendingSelectedDay) {
+    startViewing(pendingSelectedDay.dayData, pendingSelectedDay.mode);
+  }
+});
+
+// เริ่มรับชมงาน
+function startViewing(dayData, mode) {
+  liveTitle.textContent = activeEventData.eventTitle || activeEventData.title || "Star Live Official";
+
+  if (activeEventData.purchased_days && activeEventData.purchased_days.length > 1) {
+    switchDayBtn.style.display = "inline-block";
+    switchDayBtn.onclick = () => showDaySelectionModal(activeEventData);
+  }
+
+  renderDayTabs(activeEventData, dayData);
+  loadSelectedDayStream(dayData, mode);
+
+  topBar.style.display = "flex";
+  codeScreen.classList.add("curtain-exit");
+  setTimeout(() => {
+    codeScreen.style.display = "none";
+    playerScreen.style.display = "block";
+  }, 480);
+}
+
+function renderDayTabs(data, activeDay) {
+  if (!dayTabContainer) return;
+  dayTabContainer.innerHTML = "";
+
+  const purchasedDays = data.purchased_days || [1];
+  const days = (data.event_days || []).sort((a, b) => a.day_number - b.day_number);
+
+  days.forEach((day) => {
+    const isPurchased = purchasedDays.includes(day.day_number);
+    const btn = document.createElement("button");
+    btn.type = "button";
+    btn.className = "day-tab-btn";
+    if (activeDay && day.day_number === activeDay.day_number) {
+      btn.classList.add("active");
+    }
+
+    if (!isPurchased) {
+      btn.disabled = true;
+      btn.innerHTML = `${ICONS.lock} <span>วันที่ ${day.day_number}</span>`;
+    } else if (data.status === "live" && (day.live_youtube_url || day.live_cloudflare_uid)) {
+      btn.innerHTML = `${ICONS.liveDot} <span>สด: วันที่ ${day.day_number}</span>`;
+      btn.onclick = () => {
+        setActiveTab(btn);
+        loadSelectedDayStream(day, "live");
+      };
+    } else if (day.rerun_youtube_url || day.rerun_cloudflare_uid) {
+      btn.innerHTML = `${ICONS.play} <span>รีรัน: วันที่ ${day.day_number}</span>`;
+      btn.onclick = () => {
+        setActiveTab(btn);
+        loadSelectedDayStream(day, "rerun");
+      };
+    } else {
+      btn.disabled = true;
+      btn.innerHTML = `${ICONS.clock} <span>วันที่ ${day.day_number} (ยังไม่ถึงวัน)</span>`;
+    }
+
+    dayTabContainer.appendChild(btn);
+  });
+}
+
+function setActiveTab(activeBtn) {
+  const allTabs = dayTabContainer.querySelectorAll(".day-tab-btn");
+  allTabs.forEach((b) => b.classList.remove("active"));
+  activeBtn.classList.add("active");
+}
+
+function loadSelectedDayStream(day, forceMode = null) {
+  let platform, streamUrl, token;
+
+  if (forceMode === "live" || (activeEventData.status === "live" && (day.live_youtube_url || day.live_cloudflare_uid))) {
+    platform = day.live_platform;
+    streamUrl = day.live_youtube_url;
+    token = day.live_cloudflare_uid;
+    updateStatusBadge("live");
+  } else {
+    platform = day.rerun_platform;
+    streamUrl = day.rerun_youtube_url;
+    token = day.rerun_cloudflare_uid;
+    updateStatusBadge("rerun");
+  }
+
+  loadVideoStream({
+    platform,
+    streamUrl,
+    token,
+    customer_code: activeEventData.customer_code
+  });
+}
+
+function loadVideoStream(streamData) {
+  let src = null;
+
+  if (streamData.platform === "cloudflare") {
+    if (streamData.streamUrl) {
+      src = streamData.streamUrl.includes("?") 
+        ? `${streamData.streamUrl}&autoplay=true` 
+        : `${streamData.streamUrl}?autoplay=true`;
+    } else if (streamData.token) {
+      const code = streamData.customer_code || "ohx74kd7koi6qp2a";
+      src = `https://customer-${code}.cloudflarestream.com/${streamData.token}/iframe?autoplay=true`;
+    }
+  } else {
+    const rawUrl = streamData.streamUrl || streamData.youtube_url;
+    const videoId = extractYouTubeId(rawUrl);
+    if (videoId) {
+      src = `https://www.youtube.com/embed/${videoId}?autoplay=1&rel=0`;
+    }
+  }
+
+  if (src) {
+    streamFrame.src = src;
+  } else {
+    showError("ไม่พบสัญญาณภาพ หรือยังไม่ถึงเวลาถ่ายทอดสด");
+  }
+}
+
+function updateStatusBadge(status) {
+  if (status === "rerun") {
+    statusBadge.innerHTML = `รีรัน`;
+    statusBadge.classList.add("event-card-badge-rerun");
+  } else {
+    statusBadge.innerHTML = `<span class="live-dot"></span> LIVE`;
+    statusBadge.classList.remove("event-card-badge-rerun");
+  }
+}
+
+// ระบบ Heartbeat เช็กสิทธิ์การดู 1 เครื่อง
+function startHeartbeat() {
+  if (heartbeatInterval) clearInterval(heartbeatInterval);
+  
+  heartbeatInterval = setInterval(async () => {
+    if (!currentAccessCode || !currentSessionToken) return;
+
+    try {
+      const res = await fetch(`${FUNCTIONS_URL}/viewing-heartbeat`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          apikey: SUPABASE_ANON_KEY,
+          Authorization: `Bearer ${SUPABASE_ANON_KEY}`,
+        },
+        body: JSON.stringify({ 
+          code: currentAccessCode,
+          session_token: currentSessionToken 
+        }),
+      });
+
+      if (!res.ok) {
+        clearInterval(heartbeatInterval);
+        alert("รหัสนี้ถูกนำไปเปิดใช้งานบนเครื่องอื่น ระบบจะทำการออกจากหน้าชมสด");
+        window.location.reload();
+      }
+    } catch (e) {
+      console.warn("Heartbeat failed:", e);
+    }
+  }, 15000); // เช็กทุกๆ 15 วินาที
+}
 
 function showError(message) {
   errorText.textContent = message;
@@ -125,131 +384,4 @@ function startLockoutCountdown(seconds) {
     }
     render();
   }, 1000);
-}
-
-function enterStage(data) {
-  liveTitle.textContent = data.eventTitle || data.title || "Star Live Official";
-
-  // ตรวจสอบและ Render แท็บสลับวัน
-  if (data.event_days && data.event_days.length > 0) {
-    renderDayTabs(data);
-  } else {
-    // กรณีข้อมูลส่งมาแค่วิดีโอเดียว (ไม่มีข้อมูลวันแบบอาเรย์)
-    loadVideoStream(data);
-    updateStatusBadge(data.status);
-  }
-
-  topBar.style.display = "flex";
-
-  codeScreen.classList.add("curtain-exit");
-  setTimeout(() => {
-    codeScreen.style.display = "none";
-    playerScreen.style.display = "block";
-  }, 480);
-}
-
-// ฟังก์ชันสำหรับ Render แท็บสลับวัน
-function renderDayTabs(data) {
-  if (!dayTabContainer) return;
-  dayTabContainer.innerHTML = "";
-
-  const purchasedDays = data.purchased_days || [1]; // วันที่สิทธิ์ซื้อครอบคลุม
-  const days = (data.event_days || []).sort((a, b) => a.day_number - b.day_number);
-
-  let activeSet = false;
-
-  days.forEach((day) => {
-    const isPurchased = purchasedDays.includes(day.day_number);
-    const btn = document.createElement("button");
-    btn.type = "button";
-    btn.className = "day-tab-btn";
-
-    // 1. รหัสไม่ได้ซื้อวันดังกล่าว
-    if (!isPurchased) {
-      btn.disabled = true;
-      btn.innerHTML = `${ICONS.lock} <span>วันที่ ${day.day_number} (ไม่มีสิทธิ์)</span>`;
-    } 
-    // 2. อยู่ในช่วงถ่ายทอดสดของวันดังกล่าว
-    else if (data.status === "live" && (day.live_youtube_url || day.live_cloudflare_uid)) {
-      btn.innerHTML = `${ICONS.liveDot} <span>ถ่ายทอดสด: วันที่ ${day.day_number}</span>`;
-      btn.onclick = () => {
-        setActiveTab(btn);
-        loadVideoStream({
-          platform: day.live_platform,
-          streamUrl: day.live_youtube_url,
-          token: day.live_cloudflare_uid,
-          customer_code: data.customer_code
-        });
-        updateStatusBadge("live");
-      };
-    } 
-    // 3. อยู่ในช่วงรีรัน (ดูย้อนหลัง)
-    else if (day.rerun_youtube_url || day.rerun_cloudflare_uid) {
-      btn.innerHTML = `${ICONS.play} <span>รีรัน: วันที่ ${day.day_number}</span>`;
-      btn.onclick = () => {
-        setActiveTab(btn);
-        loadVideoStream({
-          platform: day.rerun_platform,
-          streamUrl: day.rerun_youtube_url,
-          token: day.rerun_cloudflare_uid,
-          customer_code: data.customer_code
-        });
-        updateStatusBadge("rerun");
-      };
-    } 
-    // 4. ยังไม่เปิดรับชม
-    else {
-      btn.disabled = true;
-      btn.innerHTML = `${ICONS.clock} <span>วันที่ ${day.day_number} (ยังไม่เปิด)</span>`;
-    }
-
-    // Auto click วันแรกที่มีสิทธิ์ดูได้
-    if (!activeSet && !btn.disabled) {
-      activeSet = true;
-      setTimeout(() => btn.click(), 50);
-    }
-
-    dayTabContainer.appendChild(btn);
-  });
-}
-
-function setActiveTab(activeBtn) {
-  const allTabs = dayTabContainer.querySelectorAll(".day-tab-btn");
-  allTabs.forEach((b) => b.classList.remove("active"));
-  activeBtn.classList.add("active");
-}
-
-function updateStatusBadge(status) {
-  if (status === "rerun") {
-    statusBadge.innerHTML = `รีรัน`;
-    statusBadge.classList.add("event-card-badge-rerun");
-  } else {
-    statusBadge.innerHTML = `<span class="live-dot"></span> LIVE`;
-    statusBadge.classList.remove("event-card-badge-rerun");
-  }
-}
-
-function loadVideoStream(streamData) {
-  let src = null;
-
-  if (streamData.platform === "cloudflare") {
-    if (streamData.streamUrl) {
-      src = streamData.streamUrl.includes("?") 
-        ? `${streamData.streamUrl}&autoplay=true` 
-        : `${streamData.streamUrl}?autoplay=true`;
-    } else {
-      const code = streamData.customer_code || "ohx74kd7koi6qp2a";
-      src = `https://customer-${code}.cloudflarestream.com/${streamData.token}/iframe?autoplay=true`;
-    }
-  } else {
-    const rawUrl = streamData.streamUrl || streamData.youtube_url;
-    const videoId = extractYouTubeId(rawUrl);
-    if (!videoId) {
-      showError("ลิงก์การถ่ายทอดสดไม่ถูกต้อง กรุณาติดต่อผู้ดูแลระบบ");
-      return;
-    }
-    src = `https://www.youtube.com/embed/${videoId}?autoplay=1&rel=0`;
-  }
-
-  streamFrame.src = src;
 }
