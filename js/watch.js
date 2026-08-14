@@ -1,7 +1,9 @@
 import { extractYouTubeId } from "./supabaseClient.js";
 import { SUPABASE_ANON_KEY, FUNCTIONS_URL } from "./config.js";
 
-// DOM Elements
+// ==========================================
+// 1. DOM Elements
+// ==========================================
 const codeInput = document.getElementById("codeInput");
 const codeForm = document.getElementById("codeForm");
 const submitBtn = document.getElementById("submitBtn");
@@ -12,7 +14,7 @@ const liveTitle = document.getElementById("liveTitle");
 const streamFrame = document.getElementById("streamFrame");
 const topBar = document.getElementById("topBar");
 const statusBadge = document.getElementById("statusBadge");
-const dayTabContainer = document.getElementById("dayTabContainer");
+const dayTabContainer = document.getElementById("dayTabContainer"); // Sidebar/แถบเลือกวันทางขวา
 const switchDayBtn = document.getElementById("switchDayBtn");
 
 // Modals
@@ -23,13 +25,15 @@ const rulesContent = document.getElementById("rulesContent");
 const dontShowAgainCheck = document.getElementById("dontShowAgainCheck");
 const acceptRulesBtn = document.getElementById("acceptRulesBtn");
 
-// State Variables
+// ==========================================
+// 2. State Management
+// ==========================================
 let lockoutTimer = null;
 let heartbeatInterval = null;
 let currentSessionToken = null;
 let currentAccessCode = null;
 let activeEventData = null;
-let pendingSelectedDay = null; // { dayData, mode }
+let currentSelectedDay = null; // บันทึกวัน/รอบที่เลือกไว้ { dayData, mode }
 
 // Icons SVG Template
 const ICONS = {
@@ -39,113 +43,133 @@ const ICONS = {
   liveDot: `<span class="icon-live-dot"></span>`
 };
 
-// 1. เติมรหัสอัตโนมัติหากมี Query Parameter (?code=...)
-const prefillCode = new URLSearchParams(window.location.search).get("code");
-if (prefillCode) {
-  codeInput.value = prefillCode.toUpperCase().replace(/[^A-Z0-9]/g, "").slice(0, 8);
-  codeInput.classList.toggle("filled", codeInput.value.length === 8);
+// ==========================================
+// 3. Initial Setup & Event Listeners
+// ==========================================
+
+// Auto prefill code จาก URL ?code=...
+if (codeInput) {
+  const prefillCode = new URLSearchParams(window.location.search).get("code");
+  if (prefillCode) {
+    codeInput.value = prefillCode.toUpperCase().replace(/[^A-Z0-9]/g, "").slice(0, 8);
+    codeInput.classList.toggle("filled", codeInput.value.length === 8);
+  }
+
+  codeInput.addEventListener("input", () => {
+    const cleaned = codeInput.value.toUpperCase().replace(/[^A-Z0-9]/g, "").slice(0, 8);
+    codeInput.value = cleaned;
+    codeInput.classList.toggle("filled", cleaned.length === 8);
+  });
 }
 
-// 2. จัดการ Input และกรองตัวอักษรให้อยู่ในรูปแบบ 8 หลัก
-codeInput.addEventListener("input", () => {
-  const cleaned = codeInput.value.toUpperCase().replace(/[^A-Z0-9]/g, "").slice(0, 8);
-  codeInput.value = cleaned;
-  codeInput.classList.toggle("filled", cleaned.length === 8);
-});
+// เมื่อกดปุ่ม "เข้าสู่การถ่ายทอดสด"
+if (codeForm) {
+  codeForm.addEventListener("submit", async (e) => {
+    e.preventDefault();
+    if (!codeInput) return;
 
-// 3. ตรวจสอบรหัสผ่าน Form Submit
-codeForm.addEventListener("submit", async (e) => {
-  e.preventDefault();
-  const code = codeInput.value.trim();
-
-  if (code.length !== 8) {
-    showError("กรุณากรอกรหัสเข้าชมให้ครบ 8 หลัก");
-    return;
-  }
-
-  submitBtn.disabled = true;
-  submitBtn.textContent = "กำลังตรวจสอบ...";
-  errorText.textContent = "";
-
-  let res, body;
-  try {
-    res = await fetch(`${FUNCTIONS_URL}/verify-access-code`, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        apikey: SUPABASE_ANON_KEY,
-        Authorization: `Bearer ${SUPABASE_ANON_KEY}`,
-      },
-      body: JSON.stringify({ code }),
-    });
-    body = await res.json();
-  } catch (err) {
-    submitBtn.disabled = false;
-    submitBtn.textContent = "เข้าสู่การถ่ายทอดสด";
-    showError("เชื่อมต่อเซิร์ฟเวอร์ไม่ได้ ลองใหม่อีกครั้ง");
-    return;
-  }
-
-  submitBtn.disabled = false;
-  submitBtn.textContent = "เข้าสู่การถ่ายทอดสด";
-
-  // ตรวจสอบสถานะการทำงาน (Lockout / Error)
-  if (res.status === 429) {
-    startLockoutCountdown(body.retry_after_seconds ?? 300);
-    return;
-  }
-
-  if (!res.ok) {
-    if (body.error === "code_expired") {
-      showError("รหัสเข้าชมนี้หมดอายุแล้ว");
-    } else if (body.error === "already_in_use") {
-      showError("รหัสนี้กำลังถูกใช้งานอยู่บนเครื่องอื่น (รับชมได้พร้อมกัน 1 เครื่อง)");
-    } else if (body.error === "not_started") {
-      showError(`"${body.title || "งานนี้"}" ยังไม่เริ่มถ่ายทอดสด กรุณากลับมาใหม่ในวันที่จัดงาน`);
-    } else if (body.error === "ended") {
-      showError(`"${body.title || "งานนี้"}" ปิดการถ่ายทอดแล้ว`);
-    } else if (typeof body.attempts_left === "number" && body.attempts_left > 0) {
-      showError(`รหัสไม่ถูกต้อง เหลืออีก ${body.attempts_left} ครั้งก่อนถูกล็อกชั่วคราว`);
-    } else if (body.locked) {
-      startLockoutCountdown(300);
-    } else {
-      showError(body.error || "รหัสเข้าชมไม่ถูกต้อง หรือหมดอายุ");
+    const code = codeInput.value.trim();
+    if (code.length !== 8) {
+      showError("กรุณากรอกรหัสเข้าชมให้ครบ 8 หลัก");
+      return;
     }
-    return;
-  }
 
-  // เข้าสู่ระบบสำเร็จ
-  currentAccessCode = code;
-  currentSessionToken = body.session_token || null;
-  activeEventData = body;
+    if (submitBtn) {
+      submitBtn.disabled = true;
+      submitBtn.textContent = "กำลังตรวจสอบ...";
+    }
+    if (errorText) errorText.textContent = "";
 
-  // เริ่มส่ง Heartbeat เช็กสิทธิ์การใช้งาน 1 เครื่อง
-  startHeartbeat();
+    let res, body;
+    try {
+      res = await fetch(`${FUNCTIONS_URL}/verify-access-code`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          apikey: SUPABASE_ANON_KEY,
+          Authorization: `Bearer ${SUPABASE_ANON_KEY}`,
+        },
+        body: JSON.stringify({ code }),
+      });
+      body = await res.json();
+    } catch (err) {
+      if (submitBtn) {
+        submitBtn.disabled = false;
+        submitBtn.textContent = "เข้าสู่การถ่ายทอดสด";
+      }
+      showError("เชื่อมต่อเซิร์ฟเวอร์ไม่ได้ ลองใหม่อีกครั้ง");
+      return;
+    }
 
-  // ดึงรายการวัน
-  const purchasedDays = body.purchased_days || [1];
-  const eventDays = body.event_days || [];
+    if (submitBtn) {
+      submitBtn.disabled = false;
+      submitBtn.textContent = "เข้าสู่การถ่ายทอดสด";
+    }
 
-  // ตรวจสอบแพ็กเกจการรับชมแบบหลายวัน
-  if (purchasedDays.length > 1 && eventDays.length > 1) {
-    // 🟢 Step 1: เปิด ป๊อปอัพเลือกวัน ก่อนเป็นอันดับแรกสำหรับตั๋วหลายวัน
-    showDaySelectionModal(body);
-  } else {
-    // 🟡 สำหรับตั๋ววันเดียว: เลือกวันแรกให้อัตโนมัติ (มีระบบ Fallback กัน undefined)
-    const targetDayNumber = purchasedDays[0] || 1;
-    const selectedDay = eventDays.find(d => Number(d.day_number) === Number(targetDayNumber)) 
-                        || eventDays[0] 
-                        || body;
+    if (res.status === 429) {
+      startLockoutCountdown(body.retry_after_seconds ?? 300);
+      return;
+    }
 
-    proceedToRulesOrWatch(selectedDay);
-  }
-});
+    if (!res.ok) {
+      if (body.error === "code_expired") {
+        showError("รหัสเข้าชมนี้หมดอายุแล้ว");
+      } else if (body.error === "already_in_use") {
+        showError("รหัสนี้กำลังถูกใช้งานอยู่บนเครื่องอื่น (รับชมได้พร้อมกัน 1 เครื่อง)");
+      } else if (body.error === "not_started") {
+        showError(`"${body.title || "งานนี้"}" ยังไม่เริ่มถ่ายทอดสด กรุณากลับมาใหม่ในวันที่จัดงาน`);
+      } else if (body.error === "ended") {
+        showError(`"${body.title || "งานนี้"}" ปิดการถ่ายทอดแล้ว`);
+      } else if (typeof body.attempts_left === "number" && body.attempts_left > 0) {
+        showError(`รหัสไม่ถูกต้อง เหลืออีก ${body.attempts_left} ครั้งก่อนถูกล็อกชั่วคราว`);
+      } else if (body.locked) {
+        startLockoutCountdown(300);
+      } else {
+        showError(body.error || "รหัสเข้าชมไม่ถูกต้อง หรือหมดอายุ");
+      }
+      return;
+    }
 
-// 4. แสดง Modal เลือกวันสำหรับตั๋วแบบหลายวัน (Pop-up ที่ 1)
+    // ยืนยันรหัสสำเร็จ
+    currentAccessCode = code;
+    currentSessionToken = body.session_token || null;
+    activeEventData = body;
+
+    startHeartbeat();
+
+    // ----------------------------------------------------
+    // Step 1: เช็กจำนวนวันของบัตร
+    // ----------------------------------------------------
+    const purchasedDays = body.purchased_days || [1];
+    const eventDays = body.event_days || [];
+
+    if (purchasedDays.length > 1 && eventDays.length > 1) {
+      // ตั๋วเหมาหลายวัน -> เปิด Pop-up เลือกรอบวันที่ต้องการรับชมก่อน
+      showDaySelectionModal(body);
+    } else {
+      // ตั๋ววันเดียว -> เลือกวันแรกให้อัตโนมัติ แล้วข้ามไป Pop-up กฎข้อตกลง
+      const targetDayNumber = purchasedDays[0] || 1;
+      const selectedDay = eventDays.find(d => Number(d.day_number) === Number(targetDayNumber)) 
+                          || eventDays[0] 
+                          || body;
+
+      currentSelectedDay = { dayData: selectedDay, mode: null };
+      showRulesModal();
+    }
+  });
+}
+
+// ==========================================
+// 4. Modals & Flow Handlers
+// ==========================================
+
+// 📌 Pop-up ที่ 1: เลือกรอบวันที่ต้องการรับชม
 function showDaySelectionModal(data) {
+  if (!dayOptionsList || !daySelectModal) return;
+
   dayOptionsList.innerHTML = "";
   const purchasedDays = data.purchased_days || [1];
-  const days = (data.event_days || []).sort((a, b) => a.day_number - b.day_number);
+  const days = [...(data.event_days || [])].sort((a, b) => a.day_number - b.day_number);
 
   days.forEach((day) => {
     const isPurchased = purchasedDays.includes(day.day_number);
@@ -160,15 +184,19 @@ function showDaySelectionModal(data) {
       btn.innerHTML = `<div class="day-title">${ICONS.liveDot} วันที่ ${day.day_number}</div><div class="day-status live">ถ่ายทอดสด</div>`;
       btn.onclick = () => {
         daySelectModal.style.display = "none";
-        // เมื่อเลือกวันสำเร็จ -> ส่งต่อไปยัง Pop-up กฎ
-        proceedToRulesOrWatch(day, "live");
+        // บันทึกวันที่เลือกไว้ใน State
+        currentSelectedDay = { dayData: day, mode: "live" };
+        // ส่งต่อไป Pop-up ที่ 2 (กฎข้อตกลง)
+        showRulesModal();
       };
     } else if (day.rerun_youtube_url || day.rerun_cloudflare_uid) {
       btn.innerHTML = `<div class="day-title">${ICONS.play} วันที่ ${day.day_number}</div><div class="day-status rerun">รับชมรีรัน</div>`;
       btn.onclick = () => {
         daySelectModal.style.display = "none";
-        // เมื่อเลือกวันสำเร็จ -> ส่งต่อไปยัง Pop-up กฎ
-        proceedToRulesOrWatch(day, "rerun");
+        // บันทึกวันที่เลือกไว้ใน State
+        currentSelectedDay = { dayData: day, mode: "rerun" };
+        // ส่งต่อไป Pop-up ที่ 2 (กฎข้อตกลง)
+        showRulesModal();
       };
     } else {
       btn.disabled = true;
@@ -181,72 +209,88 @@ function showDaySelectionModal(data) {
   daySelectModal.style.display = "flex";
 }
 
-// 5. แสดง Modal กฎระเบียบและข้อตกลงการรับชม (Pop-up ที่ 2)
-function proceedToRulesOrWatch(dayData, mode = null) {
-  pendingSelectedDay = { dayData, mode };
+// 📌 Pop-up ที่ 2: กฎข้อตกลงการรับชม
+function showRulesModal() {
   const hideRules = localStorage.getItem("hide_watch_rules") === "true";
 
-  if (!hideRules) {
+  if (!hideRules && rulesModal && rulesContent) {
     const noticeText = activeEventData?.notice_message || 
       "1. ห้ามบันทึกภาพหน้าจอหรือนำคลิปไปเผยแพร่โดยไม่ได้รับอนุญาต\n2. รหัสเข้าชมใช้งานได้ทีละ 1 เครื่องเท่านั้น\n3. หากมีการเข้าใช้งานซ้อน ระบบจะตัดการเชื่อมต่อทันที";
     rulesContent.innerText = noticeText;
     rulesModal.style.display = "flex";
   } else {
-    // ถ้าผู้ใช้เคยติ๊ก "ไม่ต้องแสดงอีก" ไว้ จะข้ามไปหน้าดูเลย
-    startViewing(dayData, mode);
+    // หากเคยติ๊ก "ไม่ต้องแสดงอีก" -> เข้าหน้าดูวิดีโอทันที
+    startViewing();
   }
 }
 
-// เมื่อผู้ใช้กดปุ่มยอมรับกฎใน Pop-up ที่ 2
-acceptRulesBtn.addEventListener("click", () => {
-  if (dontShowAgainCheck.checked) {
-    localStorage.setItem("hide_watch_rules", "true");
-  }
-  rulesModal.style.display = "none";
-  
-  if (pendingSelectedDay) {
-    startViewing(pendingSelectedDay.dayData, pendingSelectedDay.mode);
-  }
-});
+// เมื่อผู้ใช้กดปุ่มยินยอมใน Pop-up กฎข้อตกลง
+if (acceptRulesBtn) {
+  acceptRulesBtn.addEventListener("click", () => {
+    if (dontShowAgainCheck && dontShowAgainCheck.checked) {
+      localStorage.setItem("hide_watch_rules", "true");
+    }
+    if (rulesModal) rulesModal.style.display = "none";
+    
+    // เข้าสู่หน้าวิดีโอ
+    startViewing();
+  });
+}
 
-// 6. เริ่มเข้าสู่หน้าเล่นวิดีโอ (Player Screen) หลังผ่านป๊อปอัพทั้งหมดแล้ว
-function startViewing(dayData, mode) {
-  liveTitle.textContent = activeEventData.eventTitle || activeEventData.title || "Star Live Official";
+// ==========================================
+// 5. Player Screen & Sidebar Logic
+// ==========================================
 
-  // แสดงปุ่มสลับวันตรง Top bar สำหรับคนที่ซื้อแบบหลายวัน
-  if (activeEventData.purchased_days && activeEventData.purchased_days.length > 1) {
+// เข้าสู่หน้าเล่นวิดีโอหลัก
+function startViewing() {
+  if (!currentSelectedDay) return;
+
+  const { dayData, mode } = currentSelectedDay;
+
+  if (liveTitle && activeEventData) {
+    liveTitle.textContent = activeEventData.eventTitle || activeEventData.title || "Star Live Official";
+  }
+
+  if (switchDayBtn && activeEventData?.purchased_days?.length > 1) {
     switchDayBtn.style.display = "inline-block";
-    switchDayBtn.onclick = () => {
-      // เมื่อกดปุ่มสลับวัน ให้เปิด Pop-up เลือกวันขึ้นมาใหม่
-      showDaySelectionModal(activeEventData);
-    };
+    switchDayBtn.onclick = () => showDaySelectionModal(activeEventData);
   }
 
-  renderDayTabs(activeEventData, dayData);
+  // 1. Render แถบ/ปุ่มเลือกวันฝั่งขวา (Sidebar)
+  renderRightSidebarDays(activeEventData, dayData);
+
+  // 2. โหลดวิดีโอของวันที่เลือกเข้า Player
   loadSelectedDayStream(dayData, mode);
 
-  topBar.style.display = "flex";
-  codeScreen.classList.add("curtain-exit");
-  setTimeout(() => {
-    codeScreen.style.display = "none";
+  // 3. แสดงผล UI หน้าเล่นวิดีโอ
+  if (topBar) topBar.style.display = "flex";
+  
+  if (codeScreen) {
+    codeScreen.classList.add("curtain-exit");
+    setTimeout(() => {
+      codeScreen.style.display = "none";
+      if (playerScreen) playerScreen.style.display = "block";
+    }, 480);
+  } else if (playerScreen) {
     playerScreen.style.display = "block";
-  }, 480);
+  }
 }
 
-// 7. Render แท็บการสลับวันบนหน้าเครื่องเล่นวิดีโอ
-function renderDayTabs(data, activeDay) {
-  if (!dayTabContainer) return;
+// Render รายชื่อวันฝั่งขวา (Sidebar Right Column)
+function renderRightSidebarDays(data, activeDay) {
+  if (!dayTabContainer || !data) return;
   dayTabContainer.innerHTML = "";
 
   const purchasedDays = data.purchased_days || [1];
-  const days = (data.event_days || []).sort((a, b) => a.day_number - b.day_number);
+  const days = [...(data.event_days || [])].sort((a, b) => a.day_number - b.day_number);
 
   days.forEach((day) => {
     const isPurchased = purchasedDays.includes(day.day_number);
     const btn = document.createElement("button");
     btn.type = "button";
     btn.className = "day-tab-btn";
-    if (activeDay && day.day_number === activeDay.day_number) {
+    
+    if (activeDay && Number(day.day_number) === Number(activeDay.day_number)) {
       btn.classList.add("active");
     }
 
@@ -257,12 +301,14 @@ function renderDayTabs(data, activeDay) {
       btn.innerHTML = `${ICONS.liveDot} <span>สด: วันที่ ${day.day_number}</span>`;
       btn.onclick = () => {
         setActiveTab(btn);
+        currentSelectedDay = { dayData: day, mode: "live" };
         loadSelectedDayStream(day, "live");
       };
     } else if (day.rerun_youtube_url || day.rerun_cloudflare_uid) {
       btn.innerHTML = `${ICONS.play} <span>รีรัน: วันที่ ${day.day_number}</span>`;
       btn.onclick = () => {
         setActiveTab(btn);
+        currentSelectedDay = { dayData: day, mode: "rerun" };
         loadSelectedDayStream(day, "rerun");
       };
     } else {
@@ -275,19 +321,17 @@ function renderDayTabs(data, activeDay) {
 }
 
 function setActiveTab(activeBtn) {
+  if (!dayTabContainer) return;
   const allTabs = dayTabContainer.querySelectorAll(".day-tab-btn");
   allTabs.forEach((b) => b.classList.remove("active"));
   activeBtn.classList.add("active");
 }
 
-// 8. โหลดสตรีมข้อมูลตามวันที่เลือก (ปรับปรุงเพิ่ม Guard ป้องกัน undefined)
+// โหลด Stream Link เข้า Iframe Player
 function loadSelectedDayStream(day, forceMode = null) {
-  if (!day) {
-    day = activeEventData || {};
-  }
+  if (!day) day = activeEventData || {};
 
   let platform, streamUrl, token;
-
   const isLive = forceMode === "live" || 
     (activeEventData?.status === "live" && (day.live_youtube_url || day.live_cloudflare_uid));
 
@@ -311,8 +355,8 @@ function loadSelectedDayStream(day, forceMode = null) {
   });
 }
 
-// 9. โหลด iframe สำหรับรับชม (Cloudflare Stream / YouTube)
 function loadVideoStream(streamData) {
+  if (!streamFrame) return;
   let src = null;
 
   if (streamData.platform === "cloudflare") {
@@ -333,14 +377,15 @@ function loadVideoStream(streamData) {
   }
 
   if (src) {
+    streamFrame.allow = "autoplay; encrypted-media; gyroscope; picture-in-picture; fullscreen";
     streamFrame.src = src;
   } else {
     showError("ไม่พบสัญญาณภาพ หรือยังไม่ถึงเวลาถ่ายทอดสด");
   }
 }
 
-// 10. อัปเดต Badge แสดงสถานะ (LIVE / รีรัน)
 function updateStatusBadge(status) {
+  if (!statusBadge) return;
   if (status === "rerun") {
     statusBadge.innerHTML = `รีรัน`;
     statusBadge.classList.add("event-card-badge-rerun");
@@ -350,7 +395,10 @@ function updateStatusBadge(status) {
   }
 }
 
-// 11. ระบบ Heartbeat ตรวจสอบสิทธิ์การใช้งาน 1 เครื่อง (เช็กทุกๆ 15 วินาที)
+// ==========================================
+// 6. Security & Utilities
+// ==========================================
+
 function startHeartbeat() {
   if (heartbeatInterval) clearInterval(heartbeatInterval);
   
@@ -373,6 +421,7 @@ function startHeartbeat() {
 
       if (!res.ok) {
         clearInterval(heartbeatInterval);
+        currentSessionToken = null;
         alert("รหัสนี้ถูกนำไปเปิดใช้งานบนเครื่องอื่น ระบบจะทำการออกจากหน้าชมสด");
         window.location.reload();
       }
@@ -382,24 +431,29 @@ function startHeartbeat() {
   }, 15000);
 }
 
-// 12. Helper แสดงข้อความ Error พร้อม Effect การสั่น
 function showError(message) {
+  if (!errorText) return;
   errorText.textContent = message;
-  codeInput.classList.remove("shake");
-  void codeInput.offsetWidth; // Trigger reflow
-  codeInput.classList.add("shake");
+
+  if (codeInput) {
+    codeInput.classList.remove("shake");
+    void codeInput.offsetWidth;
+    codeInput.classList.add("shake");
+  }
 }
 
-// 13. นับถอยหลังเมื่อกรอกรหัสผิดเกินจำนวนครั้ง (Lockout)
 function startLockoutCountdown(seconds) {
-  clearInterval(lockoutTimer);
-  submitBtn.disabled = true;
+  if (lockoutTimer) clearInterval(lockoutTimer);
+  if (submitBtn) submitBtn.disabled = true;
+  
   let remaining = seconds;
 
   const render = () => {
     const m = Math.floor(remaining / 60);
     const s = String(remaining % 60).padStart(2, "0");
-    errorText.textContent = `กรอกผิดครบ 3 ครั้ง กรุณารอ ${m}:${s} แล้วลองใหม่`;
+    if (errorText) {
+      errorText.textContent = `กรอกผิดครบ 3 ครั้ง กรุณารอ ${m}:${s} แล้วลองใหม่`;
+    }
   };
   render();
 
@@ -407,8 +461,8 @@ function startLockoutCountdown(seconds) {
     remaining -= 1;
     if (remaining <= 0) {
       clearInterval(lockoutTimer);
-      submitBtn.disabled = false;
-      errorText.textContent = "";
+      if (submitBtn) submitBtn.disabled = false;
+      if (errorText) errorText.textContent = "";
       return;
     }
     render();
