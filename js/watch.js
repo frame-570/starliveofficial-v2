@@ -29,7 +29,7 @@ let heartbeatInterval = null;
 let currentSessionToken = null;
 let currentAccessCode = null;
 let activeEventData = null;
-let pendingSelectedDay = null;
+let pendingSelectedDay = null; // { dayData, mode }
 
 // Icons SVG Template
 const ICONS = {
@@ -119,22 +119,23 @@ codeForm.addEventListener("submit", async (e) => {
   currentSessionToken = body.session_token || null;
   activeEventData = body;
 
-  // เริ่มส่ง Heartbeat เช็กสิทธิ์การใช้งาน
+  // เริ่มส่ง Heartbeat เช็กสิทธิ์การใช้งาน 1 เครื่อง
   startHeartbeat();
 
   // ตรวจสอบแพ็กเกจการรับชมแบบหลายวัน
   const purchasedDays = body.purchased_days || [1];
   if (purchasedDays.length > 1 && body.event_days && body.event_days.length > 1) {
+    // 🟢 Step 1: เปิด ป๊อปอัพเลือกวัน ก่อนเป็นอันดับแรกสำหรับตั๋วหลายวัน
     showDaySelectionModal(body);
   } else {
-    // แพ็กเกจวันเดียว
+    // 🟡 สำหรับตั๋ววันเดียว: เลือกวันแรกให้อัตโนมัติ แล้วข้ามไปแสดง Pop-up กฎ ทันที
     const targetDayNumber = purchasedDays[0] || 1;
     const selectedDay = body.event_days?.find(d => d.day_number === targetDayNumber) || body.event_days?.[0];
     proceedToRulesOrWatch(selectedDay);
   }
 });
 
-// 4. แสดง Modal เลือกวันสำหรับตั๋วแบบหลายวัน
+// 4. แสดง Modal เลือกวันสำหรับตั๋วแบบหลายวัน (Pop-up ที่ 1)
 function showDaySelectionModal(data) {
   dayOptionsList.innerHTML = "";
   const purchasedDays = data.purchased_days || [1];
@@ -153,12 +154,14 @@ function showDaySelectionModal(data) {
       btn.innerHTML = `<div class="day-title">${ICONS.liveDot} วันที่ ${day.day_number}</div><div class="day-status live">ถ่ายทอดสด</div>`;
       btn.onclick = () => {
         daySelectModal.style.display = "none";
+        // เมื่อเลือกวันสำเร็จ -> ส่งต่อไปยัง Pop-up กฎ
         proceedToRulesOrWatch(day, "live");
       };
     } else if (day.rerun_youtube_url || day.rerun_cloudflare_uid) {
       btn.innerHTML = `<div class="day-title">${ICONS.play} วันที่ ${day.day_number}</div><div class="day-status rerun">รับชมรีรัน</div>`;
       btn.onclick = () => {
         daySelectModal.style.display = "none";
+        // เมื่อเลือกวันสำเร็จ -> ส่งต่อไปยัง Pop-up กฎ
         proceedToRulesOrWatch(day, "rerun");
       };
     } else {
@@ -172,7 +175,7 @@ function showDaySelectionModal(data) {
   daySelectModal.style.display = "flex";
 }
 
-// 5. ตรวจสอบกฎระเบียบและข้อตกลงการรับชม
+// 5. แสดง Modal กฎระเบียบและข้อตกลงการรับชม (Pop-up ที่ 2)
 function proceedToRulesOrWatch(dayData, mode = null) {
   pendingSelectedDay = { dayData, mode };
   const hideRules = localStorage.getItem("hide_watch_rules") === "true";
@@ -183,28 +186,34 @@ function proceedToRulesOrWatch(dayData, mode = null) {
     rulesContent.innerText = noticeText;
     rulesModal.style.display = "flex";
   } else {
+    // ถ้าผู้ใช้เคยติ๊ก "ไม่ต้องแสดงอีก" ไว้ จะข้ามไปหน้าดูเลย
     startViewing(dayData, mode);
   }
 }
 
-// ปรับปรุงการกดปุ่มยอมรับกฎ
+// เมื่อผู้ใช้กดปุ่มยอมรับกฎใน Pop-up ที่ 2
 acceptRulesBtn.addEventListener("click", () => {
   if (dontShowAgainCheck.checked) {
     localStorage.setItem("hide_watch_rules", "true");
   }
   rulesModal.style.display = "none";
+  
   if (pendingSelectedDay) {
     startViewing(pendingSelectedDay.dayData, pendingSelectedDay.mode);
   }
 });
 
-// 6. เริ่มเข้าสู่หน้าเล่นวิดีโอ (Player Screen)
+// 6. เริ่มเข้าสู่หน้าเล่นวิดีโอ (Player Screen) หลังผ่านป๊อปอัพทั้งหมดแล้ว
 function startViewing(dayData, mode) {
   liveTitle.textContent = activeEventData.eventTitle || activeEventData.title || "Star Live Official";
 
+  // แสดงปุ่มสลับวันตรง Top bar สำหรับคนที่ซื้อแบบหลายวัน
   if (activeEventData.purchased_days && activeEventData.purchased_days.length > 1) {
     switchDayBtn.style.display = "inline-block";
-    switchDayBtn.onclick = () => showDaySelectionModal(activeEventData);
+    switchDayBtn.onclick = () => {
+      // เมื่อกดปุ่มสลับวัน ให้เปิด Pop-up เลือกวันขึ้นมาใหม่
+      showDaySelectionModal(activeEventData);
+    };
   }
 
   renderDayTabs(activeEventData, dayData);
@@ -218,7 +227,7 @@ function startViewing(dayData, mode) {
   }, 480);
 }
 
-// 7. Render แท็บการสลับวันบนเครื่องเล่น
+// 7. Render แท็บการสลับวันบนหน้าเครื่องเล่นวิดีโอ
 function renderDayTabs(data, activeDay) {
   if (!dayTabContainer) return;
   dayTabContainer.innerHTML = "";
