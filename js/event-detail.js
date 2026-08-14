@@ -103,9 +103,10 @@ function renderPackageTabs(packages) {
     });
   });
 
-  // เลือกแพ็กเกจแรกให้อัตโนมัติถ้ามีตัวเดียว
-  if (sorted.length === 1) {
-    wrap.querySelector(".package-tab").click();
+  // เลือกแพ็กเกจแรกให้อัตโนมัติ
+  if (sorted.length > 0) {
+    const firstTab = wrap.querySelector(".package-tab");
+    if (firstTab) firstTab.click();
   }
 }
 
@@ -114,23 +115,45 @@ function selectPackage(pkg) {
   selectedDayOptionId = null;
   updateTotal();
 
-  const options = pkg.ticket_package_day_options || [];
+  const rawOptions = pkg.ticket_package_day_options || [];
   const dayOptionWrap = document.getElementById("dayOptionWrap");
   const singleWrap = document.getElementById("singleDayOptionWrap");
   const grid = document.getElementById("dayOptionsGrid");
 
-  if (options.length > 1) {
+  // คำนวณว่าแพ็กเกจนี้ซื้อครอบคลุมทุกวันของงานหรือไม่
+  const totalEventDays = currentEvent.event_days ? currentEvent.event_days.length : 1;
+  const isFullPackage = pkg.num_days >= totalEventDays;
+
+  // กรองตัวเลือกที่ชื่อซ้ำกันออก (ป้องกันปัญหาข้อมูลซ้ำในระบบ)
+  const uniqueOptions = [];
+  const seenLabels = new Set();
+  for (const opt of rawOptions) {
+    if (!seenLabels.has(opt.label)) {
+      seenLabels.add(opt.label);
+      uniqueOptions.push(opt);
+    }
+  }
+
+  // เงื่อนไขการแสดงผลตัวเลือกวัน
+  if (isFullPackage) {
+    // 1. ถ้าซื้อเหมาหมดทุกวัน -> ซ่อนตัวเลือกวันทั้งหมดทันที
+    dayOptionWrap.style.display = "none";
+    singleWrap.style.display = "none";
+    // เลือก day_option ตัวแรกให้อัตโนมัติหลังบ้านเพื่อเอา ID ไปสร้าง Order
+    selectedDayOptionId = rawOptions.length > 0 ? rawOptions[0].id : null;
+  } else if (uniqueOptions.length > 1) {
+    // 2. ถ้าเป็นตั๋วรายวันและมีหลายวันให้เลือก -> แสดงการ์ดให้เลือก
     singleWrap.style.display = "none";
     dayOptionWrap.style.display = "block";
-    
-    // แสดงปุ่มกรอบเลือกรอบวันแบบการ์ด
-    renderDayOptionCards(options, grid);
-  } else if (options.length === 1) {
+    renderDayOptionCards(uniqueOptions, grid);
+  } else if (uniqueOptions.length === 1) {
+    // 3. ถ้ามีตัวเลือกเดียว
     dayOptionWrap.style.display = "none";
     singleWrap.style.display = "block";
-    document.getElementById("singleDayOptionLabel").textContent = options[0].label;
-    selectedDayOptionId = options[0].id;
+    document.getElementById("singleDayOptionLabel").textContent = uniqueOptions[0].label;
+    selectedDayOptionId = uniqueOptions[0].id;
   } else {
+    // 4. ไม่มีตัวเลือกวัน
     dayOptionWrap.style.display = "none";
     singleWrap.style.display = "none";
     selectedDayOptionId = null;
@@ -165,7 +188,7 @@ function renderDayOptionCards(options, container) {
   container.querySelectorAll(".day-card-item").forEach((btn) => {
     btn.addEventListener("click", () => {
       selectedDayOptionId = btn.dataset.dayId;
-      renderDayOptionCards(options, container); // Render ใหม่เพื่ออัปเดตสถานะปุ่มที่ถูกเลือก
+      renderDayOptionCards(options, container);
       updatePayButton();
     });
   });
@@ -179,7 +202,20 @@ function updateTotal() {
 }
 
 function updatePayButton() {
-  document.getElementById("payBtn").disabled = !(selectedPackage && selectedDayOptionId);
+  const payBtn = document.getElementById("payBtn");
+  if (!payBtn) return;
+
+  // ตรวจสอบเงื่อนไขการเปิดปุ่มชำระเงิน
+  const totalEventDays = currentEvent?.event_days ? currentEvent.event_days.length : 1;
+  const isFullPackage = selectedPackage && selectedPackage.num_days >= totalEventDays;
+
+  if (isFullPackage) {
+    // แพ็กเกจเหมา สามารถกดชำระเงินได้ทันที
+    payBtn.disabled = !selectedPackage;
+  } else {
+    // แพ็กเกจรายวัน ต้องเลือกวันก่อน
+    payBtn.disabled = !(selectedPackage && selectedDayOptionId);
+  }
 }
 
 document.getElementById("payBtn").addEventListener("click", async () => {
