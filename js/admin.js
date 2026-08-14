@@ -1,6 +1,93 @@
 import { supabase } from "./supabaseClient.js";
 import { SUPABASE_ANON_KEY, FUNCTIONS_URL } from "./config.js";
 
+// ============================================================
+// Styled confirm/alert modal (แทน confirm()/alert() ของเบราว์เซอร์)
+// ============================================================
+let dialogOverlay = null;
+
+function ensureDialogOverlay() {
+  if (dialogOverlay) return dialogOverlay;
+
+  dialogOverlay = document.createElement("div");
+  dialogOverlay.className = "modal-overlay";
+  dialogOverlay.style.display = "none";
+  dialogOverlay.innerHTML = `
+    <div class="admin-card modal-card" style="text-align:center;">
+      <div id="appDialogIcon" class="verify-icon" style="display:none;"></div>
+      <p id="appDialogMessage" style="font-size:14.5px; line-height:1.6; margin:6px 0 22px; white-space:pre-line;"></p>
+      <div id="appDialogButtons" style="display:flex; gap:10px;"></div>
+    </div>
+  `;
+  document.body.appendChild(dialogOverlay);
+  return dialogOverlay;
+}
+
+/** แทน confirm() — คืนค่า true/false */
+function appConfirm(message, { danger = false, confirmText = "ยืนยัน", cancelText = "ยกเลิก" } = {}) {
+  const overlay = ensureDialogOverlay();
+  const icon = overlay.querySelector("#appDialogIcon");
+  const msgEl = overlay.querySelector("#appDialogMessage");
+  const btnWrap = overlay.querySelector("#appDialogButtons");
+
+  icon.style.display = "none";
+  msgEl.textContent = message;
+  btnWrap.innerHTML = `
+    <button type="button" class="icon-btn" id="appDialogCancel" style="flex:1;">${cancelText}</button>
+    <button type="button" class="btn-marquee" id="appDialogConfirm" style="flex:1; margin:0; ${danger ? "background:linear-gradient(135deg,#ff8a8a,#e8384f); box-shadow:0 10px 30px -8px rgba(232,56,79,0.6);" : ""}">${confirmText}</button>
+  `;
+
+  overlay.style.display = "flex";
+
+  return new Promise((resolve) => {
+    const cleanup = (result) => {
+      overlay.style.display = "none";
+      resolve(result);
+    };
+    overlay.querySelector("#appDialogCancel").onclick = () => cleanup(false);
+    overlay.querySelector("#appDialogConfirm").onclick = () => cleanup(true);
+    overlay.onclick = (e) => {
+      if (e.target === overlay) cleanup(false);
+    };
+  });
+}
+
+/** แทน alert() — คืน Promise เมื่อกดตกลง */
+function appAlert(message, { type = "info" } = {}) {
+  const overlay = ensureDialogOverlay();
+  const icon = overlay.querySelector("#appDialogIcon");
+  const msgEl = overlay.querySelector("#appDialogMessage");
+  const btnWrap = overlay.querySelector("#appDialogButtons");
+
+  if (type === "success") {
+    icon.style.display = "flex";
+    icon.className = "verify-icon verify-icon-success";
+    icon.textContent = "✓";
+  } else if (type === "error") {
+    icon.style.display = "flex";
+    icon.className = "verify-icon verify-icon-failed";
+    icon.textContent = "✕";
+  } else {
+    icon.style.display = "none";
+  }
+
+  msgEl.textContent = message;
+  btnWrap.innerHTML = `<button type="button" class="btn-marquee" id="appDialogOk" style="margin:0;">ตกลง</button>`;
+
+  overlay.style.display = "flex";
+
+  return new Promise((resolve) => {
+    const cleanup = () => {
+      overlay.style.display = "none";
+      resolve();
+    };
+    overlay.querySelector("#appDialogOk").onclick = cleanup;
+    overlay.onclick = (e) => {
+      if (e.target === overlay) cleanup();
+    };
+  });
+}
+
 // --- DOM Elements ---
 const loginScreen = document.getElementById("loginScreen");
 const dashboard = document.getElementById("dashboard");
@@ -557,7 +644,8 @@ function renderEventRow(ev) {
   row.querySelector('[data-action="edit"]').addEventListener("click", () => openEventForm(ev));
 
   row.querySelector('[data-action="delete"]').addEventListener("click", async () => {
-    if (!confirm(`ลบงาน "${ev.title}" ใช่หรือไม่? (ออเดอร์ที่เกี่ยวข้องจะถูกลบด้วย)`)) return;
+    const ok = await appConfirm(`ลบงาน "${ev.title}" ใช่หรือไม่?\n(ออเดอร์ที่เกี่ยวข้องจะถูกลบด้วย)`, { danger: true, confirmText: "ลบงานนี้" });
+    if (!ok) return;
     await supabase.from("events").delete().eq("id", ev.id);
     loadEvents();
   });
@@ -642,7 +730,11 @@ function renderOrderRow(order) {
   const approveBtn = row.querySelector('[data-action="manual-approve"]');
   if (approveBtn) {
     approveBtn.addEventListener("click", async () => {
-      if (!confirm(`ยืนยันว่าตรวจสลิปของออเดอร์ ${order.order_number} ด้วยตาแล้วว่าเป็นสลิปจริง และต้องการออกรหัสเข้าชมให้ลูกค้าใช่หรือไม่?`)) return;
+      const ok = await appConfirm(
+        `ยืนยันว่าตรวจสลิปของออเดอร์ ${order.order_number} ด้วยตาแล้วว่าเป็นสลิปจริง\nและต้องการออกรหัสเข้าชมให้ลูกค้าใช่หรือไม่?`,
+        { confirmText: "อนุมัติ" }
+      );
+      if (!ok) return;
 
       approveBtn.disabled = true;
       approveBtn.textContent = "กำลังอนุมัติ...";
@@ -664,13 +756,13 @@ function renderOrderRow(order) {
         body = await res.json();
         if (!res.ok || !body.success) throw new Error(body.detail || body.error || "อนุมัติไม่สำเร็จ");
       } catch (err) {
-        alert("อนุมัติไม่สำเร็จ: " + err.message);
+        await appAlert("อนุมัติไม่สำเร็จ: " + err.message, { type: "error" });
         approveBtn.disabled = false;
         approveBtn.textContent = "อนุมัติด้วยมือ";
         return;
       }
 
-      alert(`ออกรหัสเข้าชมให้ลูกค้าแล้ว: ${body.access_code}`);
+      await appAlert(`ออกรหัสเข้าชมให้ลูกค้าแล้ว: ${body.access_code}`, { type: "success" });
       loadOrders();
     });
   }
@@ -679,14 +771,15 @@ function renderOrderRow(order) {
   deleteBtn.addEventListener("click", async () => {
     const warning =
       order.status === "paid"
-        ? `⚠️ ออเดอร์นี้จ่ายเงินแล้วและมีรหัสเข้าชม ${order.access_code} อยู่ ลบแล้วลูกค้าจะดูไม่ได้อีกเลย ยืนยันลบ ${order.order_number} ใช่หรือไม่?`
-        : `ยืนยันลบออเดอร์ ${order.order_number} ใช่หรือไม่? (ลบแล้วกู้คืนไม่ได้)`;
-    if (!confirm(warning)) return;
+        ? `⚠️ ออเดอร์นี้จ่ายเงินแล้วและมีรหัสเข้าชม ${order.access_code} อยู่\nลบแล้วลูกค้าจะดูไม่ได้อีกเลย\nยืนยันลบ ${order.order_number} ใช่หรือไม่?`
+        : `ยืนยันลบออเดอร์ ${order.order_number} ใช่หรือไม่?\n(ลบแล้วกู้คืนไม่ได้)`;
+    const ok = await appConfirm(warning, { danger: true, confirmText: "ลบออเดอร์นี้" });
+    if (!ok) return;
 
     deleteBtn.disabled = true;
     const { error } = await supabase.from("orders").delete().eq("id", order.id);
     if (error) {
-      alert("ลบไม่สำเร็จ: " + error.message);
+      await appAlert("ลบไม่สำเร็จ: " + error.message, { type: "error" });
       deleteBtn.disabled = false;
       return;
     }
