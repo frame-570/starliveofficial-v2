@@ -1,6 +1,7 @@
 import { extractYouTubeId } from "./supabaseClient.js";
 import { SUPABASE_ANON_KEY, FUNCTIONS_URL } from "./config.js";
 
+// DOM Elements
 const codeInput = document.getElementById("codeInput");
 const codeForm = document.getElementById("codeForm");
 const submitBtn = document.getElementById("submitBtn");
@@ -22,6 +23,7 @@ const rulesContent = document.getElementById("rulesContent");
 const dontShowAgainCheck = document.getElementById("dontShowAgainCheck");
 const acceptRulesBtn = document.getElementById("acceptRulesBtn");
 
+// State Variables
 let lockoutTimer = null;
 let heartbeatInterval = null;
 let currentSessionToken = null;
@@ -29,6 +31,7 @@ let currentAccessCode = null;
 let activeEventData = null;
 let pendingSelectedDay = null;
 
+// Icons SVG Template
 const ICONS = {
   lock: `<svg class="icon-svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>`,
   play: `<svg class="icon-svg" viewBox="0 0 24 24" fill="currentColor"><polygon points="5 3 19 12 5 21 5 3"/></svg>`,
@@ -36,19 +39,21 @@ const ICONS = {
   liveDot: `<span class="icon-live-dot"></span>`
 };
 
-// เติมรหัสอัตโนมัติถ้ามาจากลิงก์
+// 1. เติมรหัสอัตโนมัติหากมี Query Parameter (?code=...)
 const prefillCode = new URLSearchParams(window.location.search).get("code");
 if (prefillCode) {
   codeInput.value = prefillCode.toUpperCase().replace(/[^A-Z0-9]/g, "").slice(0, 8);
   codeInput.classList.toggle("filled", codeInput.value.length === 8);
 }
 
+// 2. จัดการ Input และกรองตัวอักษรให้อยู่ในรูปแบบ 8 หลัก
 codeInput.addEventListener("input", () => {
   const cleaned = codeInput.value.toUpperCase().replace(/[^A-Z0-9]/g, "").slice(0, 8);
   codeInput.value = cleaned;
   codeInput.classList.toggle("filled", cleaned.length === 8);
 });
 
+// 3. ตรวจสอบรหัสผ่าน Form Submit
 codeForm.addEventListener("submit", async (e) => {
   e.preventDefault();
   const code = codeInput.value.trim();
@@ -74,7 +79,7 @@ codeForm.addEventListener("submit", async (e) => {
       body: JSON.stringify({ code }),
     });
     body = await res.json();
-  } catch {
+  } catch (err) {
     submitBtn.disabled = false;
     submitBtn.textContent = "เข้าสู่การถ่ายทอดสด";
     showError("เชื่อมต่อเซิร์ฟเวอร์ไม่ได้ ลองใหม่อีกครั้ง");
@@ -84,6 +89,7 @@ codeForm.addEventListener("submit", async (e) => {
   submitBtn.disabled = false;
   submitBtn.textContent = "เข้าสู่การถ่ายทอดสด";
 
+  // ตรวจสอบสถานะการทำงาน (Lockout / Error)
   if (res.status === 429) {
     startLockoutCountdown(body.retry_after_seconds ?? 300);
     return;
@@ -108,14 +114,15 @@ codeForm.addEventListener("submit", async (e) => {
     return;
   }
 
+  // เข้าสู่ระบบสำเร็จ
   currentAccessCode = code;
   currentSessionToken = body.session_token || null;
   activeEventData = body;
 
-  // เริ่มส่ง Heartbeat เช็กสิทธิ์เครื่องเดียว
+  // เริ่มส่ง Heartbeat เช็กสิทธิ์การใช้งาน
   startHeartbeat();
 
-  // ตรวจสอบแพ็กเกจหลายวัน
+  // ตรวจสอบแพ็กเกจการรับชมแบบหลายวัน
   const purchasedDays = body.purchased_days || [1];
   if (purchasedDays.length > 1 && body.event_days && body.event_days.length > 1) {
     showDaySelectionModal(body);
@@ -127,7 +134,7 @@ codeForm.addEventListener("submit", async (e) => {
   }
 });
 
-// แสดง Modal เลือกวัน
+// 4. แสดง Modal เลือกวันสำหรับตั๋วแบบหลายวัน
 function showDaySelectionModal(data) {
   dayOptionsList.innerHTML = "";
   const purchasedDays = data.purchased_days || [1];
@@ -139,29 +146,22 @@ function showDaySelectionModal(data) {
     btn.type = "button";
     btn.className = "day-option-btn";
 
-    // 1. ไม่มีสิทธิ์
     if (!isPurchased) {
       btn.disabled = true;
       btn.innerHTML = `<div class="day-title">${ICONS.lock} วันที่ ${day.day_number}</div><div class="day-status">ไม่มีสิทธิ์รับชม</div>`;
-    } 
-    // 2. ถ่ายทอดสด
-    else if (data.status === "live" && (day.live_youtube_url || day.live_cloudflare_uid)) {
+    } else if (data.status === "live" && (day.live_youtube_url || day.live_cloudflare_uid)) {
       btn.innerHTML = `<div class="day-title">${ICONS.liveDot} วันที่ ${day.day_number}</div><div class="day-status live">ถ่ายทอดสด</div>`;
       btn.onclick = () => {
         daySelectModal.style.display = "none";
         proceedToRulesOrWatch(day, "live");
       };
-    } 
-    // 3. รีรัน (ย้อนหลัง)
-    else if (day.rerun_youtube_url || day.rerun_cloudflare_uid) {
+    } else if (day.rerun_youtube_url || day.rerun_cloudflare_uid) {
       btn.innerHTML = `<div class="day-title">${ICONS.play} วันที่ ${day.day_number}</div><div class="day-status rerun">รับชมรีรัน</div>`;
       btn.onclick = () => {
         daySelectModal.style.display = "none";
         proceedToRulesOrWatch(day, "rerun");
       };
-    } 
-    // 4. ยังไม่ถึงกำหนดวัน (ซ่อน UID / ลิงก์ไว้)
-    else {
+    } else {
       btn.disabled = true;
       btn.innerHTML = `<div class="day-title">${ICONS.clock} วันที่ ${day.day_number}</div><div class="day-status">ยังไม่ถึงวันถ่ายทอดสด</div>`;
     }
@@ -172,7 +172,7 @@ function showDaySelectionModal(data) {
   daySelectModal.style.display = "flex";
 }
 
-// ตรวจสอบเรื่องกฎ/ข้อตกลง
+// 5. ตรวจสอบกฎระเบียบและข้อตกลงการรับชม
 function proceedToRulesOrWatch(dayData, mode = null) {
   pendingSelectedDay = { dayData, mode };
   const hideRules = localStorage.getItem("hide_watch_rules") === "true";
@@ -187,6 +187,7 @@ function proceedToRulesOrWatch(dayData, mode = null) {
   }
 }
 
+// ปรับปรุงการกดปุ่มยอมรับกฎ
 acceptRulesBtn.addEventListener("click", () => {
   if (dontShowAgainCheck.checked) {
     localStorage.setItem("hide_watch_rules", "true");
@@ -197,7 +198,7 @@ acceptRulesBtn.addEventListener("click", () => {
   }
 });
 
-// เริ่มรับชมงาน
+// 6. เริ่มเข้าสู่หน้าเล่นวิดีโอ (Player Screen)
 function startViewing(dayData, mode) {
   liveTitle.textContent = activeEventData.eventTitle || activeEventData.title || "Star Live Official";
 
@@ -217,6 +218,7 @@ function startViewing(dayData, mode) {
   }, 480);
 }
 
+// 7. Render แท็บการสลับวันบนเครื่องเล่น
 function renderDayTabs(data, activeDay) {
   if (!dayTabContainer) return;
   dayTabContainer.innerHTML = "";
@@ -263,6 +265,7 @@ function setActiveTab(activeBtn) {
   activeBtn.classList.add("active");
 }
 
+// 8. โหลดสตรีมข้อมูลตามวันที่เลือก
 function loadSelectedDayStream(day, forceMode = null) {
   let platform, streamUrl, token;
 
@@ -286,6 +289,7 @@ function loadSelectedDayStream(day, forceMode = null) {
   });
 }
 
+// 9. โหลด iframe สำหรับรับชม (Cloudflare Stream / YouTube)
 function loadVideoStream(streamData) {
   let src = null;
 
@@ -313,6 +317,7 @@ function loadVideoStream(streamData) {
   }
 }
 
+// 10. อัปเดต Badge แสดงสถานะ (LIVE / รีรัน)
 function updateStatusBadge(status) {
   if (status === "rerun") {
     statusBadge.innerHTML = `รีรัน`;
@@ -323,7 +328,7 @@ function updateStatusBadge(status) {
   }
 }
 
-// ระบบ Heartbeat เช็กสิทธิ์การดู 1 เครื่อง
+// 11. ระบบ Heartbeat ตรวจสอบสิทธิ์การใช้งาน 1 เครื่อง (เช็กทุกๆ 15 วินาที)
 function startHeartbeat() {
   if (heartbeatInterval) clearInterval(heartbeatInterval);
   
@@ -352,16 +357,18 @@ function startHeartbeat() {
     } catch (e) {
       console.warn("Heartbeat failed:", e);
     }
-  }, 15000); // เช็กทุกๆ 15 วินาที
+  }, 15000);
 }
 
+// 12. Helper แสดงข้อความ Error พร้อม Effect การสั่น
 function showError(message) {
   errorText.textContent = message;
   codeInput.classList.remove("shake");
-  void codeInput.offsetWidth;
+  void codeInput.offsetWidth; // Trigger reflow
   codeInput.classList.add("shake");
 }
 
+// 13. นับถอยหลังเมื่อกรอกรหัสผิดเกินจำนวนครั้ง (Lockout)
 function startLockoutCountdown(seconds) {
   clearInterval(lockoutTimer);
   submitBtn.disabled = true;
