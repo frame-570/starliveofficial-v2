@@ -180,37 +180,6 @@ html, body {
   40%, 80% { transform: translateX(6px); }
 }
 
-/* วัน/รอบที่เลือกได้ ตอนรหัสมีสิทธิ์ดูมากกว่า 1 วัน */
-.day-option-btn {
-  width: 100%;
-  padding: 14px 18px;
-  text-align: left;
-  font-family: "Prompt", sans-serif;
-  font-weight: 600;
-  font-size: 14.5px;
-  color: var(--text);
-  background: rgba(242, 183, 5, 0.06);
-  border: 1.5px solid var(--line);
-  border-radius: 12px;
-  cursor: pointer;
-  transition: border-color 0.2s, background 0.2s, transform 0.15s;
-}
-.day-option-btn:hover {
-  border-color: var(--amber);
-  background: rgba(242, 183, 5, 0.14);
-  transform: translateY(-1px);
-}
-.day-option-btn:disabled {
-  opacity: 0.5;
-  cursor: not-allowed;
-  transform: none;
-}
-.day-option-btn.selected,
-.day-option-btn.active {
-  border-color: var(--amber);
-  background: rgba(242, 183, 5, 0.16);
-}
-
 /* ---------- Event detail page ---------- */
 .event-detail-banner {
   width: 100%;
@@ -954,3 +923,63 @@ html, body {
   box-shadow: 0 0 8px var(--crimson);
 }
 
+
+/* Modal Overlays */
+.modal-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100vw;
+  height: 100vh;
+  background: rgba(0, 0, 0, 0.75);
+  backdrop-filter: blur(8px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 9999;
+  padding: 16px;
+}
+.modal-card {
+  background: #18181b;
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  border-radius: 16px;
+  width: 100%;
+  max-width: 420px;
+  padding: 24px;
+  box-shadow: 0 20px 40px rgba(0, 0, 0, 0.5);
+  text-align: center;
+  color: #fff;
+}
+.day-options-list {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+.day-option-btn {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 12px 16px;
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 10px;
+  color: #fff;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+.day-option-btn:hover:not(:disabled) {
+  background: rgba(255, 255, 255, 0.15);
+  border-color: var(--amber, #ffd700);
+}
+.day-option-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+.day-status.live {
+  color: #ef4444;
+  font-weight: 600;
+}
+.day-status.rerun {
+  color: #3b82f6;
+  font-weight: 600;
+}
