@@ -19,6 +19,7 @@ html, body {
   background: var(--stage);
   color: var(--text);
   font-family: "Sarabun", "Noto Sans Thai", sans-serif;
+  overflow-x: hidden;
 }
 
 .display {
@@ -109,8 +110,7 @@ html, body {
 .perforation::before { left: -9px; }
 .perforation::after { right: -9px; }
 
-/* Code input: single field for the 8-character per-order code (STXXXXXX) */
-/* PIN input: six bulbs that light up amber as they fill */
+/* PIN input / Code input */
 .pin-row {
   display: flex;
   gap: 10px;
@@ -174,34 +174,14 @@ html, body {
   box-shadow: 0 0 10px rgba(242, 183, 5, 0.25);
 }
 .code-input.shake { animation: shake 0.4s; border-color: var(--crimson); }
+
 @keyframes shake {
   0%, 100% { transform: translateX(0); }
   20%, 60% { transform: translateX(-6px); }
   40%, 80% { transform: translateX(6px); }
 }
 
-/* ---------- Event detail page ---------- */
-.event-detail-banner {
-  width: 100%;
-  aspect-ratio: 16 / 9;
-  border-radius: var(--radius);
-  background-size: cover;
-  background-position: center;
-  background-color: rgba(0, 0, 0, 0.35);
-  border: 1px solid var(--line);
-}
-.event-detail-banner-fallback {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  font-family: "Prompt", sans-serif;
-  font-weight: 700;
-  font-size: 18px;
-  color: var(--muted);
-  text-align: center;
-  padding: 20px;
-}
-
+/* Buttons */
 .btn-marquee {
   width: 100%;
   margin-top: 22px;
@@ -230,7 +210,7 @@ html, body {
   min-height: 18px;
 }
 
-/* Curtain-open transition into the stage/player view */
+/* Curtain transition & Live indicator */
 .curtain-exit {
   animation: curtain-out 0.5s cubic-bezier(0.6, 0, 0.4, 1) forwards;
 }
@@ -265,7 +245,7 @@ html, body {
   animation: bulb-pulse 1.4s ease-in-out infinite;
 }
 
-/* Fixed top bar: brand top-left, concert title truly centered, LIVE + viewer count stacked top-right */
+/* Top bar & Player */
 .top-bar {
   position: fixed;
   top: 0;
@@ -345,7 +325,7 @@ html, body {
   border: 0;
 }
 
-/* ---------- Admin-specific ---------- */
+/* Admin panel & Settings */
 .admin-shell {
   max-width: 880px;
   margin: 0 auto;
@@ -440,7 +420,7 @@ html, body {
 
 .muted { color: var(--muted); }
 
-/* Settings modal */
+/* Modal & Dialogs */
 .modal-overlay {
   position: fixed;
   inset: 0;
@@ -459,9 +439,16 @@ html, body {
   max-height: 88vh;
   overflow-y: auto;
   animation: stage-in 0.22s cubic-bezier(0.2, 0.8, 0.2, 1) both;
+  background: #18181b;
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  border-radius: 16px;
+  padding: 24px;
+  box-shadow: 0 20px 40px rgba(0, 0, 0, 0.5);
+  text-align: center;
+  color: #fff;
 }
 
-/* ---------- Homepage header ---------- */
+/* Homepage layout */
 .home-header {
   display: flex;
   align-items: center;
@@ -477,7 +464,6 @@ html, body {
 }
 .home-watch-btn { text-decoration: none; display: inline-block; }
 
-/* ---------- Profile avatar + dropdown ---------- */
 .profile-menu-wrap { position: relative; }
 .profile-avatar {
   width: 38px;
@@ -526,7 +512,6 @@ html, body {
 }
 .profile-dropdown-item:hover { background: rgba(242, 183, 5, 0.1); color: var(--amber); }
 
-/* ---------- Homepage hero + event grid ---------- */
 .home-shell { max-width: 1080px; margin: 0 auto; padding: 20px 24px 100px; }
 .home-hero { text-align: center; padding: 40px 0 44px; }
 .home-hero-title { font-size: 34px; font-weight: 800; line-height: 1.25; margin: 0 0 12px; }
@@ -536,11 +521,9 @@ html, body {
   display: grid;
   width: 100%;
   gap: 16px;
-  /* 📱 บังคับให้เป็น 2 กล่องต่อแถวสำหรับโทรศัพท์มือถือเป็นค่าเริ่มต้น */
   grid-template-columns: repeat(2, 1fr);
 }
 
-/* 💻 ตั้งแต่หน้าจอแท็บเล็ต / คอมพิวเตอร์ (768px ขึ้นไป) ให้เป็น 4 กล่องต่อแถว */
 @media (min-width: 768px) {
   .event-grid {
     grid-template-columns: repeat(4, 1fr);
@@ -609,7 +592,7 @@ html, body {
 }
 .event-card-price { color: var(--amber); font-weight: 600; }
 
-/* ---------- Login page ---------- */
+/* Login page */
 .login-shell {
   min-height: 100vh;
   display: flex;
@@ -675,21 +658,7 @@ html, body {
   background: var(--line);
 }
 
-@media (max-width: 760px) {
-  .login-shell { flex-direction: column; }
-  .login-brand-panel { padding: 40px 24px 20px; text-align: center; align-items: center; }
-  .login-brand-headline { font-size: 24px; }
-  .login-form-panel { padding: 16px 20px 50px; }
-  .home-hero-title { font-size: 24px; }
-  .home-header { padding: 14px 16px; }
-  
-  /* ปรับแต่งรายละเอียดการ์ดให้กระชับพอดียามอยู่บนมือถือ 2 กล่อง */
-  .event-card-body { padding: 10px 12px 14px; }
-  .event-card-title { font-size: 13.5px; }
-  .event-card-meta { font-size: 11px; }
-}
-
-/* ---------- Event detail page ---------- */
+/* Event Detail */
 .event-detail-banner {
   width: 100%;
   aspect-ratio: 16 / 6;
@@ -725,13 +694,7 @@ html, body {
   background: rgba(242, 183, 5, 0.16);
 }
 
-@media (max-width: 760px) {
-  .event-detail-grid { grid-template-columns: 1fr; }
-  .event-detail-purchase { position: static; }
-  .event-detail-banner { aspect-ratio: 16 / 9; }
-}
-
-/* ---------- Payment page ---------- */
+/* Payment page */
 .qr-wrap {
   display: flex;
   justify-content: center;
@@ -810,7 +773,7 @@ html, body {
 .status-failed { color: var(--crimson) !important; }
 .status-cancelled, .status-verifying { color: var(--muted) !important; }
 
-/* ---------- Admin: tabs ---------- */
+/* Admin tabs & rows */
 .admin-tabs {
   display: flex;
   gap: 8px;
@@ -831,7 +794,6 @@ html, body {
 }
 .admin-tab-btn.active { color: var(--amber); border-bottom-color: var(--amber); }
 
-/* ---------- Admin: day + package rows ---------- */
 .day-row {
   display: flex;
   align-items: center;
@@ -847,18 +809,7 @@ html, body {
   padding: 10px 12px;
 }
 
-@media (prefers-reduced-motion: reduce) {
-  * { animation: none !important; transition: none !important; }
-}
-
-@media (max-width: 420px) {
-  .top-bar { padding: 12px 10px; }
-  .marquee-brand.small { font-size: 8.5px; gap: 4px; }
-  .top-bar-title { font-size: 12px; max-width: 34vw; }
-  .viewer-badge, .live-badge { font-size: 10px; padding: 4px 8px; }
-  .top-bar-right { gap: 4px; }
-}
-/* ---------- แท็บสลับวันชมถ่ายทอดสด / รีรัน ---------- */
+/* Day tabs wrapper for streaming */
 .day-tabs-wrapper {
   display: flex;
   justify-content: center;
@@ -868,7 +819,6 @@ html, body {
   width: min(920px, 94vw);
   flex-wrap: wrap;
 }
-
 .day-tab-btn {
   display: inline-flex;
   align-items: center;
@@ -884,20 +834,17 @@ html, body {
   cursor: pointer;
   transition: all 0.2s ease;
 }
-
 .day-tab-btn:hover:not(:disabled) {
   border-color: var(--amber);
   background: rgba(242, 183, 5, 0.12);
   transform: translateY(-1px);
 }
-
 .day-tab-btn.active {
   border-color: var(--amber);
   background: linear-gradient(180deg, #ffd23c, var(--amber));
   color: #1a1400;
   box-shadow: 0 6px 18px -4px rgba(242, 183, 5, 0.4);
 }
-
 .day-tab-btn:disabled {
   opacity: 0.45;
   cursor: not-allowed;
@@ -905,7 +852,6 @@ html, body {
   background: rgba(0, 0, 0, 0.2);
 }
 
-/* ไอคอน SVG รูปภาพแทนอิโมจิ */
 .icon-svg {
   width: 15px;
   height: 15px;
@@ -913,7 +859,6 @@ html, body {
   vertical-align: middle;
   flex-shrink: 0;
 }
-
 .icon-live-dot {
   width: 8px;
   height: 8px;
@@ -923,33 +868,6 @@ html, body {
   box-shadow: 0 0 8px var(--crimson);
 }
 
-
-/* Modal Overlays */
-.modal-overlay {
-  position: fixed;
-  top: 0;
-  left: 0;
-  width: 100vw;
-  height: 100vh;
-  background: rgba(0, 0, 0, 0.75);
-  backdrop-filter: blur(8px);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  z-index: 9999;
-  padding: 16px;
-}
-.modal-card {
-  background: #18181b;
-  border: 1px solid rgba(255, 255, 255, 0.15);
-  border-radius: 16px;
-  width: 100%;
-  max-width: 420px;
-  padding: 24px;
-  box-shadow: 0 20px 40px rgba(0, 0, 0, 0.5);
-  text-align: center;
-  color: #fff;
-}
 .day-options-list {
   display: flex;
   flex-direction: column;
@@ -969,7 +887,7 @@ html, body {
 }
 .day-option-btn:hover:not(:disabled) {
   background: rgba(255, 255, 255, 0.15);
-  border-color: var(--amber, #ffd700);
+  border-color: var(--amber);
 }
 .day-option-btn:disabled {
   opacity: 0.5;
@@ -982,4 +900,34 @@ html, body {
 .day-status.rerun {
   color: #3b82f6;
   font-weight: 600;
+}
+
+/* Responsive Media Queries */
+@media (max-width: 760px) {
+  .login-shell { flex-direction: column; }
+  .login-brand-panel { padding: 40px 24px 20px; text-align: center; align-items: center; }
+  .login-brand-headline { font-size: 24px; }
+  .login-form-panel { padding: 16px 20px 50px; }
+  .home-hero-title { font-size: 24px; }
+  .home-header { padding: 14px 16px; }
+  
+  .event-card-body { padding: 10px 12px 14px; }
+  .event-card-title { font-size: 13.5px; }
+  .event-card-meta { font-size: 11px; }
+
+  .event-detail-grid { grid-template-columns: 1fr; }
+  .event-detail-purchase { position: static; }
+  .event-detail-banner { aspect-ratio: 16 / 9; }
+}
+
+@media (max-width: 420px) {
+  .top-bar { padding: 12px 10px; }
+  .marquee-brand.small { font-size: 8.5px; gap: 4px; }
+  .top-bar-title { font-size: 12px; max-width: 34vw; }
+  .viewer-badge, .live-badge { font-size: 10px; padding: 4px 8px; }
+  .top-bar-right { gap: 4px; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  * { animation: none !important; transition: none !important; }
 }
