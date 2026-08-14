@@ -2,7 +2,7 @@ import { supabase } from "./supabaseClient.js";
 import { SUPABASE_ANON_KEY, FUNCTIONS_URL } from "./config.js";
 
 // ============================================================
-// Styled confirm/alert modal (แทน confirm()/alert() ของเบราว์เซอร์)
+// Styled confirm/alert modal
 // ============================================================
 let dialogOverlay = null;
 
@@ -23,7 +23,6 @@ function ensureDialogOverlay() {
   return dialogOverlay;
 }
 
-/** แทน confirm() — คืนค่า true/false */
 function appConfirm(message, { danger = false, confirmText = "ยืนยัน", cancelText = "ยกเลิก" } = {}) {
   const overlay = ensureDialogOverlay();
   const icon = overlay.querySelector("#appDialogIcon");
@@ -52,7 +51,6 @@ function appConfirm(message, { danger = false, confirmText = "ยืนยัน
   });
 }
 
-/** แทน alert() — คืน Promise เมื่อกดตกลง */
 function appAlert(message, { type = "info" } = {}) {
   const overlay = ensureDialogOverlay();
   const icon = overlay.querySelector("#appDialogIcon");
@@ -243,7 +241,6 @@ const evDescription = document.getElementById("evDescription");
 const evBannerFile = document.getElementById("evBannerFile");
 const evBannerPreview = document.getElementById("evBannerPreview");
 const evStatus = document.getElementById("evStatus");
-const evViewingMonths = document.getElementById("evViewingMonths");
 const evRerunMonths = document.getElementById("evRerunMonths");
 const dayRows = document.getElementById("dayRows");
 const packageRows = document.getElementById("packageRows");
@@ -294,7 +291,6 @@ function addDayRow(dayData = {}) {
       <input type="text" class="field-input day-label-input" placeholder="ป้ายกำกับ เช่น Day 1 (ไม่บังคับ)" value="${escapeAttr(label)}" />
     </div>
 
-    <!-- ตั้งค่า Live ประจำวัน -->
     <div style="display:grid; grid-template-columns: 1fr 2fr; gap:10px; margin-bottom:8px;">
       <select class="field-input day-live-platform">
         <option value="">-- ไลฟ์: ยังไม่ตั้งค่า --</option>
@@ -304,7 +300,6 @@ function addDayRow(dayData = {}) {
       <input type="text" class="field-input day-live-url" placeholder="YouTube URL หรือ Cloudflare UID" value="${escapeAttr(livePlatform === "youtube" ? liveYt : liveCf)}" />
     </div>
 
-    <!-- ตั้งค่า Rerun ประจำวัน -->
     <div style="display:grid; grid-template-columns: 1fr 2fr; gap:10px;">
       <select class="field-input day-rerun-platform">
         <option value="">-- รีรัน: ยังไม่ตั้งค่า --</option>
@@ -399,8 +394,7 @@ function openEventForm(event = null) {
     evTitle.value = event.title;
     evDescription.value = event.description || "";
     evStatus.value = event.status;
-    if (evViewingMonths) evViewingMonths.value = event.viewing_duration_months;
-    if (evRerunMonths) evRerunMonths.value = event.rerun_duration_months;
+    if (evRerunMonths) evRerunMonths.value = event.rerun_duration_months || 6;
     currentBannerUrl = event.banner_url || "";
     if (currentBannerUrl) {
       evBannerPreview.src = currentBannerUrl;
@@ -423,7 +417,6 @@ function openEventForm(event = null) {
     eventFormTitle.textContent = "สร้างงานใหม่";
     eventIdInput.value = "";
     evStatus.value = "upcoming";
-    if (evViewingMonths) evViewingMonths.value = 6;
     if (evRerunMonths) evRerunMonths.value = 6;
     addDayRow();
   }
@@ -436,7 +429,6 @@ function closeEventForm() {
   eventFormCard.style.display = "none";
 }
 
-// ---------- Helper Function: Combination ----------
 function combinations(arr, size) {
   if (size === arr.length) return [arr];
   if (size === 1) return arr.map((x) => [x]);
@@ -448,7 +440,6 @@ function combinations(arr, size) {
   return result;
 }
 
-// ---------- Save Event ----------
 eventForm.addEventListener("submit", async (e) => {
   e.preventDefault();
   eventFormError.textContent = "";
@@ -484,7 +475,6 @@ eventForm.addEventListener("submit", async (e) => {
   saveBtn.textContent = "กำลังบันทึก...";
 
   try {
-    // 1. Upload Banner
     let bannerUrl = currentBannerUrl;
     const file = evBannerFile.files[0];
     if (file) {
@@ -496,14 +486,13 @@ eventForm.addEventListener("submit", async (e) => {
       bannerUrl = publicUrlData.publicUrl;
     }
 
-    // 2. Save Events
     const rerunMonthsVal = Number(evRerunMonths.value) || 6;
     const eventPayload = {
       title: evTitle.value.trim(),
       description: evDescription.value.trim() || null,
       banner_url: bannerUrl || null,
       status: evStatus.value,
-      viewing_duration_months: rerunMonthsVal, // ใช้ค่าเดียวกับรีรัน
+      viewing_duration_months: rerunMonthsVal,
       rerun_duration_months: rerunMonthsVal,
     };
 
@@ -519,7 +508,6 @@ eventForm.addEventListener("submit", async (e) => {
       savedEventId = data.id;
     }
 
-    // 3. Sync Event Days
     await supabase.from("event_days").delete().eq("event_id", savedEventId);
     const { data: insertedDays, error: daysError } = await supabase
       .from("event_days")
@@ -527,10 +515,7 @@ eventForm.addEventListener("submit", async (e) => {
       .select();
     if (daysError) throw new Error(daysError.message);
 
-    // 4. จัดการแพ็กเกจด้วยระบบ Upsert (ป้องกัน Error Foreign Key จากออเดอร์เก่า)
     const enabledNumDaysList = enabledPackages.map((p) => p.num_days);
-    
-    // ปิดการใช้งาน (หรือข้าม) แพ็กเกจที่ไม่ได้เลือกแทนการสั่ง Delete ตรงๆ ถ้ามีออเดอร์ผูกอยู่
     const { data: existingPkgs } = await supabase
       .from("ticket_packages")
       .select("id, num_days")
@@ -539,7 +524,6 @@ eventForm.addEventListener("submit", async (e) => {
     if (existingPkgs) {
       for (const ep of existingPkgs) {
         if (!enabledNumDaysList.includes(ep.num_days)) {
-          // ลบ option วันย่อยก่อน แล้วค่อยลบแพ็กเกจ
           await supabase.from("ticket_package_day_options").delete().eq("package_id", ep.id);
           const { error: delPkgErr } = await supabase.from("ticket_packages").delete().eq("id", ep.id);
           if (delPkgErr) {
@@ -549,7 +533,6 @@ eventForm.addEventListener("submit", async (e) => {
       }
     }
 
-    // 5. Upsert Packages & Day Options
     const sortedDays = insertedDays.sort((a, b) => a.day_number - b.day_number);
 
     for (const pkg of enabledPackages) {
@@ -589,7 +572,6 @@ eventForm.addEventListener("submit", async (e) => {
   }
 });
 
-// ---------- List Events ----------
 async function loadEvents() {
   const { data, error } = await supabase
     .from("events")
@@ -800,7 +782,7 @@ function escapeAttr(str) {
 }
 
 // ============================================================
-// Settings Modal (ปุ่มตั้งค่าระบบ)
+// Settings Modal (ปุ่มตั้งค่าระบบ ⚙️)
 // ============================================================
 const settingsBtn = document.getElementById("settingsBtn");
 const settingsOverlay = document.getElementById("settingsOverlay");
@@ -814,6 +796,7 @@ const promptpayIdInput = document.getElementById("promptpayIdInput");
 const promptpayNameInput = document.getElementById("promptpayNameInput");
 const shopNameInput = document.getElementById("shopNameInput");
 const lineOaInput = document.getElementById("lineOaInput");
+const watchRulesNoticeInput = document.getElementById("watchRulesNoticeInput");
 
 settingsBtn.addEventListener("click", openSettings);
 closeSettingsBtn.addEventListener("click", closeSettings);
@@ -827,17 +810,27 @@ async function openSettings() {
   settingsSaved.textContent = "";
   settingsOverlay.style.display = "flex";
 
-  const { data, error } = await supabase.from("app_settings").select("*").eq("id", 1).maybeSingle();
+  // 1. ดึงค่าตั้งค่าทั่วไป (app_settings)
+  const { data: appData, error: appError } = await supabase.from("app_settings").select("*").eq("id", 1).maybeSingle();
 
-  if (error) {
-    settingsError.textContent = "โหลดการตั้งค่าไม่สำเร็จ: " + error.message;
+  if (appError) {
+    settingsError.textContent = "โหลดการตั้งค่าไม่สำเร็จ: " + appError.message;
     return;
   }
 
-  promptpayIdInput.value = data?.promptpay_id || "";
-  promptpayNameInput.value = data?.promptpay_name || "";
-  shopNameInput.value = data?.shop_name || "";
-  lineOaInput.value = data?.line_oa_url || "";
+  promptpayIdInput.value = appData?.promptpay_id || "";
+  promptpayNameInput.value = appData?.promptpay_name || "";
+  shopNameInput.value = appData?.shop_name || "";
+  lineOaInput.value = appData?.line_oa_url || "";
+
+  // 2. ดึงค่าข้อความกฎการรับชม (system_settings)
+  const { data: sysData } = await supabase
+    .from("system_settings")
+    .select("value")
+    .eq("key", "watch_rules_notice")
+    .maybeSingle();
+
+  watchRulesNoticeInput.value = sysData?.value || "1. ห้ามบันทึกภาพหน้าจอหรือนำคลิปไปเผยแพร่โดยไม่ได้รับอนุญาต\n2. รหัสเข้าชมใช้งานได้ทีละ 1 เครื่องเท่านั้น\n3. หากมีการเข้าใช้งานซ้อน ระบบจะตัดการเชื่อมต่อทันที";
 }
 
 function closeSettings() {
@@ -851,6 +844,7 @@ settingsForm.addEventListener("submit", async (e) => {
   saveSettingsBtn.disabled = true;
   saveSettingsBtn.textContent = "กำลังบันทึก...";
 
+  // 1. บันทึกเข้า app_settings
   const payload = {
     id: 1,
     promptpay_id: promptpayIdInput.value.trim() || null,
@@ -859,16 +853,32 @@ settingsForm.addEventListener("submit", async (e) => {
     line_oa_url: lineOaInput.value.trim() || null,
   };
 
-  const { error } = await supabase.from("app_settings").upsert(payload);
+  const { error: appErr } = await supabase.from("app_settings").upsert(payload);
+
+  if (appErr) {
+    saveSettingsBtn.disabled = false;
+    saveSettingsBtn.textContent = "บันทึกการตั้งค่า";
+    settingsError.textContent = "บันทึกไม่สำเร็จ: " + appErr.message;
+    return;
+  }
+
+  // 2. บันทึกข้อความกฎการรับชมเข้า system_settings
+  const watchRulesValue = watchRulesNoticeInput.value.trim();
+  const { error: sysErr } = await supabase
+    .from("system_settings")
+    .upsert({ key: "watch_rules_notice", value: watchRulesValue, updated_at: new Date() });
 
   saveSettingsBtn.disabled = false;
   saveSettingsBtn.textContent = "บันทึกการตั้งค่า";
 
-  if (error) {
-    settingsError.textContent = "บันทึกไม่สำเร็จ: " + error.message;
+  if (sysErr) {
+    settingsError.textContent = "บันทึกกฎไม่สำเร็จ: " + sysErr.message;
     return;
   }
 
   settingsSaved.textContent = "บันทึกเรียบร้อยแล้ว";
-  setTimeout(() => (settingsSaved.textContent = ""), 2000);
+  setTimeout(() => {
+    settingsSaved.textContent = "";
+    closeSettings();
+  }, 1200);
 });
