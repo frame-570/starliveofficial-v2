@@ -1,4 +1,3 @@
-
 import { supabase } from "./supabaseClient.js";
 import { SUPABASE_ANON_KEY, FUNCTIONS_URL } from "./config.js";
 
@@ -628,6 +627,7 @@ function renderOrderRow(order) {
       <span class="status-pill status-${escapeHtml(order.status)}" style="font-size:12.5px;">${ORDER_STATUS_LABELS[order.status] || order.status}</span>
       ${order.slip_image_url ? `<button class="icon-btn ghost" data-action="view-slip">ดูสลิป</button>` : ""}
       ${order.status !== "paid" && order.status !== "cancelled" ? `<button class="icon-btn" data-action="manual-approve" style="border-color:#46c882; color:#46c882;">อนุมัติด้วยมือ</button>` : ""}
+      <button class="icon-btn ghost" data-action="delete-order" style="border-color:var(--crimson); color:var(--crimson);">ลบ</button>
     </div>
   `;
 
@@ -674,6 +674,24 @@ function renderOrderRow(order) {
       loadOrders();
     });
   }
+
+  const deleteBtn = row.querySelector('[data-action="delete-order"]');
+  deleteBtn.addEventListener("click", async () => {
+    const warning =
+      order.status === "paid"
+        ? `⚠️ ออเดอร์นี้จ่ายเงินแล้วและมีรหัสเข้าชม ${order.access_code} อยู่ ลบแล้วลูกค้าจะดูไม่ได้อีกเลย ยืนยันลบ ${order.order_number} ใช่หรือไม่?`
+        : `ยืนยันลบออเดอร์ ${order.order_number} ใช่หรือไม่? (ลบแล้วกู้คืนไม่ได้)`;
+    if (!confirm(warning)) return;
+
+    deleteBtn.disabled = true;
+    const { error } = await supabase.from("orders").delete().eq("id", order.id);
+    if (error) {
+      alert("ลบไม่สำเร็จ: " + error.message);
+      deleteBtn.disabled = false;
+      return;
+    }
+    loadOrders();
+  });
 
   return row;
 }
