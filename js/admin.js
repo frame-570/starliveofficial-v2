@@ -1,4 +1,4 @@
-import { supabase } from "./supabaseClient.js";
+import { adminSupabase as supabase } from "./supabaseClient.js";
 import { SUPABASE_ANON_KEY, FUNCTIONS_URL } from "./config.js";
 
 // ============================================================
@@ -99,7 +99,7 @@ const signupBtn = document.getElementById("signupBtn");
 const authTitle = document.getElementById("authTitle");
 const authSubtitle = document.getElementById("authSubtitle");
 
-// ---------- Login gate (Supabase Auth) ----------
+// ---------- Login gate (Supabase Auth - Admin Instance) ----------
 const { data: { session } } = await supabase.auth.getSession();
 if (session) showDashboard();
 
