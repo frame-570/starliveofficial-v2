@@ -12,11 +12,12 @@ function ensureDialogOverlay() {
   dialogOverlay = document.createElement("div");
   dialogOverlay.className = "modal-overlay";
   dialogOverlay.style.display = "none";
+  dialogOverlay.style.zIndex = "99999";
   dialogOverlay.innerHTML = `
     <div class="admin-card modal-card" style="text-align:center;">
       <div id="appDialogIcon" class="verify-icon" style="display:none;"></div>
       <p id="appDialogMessage" style="font-size:14.5px; line-height:1.6; margin:6px 0 22px; white-space:pre-line;"></p>
-      <div id="appDialogButtons" style="display:flex; gap:10px;"></div>
+      <div id="appDialogButtons" style="display:flex; gap:10px; justify-content:center;"></div>
     </div>
   `;
   document.body.appendChild(dialogOverlay);
@@ -70,7 +71,7 @@ function appAlert(message, { type = "info" } = {}) {
   }
 
   msgEl.textContent = message;
-  btnWrap.innerHTML = `<button type="button" class="btn-marquee" id="appDialogOk" style="margin:0;">ตกลง</button>`;
+  btnWrap.innerHTML = `<button type="button" class="btn-marquee" id="appDialogOk" style="margin:0; min-width:120px;">ตกลง</button>`;
 
   overlay.style.display = "flex";
 
@@ -84,6 +85,24 @@ function appAlert(message, { type = "info" } = {}) {
       if (e.target === overlay) cleanup();
     };
   });
+}
+
+// ============================================================
+// Auth Session Helper (ป้องกัน Session หลุด)
+// ============================================================
+async function ensureAuthSession() {
+  const { data: { session }, error } = await supabase.auth.getSession();
+  if (!session || error) {
+    const { data: refreshed, error: refreshErr } = await supabase.auth.refreshSession();
+    if (refreshErr || !refreshed.session) {
+      await appAlert("เซสชันหมดอายุ กรุณาเข้าสู่ระบบใหม่อีกครั้ง", { type: "error" });
+      supabase.auth.signOut();
+      location.reload();
+      return null;
+    }
+    return refreshed.session;
+  }
+  return session;
 }
 
 // --- DOM Elements ---
@@ -440,9 +459,15 @@ function combinations(arr, size) {
   return result;
 }
 
+// ------------------------------------------------------------
+// บันทึก / แก้ไข Event
+// ------------------------------------------------------------
 eventForm.addEventListener("submit", async (e) => {
   e.preventDefault();
   eventFormError.textContent = "";
+
+  const session = await ensureAuthSession();
+  if (!session) return;
 
   const days = getDaysFromForm();
   if (days.length === 0) {
@@ -563,9 +588,14 @@ eventForm.addEventListener("submit", async (e) => {
     }
 
     closeEventForm();
-    loadEvents();
+    await loadEvents();
+    
+    // ✅ แสดง Pop-up สำเร็จ
+    await appAlert(eventId ? "แก้ไขงานสำเร็จเรียบร้อยแล้ว!" : "สร้างงานใหม่สำเร็จเรียบร้อยแล้ว!", { type: "success" });
+
   } catch (err) {
     eventFormError.textContent = err.message || "เกิดข้อผิดพลาด กรุณาลองใหม่";
+    await appAlert("บันทึกไม่สำเร็จ: " + (err.message || "เกิดข้อผิดพลาด"), { type: "error" });
   } finally {
     saveBtn.disabled = false;
     saveBtn.textContent = "บันทึกงาน";
@@ -618,18 +648,39 @@ function renderEventRow(ev) {
     </div>
   `;
 
+  // เปลี่ยนสถานะ Event
   row.querySelector(".status-select").addEventListener("change", async (e) => {
-    await supabase.from("events").update({ status: e.target.value }).eq("id", ev.id);
-    loadEvents();
+    const session = await ensureAuthSession();
+    if (!session) return;
+
+    const newStatus = e.target.value;
+    const { error } = await supabase.from("events").update({ status: newStatus }).eq("id", ev.id);
+    
+    if (error) {
+      await appAlert("อัปเดตสถานะไม่สำเร็จ: " + error.message, { type: "error" });
+      loadEvents();
+    } else {
+      await appAlert(`เปลี่ยนสถานะงานเป็น "${STATUS_LABELS[newStatus]}" สำเร็จ`, { type: "success" });
+      loadEvents();
+    }
   });
 
   row.querySelector('[data-action="edit"]').addEventListener("click", () => openEventForm(ev));
 
   row.querySelector('[data-action="delete"]').addEventListener("click", async () => {
+    const session = await ensureAuthSession();
+    if (!session) return;
+
     const ok = await appConfirm(`ลบงาน "${ev.title}" ใช่หรือไม่?\n(ออเดอร์ที่เกี่ยวข้องจะถูกลบด้วย)`, { danger: true, confirmText: "ลบงานนี้" });
     if (!ok) return;
-    await supabase.from("events").delete().eq("id", ev.id);
-    loadEvents();
+
+    const { error } = await supabase.from("events").delete().eq("id", ev.id);
+    if (error) {
+      await appAlert("ลบงานไม่สำเร็จ: " + error.message, { type: "error" });
+    } else {
+      await appAlert("ลบงานเรียบร้อยแล้ว", { type: "success" });
+      loadEvents();
+    }
   });
 
   return row;
@@ -712,6 +763,9 @@ function renderOrderRow(order) {
   const approveBtn = row.querySelector('[data-action="manual-approve"]');
   if (approveBtn) {
     approveBtn.addEventListener("click", async () => {
+      const session = await ensureAuthSession();
+      if (!session) return;
+
       const ok = await appConfirm(
         `ยืนยันว่าตรวจสลิปของออเดอร์ ${order.order_number} ด้วยตาแล้วว่าเป็นสลิปจริง\nและต้องการออกรหัสเข้าชมให้ลูกค้าใช่หรือไม่?`,
         { confirmText: "อนุมัติ" }
@@ -721,9 +775,6 @@ function renderOrderRow(order) {
       approveBtn.disabled = true;
       approveBtn.textContent = "กำลังอนุมัติ...";
 
-      const { data: sessionData } = await supabase.auth.getSession();
-      const accessToken = sessionData.session?.access_token;
-
       let body;
       try {
         const res = await fetch(`${FUNCTIONS_URL}/admin-approve-order`, {
@@ -731,7 +782,7 @@ function renderOrderRow(order) {
           headers: {
             "Content-Type": "application/json",
             apikey: SUPABASE_ANON_KEY,
-            Authorization: `Bearer ${accessToken}`,
+            Authorization: `Bearer ${session.access_token}`,
           },
           body: JSON.stringify({ orderId: order.id }),
         });
@@ -744,13 +795,16 @@ function renderOrderRow(order) {
         return;
       }
 
-      await appAlert(`ออกรหัสเข้าชมให้ลูกค้าแล้ว: ${body.access_code}`, { type: "success" });
+      await appAlert(`ออกรหัสเข้าชมให้ลูกค้าสำเร็จแล้ว!\nรหัสเข้าชมคือ: ${body.access_code}`, { type: "success" });
       loadOrders();
     });
   }
 
   const deleteBtn = row.querySelector('[data-action="delete-order"]');
   deleteBtn.addEventListener("click", async () => {
+    const session = await ensureAuthSession();
+    if (!session) return;
+
     const warning =
       order.status === "paid"
         ? `⚠️ ออเดอร์นี้จ่ายเงินแล้วและมีรหัสเข้าชม ${order.access_code} อยู่\nลบแล้วลูกค้าจะดูไม่ได้อีกเลย\nยืนยันลบ ${order.order_number} ใช่หรือไม่?`
@@ -765,6 +819,7 @@ function renderOrderRow(order) {
       deleteBtn.disabled = false;
       return;
     }
+    await appAlert(`ลบออเดอร์ ${order.order_number} เรียบร้อยแล้ว`, { type: "success" });
     loadOrders();
   });
 
@@ -837,48 +892,50 @@ function closeSettings() {
   settingsOverlay.style.display = "none";
 }
 
+// ------------------------------------------------------------
+// บันทึกการตั้งค่าระบบ
+// ------------------------------------------------------------
 settingsForm.addEventListener("submit", async (e) => {
   e.preventDefault();
   settingsError.textContent = "";
   settingsSaved.textContent = "";
+
+  const session = await ensureAuthSession();
+  if (!session) return;
+
   saveSettingsBtn.disabled = true;
   saveSettingsBtn.textContent = "กำลังบันทึก...";
 
-  // 1. บันทึกเข้า app_settings
-  const payload = {
-    id: 1,
-    promptpay_id: promptpayIdInput.value.trim() || null,
-    promptpay_name: promptpayNameInput.value.trim() || null,
-    shop_name: shopNameInput.value.trim() || null,
-    line_oa_url: lineOaInput.value.trim() || null,
-  };
+  try {
+    // 1. บันทึกเข้า app_settings
+    const payload = {
+      id: 1,
+      promptpay_id: promptpayIdInput.value.trim() || null,
+      promptpay_name: promptpayNameInput.value.trim() || null,
+      shop_name: shopNameInput.value.trim() || null,
+      line_oa_url: lineOaInput.value.trim() || null,
+    };
 
-  const { error: appErr } = await supabase.from("app_settings").upsert(payload);
+    const { error: appErr } = await supabase.from("app_settings").upsert(payload);
+    if (appErr) throw new Error("บันทึกข้อมูลทั่วไปไม่สำเร็จ: " + appErr.message);
 
-  if (appErr) {
+    // 2. บันทึกข้อความกฎการรับชมเข้า system_settings
+    const watchRulesValue = watchRulesNoticeInput.value.trim();
+    const { error: sysErr } = await supabase
+      .from("system_settings")
+      .upsert({ key: "watch_rules_notice", value: watchRulesValue, updated_at: new Date() });
+
+    if (sysErr) throw new Error("บันทึกกฎไม่สำเร็จ: " + sysErr.message);
+
+    // ✅ ปิด Modal และแสดง Pop-up สำเร็จ
+    closeSettings();
+    await appAlert("บันทึกการตั้งค่าระบบเรียบร้อยแล้ว!", { type: "success" });
+
+  } catch (err) {
+    settingsError.textContent = err.message;
+    await appAlert(err.message, { type: "error" });
+  } finally {
     saveSettingsBtn.disabled = false;
     saveSettingsBtn.textContent = "บันทึกการตั้งค่า";
-    settingsError.textContent = "บันทึกไม่สำเร็จ: " + appErr.message;
-    return;
   }
-
-  // 2. บันทึกข้อความกฎการรับชมเข้า system_settings
-  const watchRulesValue = watchRulesNoticeInput.value.trim();
-  const { error: sysErr } = await supabase
-    .from("system_settings")
-    .upsert({ key: "watch_rules_notice", value: watchRulesValue, updated_at: new Date() });
-
-  saveSettingsBtn.disabled = false;
-  saveSettingsBtn.textContent = "บันทึกการตั้งค่า";
-
-  if (sysErr) {
-    settingsError.textContent = "บันทึกกฎไม่สำเร็จ: " + sysErr.message;
-    return;
-  }
-
-  settingsSaved.textContent = "บันทึกเรียบร้อยแล้ว";
-  setTimeout(() => {
-    settingsSaved.textContent = "";
-    closeSettings();
-  }, 1200);
 });
