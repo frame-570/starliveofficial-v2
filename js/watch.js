@@ -122,15 +122,21 @@ codeForm.addEventListener("submit", async (e) => {
   // เริ่มส่ง Heartbeat เช็กสิทธิ์การใช้งาน 1 เครื่อง
   startHeartbeat();
 
-  // ตรวจสอบแพ็กเกจการรับชมแบบหลายวัน
+  // ดึงรายการวัน
   const purchasedDays = body.purchased_days || [1];
-  if (purchasedDays.length > 1 && body.event_days && body.event_days.length > 1) {
+  const eventDays = body.event_days || [];
+
+  // ตรวจสอบแพ็กเกจการรับชมแบบหลายวัน
+  if (purchasedDays.length > 1 && eventDays.length > 1) {
     // 🟢 Step 1: เปิด ป๊อปอัพเลือกวัน ก่อนเป็นอันดับแรกสำหรับตั๋วหลายวัน
     showDaySelectionModal(body);
   } else {
-    // 🟡 สำหรับตั๋ววันเดียว: เลือกวันแรกให้อัตโนมัติ แล้วข้ามไปแสดง Pop-up กฎ ทันที
+    // 🟡 สำหรับตั๋ววันเดียว: เลือกวันแรกให้อัตโนมัติ (มีระบบ Fallback กัน undefined)
     const targetDayNumber = purchasedDays[0] || 1;
-    const selectedDay = body.event_days?.find(d => d.day_number === targetDayNumber) || body.event_days?.[0];
+    const selectedDay = eventDays.find(d => Number(d.day_number) === Number(targetDayNumber)) 
+                        || eventDays[0] 
+                        || body;
+
     proceedToRulesOrWatch(selectedDay);
   }
 });
@@ -274,19 +280,26 @@ function setActiveTab(activeBtn) {
   activeBtn.classList.add("active");
 }
 
-// 8. โหลดสตรีมข้อมูลตามวันที่เลือก
+// 8. โหลดสตรีมข้อมูลตามวันที่เลือก (ปรับปรุงเพิ่ม Guard ป้องกัน undefined)
 function loadSelectedDayStream(day, forceMode = null) {
+  if (!day) {
+    day = activeEventData || {};
+  }
+
   let platform, streamUrl, token;
 
-  if (forceMode === "live" || (activeEventData.status === "live" && (day.live_youtube_url || day.live_cloudflare_uid))) {
-    platform = day.live_platform;
-    streamUrl = day.live_youtube_url;
-    token = day.live_cloudflare_uid;
+  const isLive = forceMode === "live" || 
+    (activeEventData?.status === "live" && (day.live_youtube_url || day.live_cloudflare_uid));
+
+  if (isLive) {
+    platform = day.live_platform || activeEventData?.live_platform;
+    streamUrl = day.live_youtube_url || activeEventData?.live_youtube_url;
+    token = day.live_cloudflare_uid || activeEventData?.live_cloudflare_uid;
     updateStatusBadge("live");
   } else {
-    platform = day.rerun_platform;
-    streamUrl = day.rerun_youtube_url;
-    token = day.rerun_cloudflare_uid;
+    platform = day.rerun_platform || activeEventData?.rerun_platform;
+    streamUrl = day.rerun_youtube_url || activeEventData?.rerun_youtube_url;
+    token = day.rerun_cloudflare_uid || activeEventData?.rerun_cloudflare_uid;
     updateStatusBadge("rerun");
   }
 
@@ -294,7 +307,7 @@ function loadSelectedDayStream(day, forceMode = null) {
     platform,
     streamUrl,
     token,
-    customer_code: activeEventData.customer_code
+    customer_code: activeEventData?.customer_code
   });
 }
 
