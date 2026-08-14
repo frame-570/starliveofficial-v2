@@ -1,35 +1,58 @@
 import { supabase } from "./supabaseClient.js";
 import { signInWithGoogle, signInWithPassword, signUpWithPassword } from "./auth.js";
 
-const redirectTarget = new URLSearchParams(window.location.search).get("redirect") || "./index.html";
+// Safe redirect resolver to prevent Open Redirect vulnerability
+function getSafeRedirectTarget() {
+  const rawParam = new URLSearchParams(window.location.search).get("redirect");
+  if (!rawParam) return "./index.html";
+
+  // อนุญาตเฉพาะ Relative Path หรือ URL ภายในโดเมนเดียวกันเท่านั้น
+  try {
+    const parsed = new URL(rawParam, window.location.origin);
+    if (parsed.origin === window.location.origin) {
+      return parsed.pathname + parsed.search + parsed.hash;
+    }
+  } catch {
+    // ถ้าเป็น Relative Path (เช่น ./index.html หรือ /dashboard)
+    if (rawParam.startsWith("/") || rawParam.startsWith("./")) {
+      return rawParam;
+    }
+  }
+  return "./index.html";
+}
+
+const redirectTarget = getSafeRedirectTarget();
 
 // ถ้าล็อกอินอยู่แล้ว ส่งกลับหน้าที่ตั้งใจไว้ทันที
 const { data: sessionData } = await supabase.auth.getSession();
-if (sessionData.session) {
+if (sessionData?.session) {
   window.location.href = redirectTarget;
 }
 
+// --- DOM Elements & Mode Switcher ---
 const loginMode = document.getElementById("loginMode");
 const signUpMode = document.getElementById("signUpMode");
 
-document.getElementById("goSignUp").addEventListener("click", () => {
+document.getElementById("goSignUp")?.addEventListener("click", () => {
   loginMode.style.display = "none";
   signUpMode.style.display = "block";
 });
-document.getElementById("goSignIn").addEventListener("click", () => {
+
+document.getElementById("goSignIn")?.addEventListener("click", () => {
   signUpMode.style.display = "none";
   loginMode.style.display = "block";
 });
 
-document.getElementById("googleBtn").addEventListener("click", () => signInWithGoogle(redirectTarget));
-document.getElementById("googleBtnSignUp").addEventListener("click", () => signInWithGoogle(redirectTarget));
+// --- OAuth (Google) ---
+document.getElementById("googleBtn")?.addEventListener("click", () => signInWithGoogle(redirectTarget));
+document.getElementById("googleBtnSignUp")?.addEventListener("click", () => signInWithGoogle(redirectTarget));
 
 // ---------- เข้าสู่ระบบด้วยอีเมล ----------
 const signInForm = document.getElementById("signInForm");
 const signInError = document.getElementById("signInError");
 const signInBtn = document.getElementById("signInBtn");
 
-signInForm.addEventListener("submit", async (e) => {
+signInForm?.addEventListener("submit", async (e) => {
   e.preventDefault();
   signInError.textContent = "";
   signInBtn.disabled = true;
@@ -38,17 +61,21 @@ signInForm.addEventListener("submit", async (e) => {
   const email = document.getElementById("signInEmail").value.trim();
   const password = document.getElementById("signInPassword").value;
 
-  const { error } = await signInWithPassword(email, password);
+  try {
+    const { error } = await signInWithPassword(email, password);
 
-  signInBtn.disabled = false;
-  signInBtn.textContent = "เข้าสู่ระบบ";
+    if (error) {
+      signInError.textContent = "อีเมลหรือรหัสผ่านไม่ถูกต้อง";
+      return;
+    }
 
-  if (error) {
-    signInError.textContent = "อีเมลหรือรหัสผ่านไม่ถูกต้อง";
-    return;
+    window.location.href = redirectTarget;
+  } catch (err) {
+    signInError.textContent = "เกิดข้อผิดพลาดในการเชื่อมต่อ กรุณาลองใหม่อีกครั้ง";
+  } finally {
+    signInBtn.disabled = false;
+    signInBtn.textContent = "เข้าสู่ระบบ";
   }
-
-  window.location.href = redirectTarget;
 });
 
 // ---------- สมัครสมาชิกด้วยอีเมล ----------
@@ -57,7 +84,7 @@ const signUpError = document.getElementById("signUpError");
 const signUpNotice = document.getElementById("signUpNotice");
 const signUpBtn = document.getElementById("signUpBtn");
 
-signUpForm.addEventListener("submit", async (e) => {
+signUpForm?.addEventListener("submit", async (e) => {
   e.preventDefault();
   signUpError.textContent = "";
   signUpNotice.textContent = "";
@@ -68,22 +95,29 @@ signUpForm.addEventListener("submit", async (e) => {
   const email = document.getElementById("signUpEmail").value.trim();
   const password = document.getElementById("signUpPassword").value;
 
-  const { data, error } = await signUpWithPassword(email, password, name);
+  try {
+    const { data, error } = await signUpWithPassword(email, password, name);
 
-  signUpBtn.disabled = false;
-  signUpBtn.textContent = "สมัครสมาชิก";
+    if (error) {
+      signUpError.textContent = /already|registered|user_already_exists/i.test(error.message || "")
+        ? "อีเมลนี้ถูกใช้สมัครแล้ว"
+        : "สมัครสมาชิกไม่สำเร็จ กรุณาลองใหม่";
+      return;
+    }
 
-  if (error) {
-    signUpError.textContent = /already|registered/i.test(error.message)
-      ? "อีเมลนี้ถูกใช้สมัครแล้ว"
-      : "สมัครสมาชิกไม่สำเร็จ กรุณาลองใหม่";
-    return;
+    // ถ้าตั้งค่า Supabase ให้ล็อกอินอัตโนมัติหลังสมัครสำเร็จ (Turn off Email Confirm)
+    if (data?.session) {
+      window.location.href = redirectTarget;
+      return;
+    }
+
+    // ถ้าต้องยืนยันตัวตนผ่านอีเมลก่อน
+    signUpNotice.textContent = "สมัครสำเร็จ! กรุณาตรวจสอบอีเมลและยืนยันตัวตนก่อนเข้าสู่ระบบ";
+    signUpForm.reset();
+  } catch (err) {
+    signUpError.textContent = "เกิดข้อผิดพลาดในการเชื่อมต่อ กรุณาลองใหม่อีกครั้ง";
+  } finally {
+    signUpBtn.disabled = false;
+    signUpBtn.textContent = "สมัครสมาชิก";
   }
-
-  if (data.session) {
-    window.location.href = redirectTarget;
-    return;
-  }
-
-  signUpNotice.textContent = "สมัครสำเร็จ กรุณายืนยันอีเมลก่อนเข้าสู่ระบบ";
 });
