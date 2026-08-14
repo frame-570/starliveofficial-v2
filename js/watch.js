@@ -16,6 +16,7 @@ const topBar = document.getElementById("topBar");
 const statusBadge = document.getElementById("statusBadge");
 const dayTabContainer = document.getElementById("dayTabContainer"); // Sidebar/แถบเลือกวันทางขวา
 const switchDayBtn = document.getElementById("switchDayBtn");
+const exitBtn = document.getElementById("exitBtn"); // ปุ่มออกจากระบบ/เคลียร์เซสชัน
 
 // Modals
 const daySelectModal = document.getElementById("daySelectModal");
@@ -59,6 +60,15 @@ if (codeInput) {
     const cleaned = codeInput.value.toUpperCase().replace(/[^A-Z0-9]/g, "").slice(0, 8);
     codeInput.value = cleaned;
     codeInput.classList.toggle("filled", cleaned.length === 8);
+  });
+}
+
+// ผูกอีเวนต์ปุ่มออกจากระบบ (Clear Session)
+if (exitBtn) {
+  exitBtn.addEventListener("click", () => {
+    if (confirm("คุณต้องการออกจากหน้าการรับชมเพื่อคืนสิทธิ์ให้เครื่องอื่นใช่หรือไม่?")) {
+      handleExitSession();
+    }
   });
 }
 
@@ -396,7 +406,7 @@ function updateStatusBadge(status) {
 }
 
 // ==========================================
-// 6. Security & Utilities
+// 6. Security & Session Management
 // ==========================================
 
 function startHeartbeat() {
@@ -421,14 +431,67 @@ function startHeartbeat() {
 
       if (!res.ok) {
         clearInterval(heartbeatInterval);
-        currentSessionToken = null;
         alert("รหัสนี้ถูกนำไปเปิดใช้งานบนเครื่องอื่น ระบบจะทำการออกจากหน้าชมสด");
-        window.location.reload();
+        resetToCodeScreen();
       }
     } catch (e) {
       console.warn("Heartbeat failed:", e);
     }
   }, 15000);
+}
+
+// ฟังก์ชันส่ง Request ไปบอกเซิร์ฟเวอร์เพื่อ Clear Session ใน DB แล้วรีเซ็ต UI
+async function handleExitSession() {
+  if (currentAccessCode && currentSessionToken) {
+    try {
+      await fetch(`${FUNCTIONS_URL}/exit-session`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          apikey: SUPABASE_ANON_KEY,
+          Authorization: `Bearer ${SUPABASE_ANON_KEY}`,
+        },
+        body: JSON.stringify({ 
+          code: currentAccessCode,
+          session_token: currentSessionToken 
+        }),
+      });
+    } catch (e) {
+      console.warn("Exit session error:", e);
+    }
+  }
+
+  resetToCodeScreen();
+}
+
+// รีเซ็ตการทำงาน เคลียร์ค่า State และเปลี่ยนกลับไปหน้ากรอกรหัส
+function resetToCodeScreen() {
+  if (heartbeatInterval) clearInterval(heartbeatInterval);
+  
+  currentSessionToken = null;
+  currentAccessCode = null;
+  activeEventData = null;
+  currentSelectedDay = null;
+
+  // หยุดการเล่นวิดีโอ (ถอด src ของ Iframe)
+  if (streamFrame) streamFrame.src = "";
+
+  // ซ่อน Element หน้าเครื่องเล่นวิดีโอ
+  if (topBar) topBar.style.display = "none";
+  if (playerScreen) playerScreen.style.display = "none";
+
+  // แสดงหน้ากรอกรหัสตั๋ว
+  if (codeScreen) {
+    codeScreen.classList.remove("curtain-exit");
+    codeScreen.style.display = "block";
+  }
+
+  if (codeInput) {
+    codeInput.value = "";
+    codeInput.classList.remove("filled");
+  }
+
+  if (errorText) errorText.textContent = "";
 }
 
 function showError(message) {
