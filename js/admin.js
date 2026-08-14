@@ -627,6 +627,7 @@ function renderOrderRow(order) {
     <div style="display:flex; align-items:center; gap:8px; flex-shrink:0;">
       <span class="status-pill status-${escapeHtml(order.status)}" style="font-size:12.5px;">${ORDER_STATUS_LABELS[order.status] || order.status}</span>
       ${order.slip_image_url ? `<button class="icon-btn ghost" data-action="view-slip">ดูสลิป</button>` : ""}
+      ${order.status !== "paid" && order.status !== "cancelled" ? `<button class="icon-btn" data-action="manual-approve" style="border-color:#46c882; color:#46c882;">อนุมัติด้วยมือ</button>` : ""}
     </div>
   `;
 
@@ -635,6 +636,42 @@ function renderOrderRow(order) {
     slipBtn.addEventListener("click", async () => {
       const { data, error } = await supabase.storage.from("payment-slips").createSignedUrl(order.slip_image_url, 120);
       if (!error && data?.signedUrl) window.open(data.signedUrl, "_blank");
+    });
+  }
+
+  const approveBtn = row.querySelector('[data-action="manual-approve"]');
+  if (approveBtn) {
+    approveBtn.addEventListener("click", async () => {
+      if (!confirm(`ยืนยันว่าตรวจสลิปของออเดอร์ ${order.order_number} ด้วยตาแล้วว่าเป็นสลิปจริง และต้องการออกรหัสเข้าชมให้ลูกค้าใช่หรือไม่?`)) return;
+
+      approveBtn.disabled = true;
+      approveBtn.textContent = "กำลังอนุมัติ...";
+
+      const { data: sessionData } = await supabase.auth.getSession();
+      const accessToken = sessionData.session?.access_token;
+
+      let body;
+      try {
+        const res = await fetch(`${FUNCTIONS_URL}/admin-approve-order`, {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            apikey: SUPABASE_ANON_KEY,
+            Authorization: `Bearer ${accessToken}`,
+          },
+          body: JSON.stringify({ orderId: order.id }),
+        });
+        body = await res.json();
+        if (!res.ok || !body.success) throw new Error(body.detail || body.error || "อนุมัติไม่สำเร็จ");
+      } catch (err) {
+        alert("อนุมัติไม่สำเร็จ: " + err.message);
+        approveBtn.disabled = false;
+        approveBtn.textContent = "อนุมัติด้วยมือ";
+        return;
+      }
+
+      alert(`ออกรหัสเข้าชมให้ลูกค้าแล้ว: ${body.access_code}`);
+      loadOrders();
     });
   }
 
