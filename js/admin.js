@@ -143,6 +143,7 @@ loginForm.addEventListener("submit", async (e) => {
 });
 
 document.getElementById("logoutBtn").addEventListener("click", async () => {
+  stopOrdersPolling();
   await supabase.auth.signOut();
   location.reload();
 });
@@ -224,6 +225,7 @@ signupForm.addEventListener("submit", async (e) => {
 
 supabase.auth.onAuthStateChange((event) => {
   if (event === "SIGNED_OUT") {
+    stopOrdersPolling();
     dashboard.style.display = "none";
     loginScreen.style.display = "flex";
   }
@@ -244,8 +246,24 @@ document.querySelectorAll(".admin-tab-btn").forEach((btn) => {
     btn.classList.add("active");
     document.getElementById("eventsTab").style.display = btn.dataset.tab === "events" ? "block" : "none";
     document.getElementById("ordersTab").style.display = btn.dataset.tab === "orders" ? "block" : "none";
-    if (btn.dataset.tab === "orders") loadOrders();
+
+    if (btn.dataset.tab === "orders") {
+      loadOrders();
+      startOrdersPolling();
+    } else {
+      stopOrdersPolling();
+    }
   });
+});
+
+// หยุด/เริ่ม poll ใหม่ตามการสลับแท็บของเบราว์เซอร์ (กันยิง request ตอนไม่ได้เปิดหน้าอยู่)
+document.addEventListener("visibilitychange", () => {
+  const ordersTabActive = document.getElementById("ordersTab").style.display !== "none";
+  if (document.hidden) {
+    stopOrdersPolling();
+  } else if (ordersTabActive) {
+    startOrdersPolling();
+  }
 });
 
 // ============================================================
@@ -699,7 +717,25 @@ const ORDER_STATUS_LABELS = {
 
 document.getElementById("orderStatusFilter").addEventListener("change", loadOrders);
 
-async function loadOrders() {
+// ---------- Auto-refresh: poll ออเดอร์ใหม่ทุก 10 วิ เฉพาะตอนเปิด tab นี้อยู่ ----------
+const ORDERS_POLL_MS = 10000;
+let ordersPollTimer = null;
+
+function startOrdersPolling() {
+  if (ordersPollTimer) return; // กันตั้งซ้ำ
+  ordersPollTimer = setInterval(() => {
+    loadOrders({ silent: true });
+  }, ORDERS_POLL_MS);
+}
+
+function stopOrdersPolling() {
+  if (ordersPollTimer) {
+    clearInterval(ordersPollTimer);
+    ordersPollTimer = null;
+  }
+}
+
+async function loadOrders({ silent = false } = {}) {
   const listEl = document.getElementById("adminOrderList");
   const emptyEl = document.getElementById("orderEmptyState");
   const filter = document.getElementById("orderStatusFilter").value;
@@ -715,7 +751,10 @@ async function loadOrders() {
   const { data, error } = await query;
 
   if (error) {
-    listEl.innerHTML = `<p class="error-text">โหลดข้อมูลไม่สำเร็จ: ${escapeHtml(error.message)}</p>`;
+    // ตอน poll เงียบ ๆ ถ้าเน็ตกระตุกไม่ต้องล้างของเดิมทิ้ง แค่ข้ามรอบนี้ไป
+    if (!silent) {
+      listEl.innerHTML = `<p class="error-text">โหลดข้อมูลไม่สำเร็จ: ${escapeHtml(error.message)}</p>`;
+    }
     return;
   }
 
