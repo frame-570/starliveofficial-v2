@@ -281,6 +281,7 @@ function startViewing() {
 
   // 3. แสดงผล UI หน้าเล่นวิดีโอ
   if (topBar) topBar.style.display = "flex";
+  if (exitBtn) exitBtn.style.display = "block";
   
   if (codeScreen) {
     codeScreen.classList.add("curtain-exit");
@@ -527,6 +528,7 @@ function resetToCodeScreen() {
 
   // ซ่อน Element หน้าเครื่องเล่นวิดีโอ
   if (topBar) topBar.style.display = "none";
+  if (exitBtn) exitBtn.style.display = "none";
   if (playerScreen) playerScreen.style.display = "none";
 
   // แสดงหน้ากรอกรหัสตั๋ว
