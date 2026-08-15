@@ -15,8 +15,10 @@ const streamFrame = document.getElementById("streamFrame");
 const topBar = document.getElementById("topBar");
 const statusBadge = document.getElementById("statusBadge");
 const dayTabContainer = document.getElementById("dayTabContainer"); // Sidebar/แถบเลือกวันทางขวา
-const switchDayBtn = document.getElementById("switchDayBtn");
 const exitBtn = document.getElementById("exitBtn"); // ปุ่มออกจากระบบ/เคลียร์เซสชัน
+const exitConfirmModal = document.getElementById("exitConfirmModal");
+const cancelExitBtn = document.getElementById("cancelExitBtn");
+const confirmExitBtn = document.getElementById("confirmExitBtn");
 
 // Modals
 const daySelectModal = document.getElementById("daySelectModal");
@@ -64,12 +66,20 @@ if (codeInput) {
   });
 }
 
-// ผูกอีเวนต์ปุ่มออกจากระบบ (Clear Session)
-if (exitBtn) {
+// ผูกอีเวนต์ปุ่มออกจากระบบ (Clear Session) — ใช้ modal ของเว็บเองแทน confirm() เดิม
+if (exitBtn && exitConfirmModal) {
   exitBtn.addEventListener("click", () => {
-    if (confirm("คุณต้องการออกจากหน้าการรับชมเพื่อคืนสิทธิ์ให้เครื่องอื่นใช่หรือไม่?")) {
-      handleExitSession();
-    }
+    exitConfirmModal.style.display = "flex";
+  });
+  cancelExitBtn?.addEventListener("click", () => {
+    exitConfirmModal.style.display = "none";
+  });
+  confirmExitBtn?.addEventListener("click", () => {
+    exitConfirmModal.style.display = "none";
+    handleExitSession();
+  });
+  exitConfirmModal.addEventListener("click", (e) => {
+    if (e.target === exitConfirmModal) exitConfirmModal.style.display = "none";
   });
 }
 
@@ -263,12 +273,7 @@ function startViewing() {
     liveTitle.textContent = activeEventData.eventTitle || activeEventData.title || "Star Live Official";
   }
 
-  if (switchDayBtn && activeEventData?.purchased_days?.length > 1) {
-    switchDayBtn.style.display = "inline-block";
-    switchDayBtn.onclick = () => showDaySelectionModal(activeEventData);
-  }
-
-  // 1. Render แถบ/ปุ่มเลือกวันฝั่งขวา (Sidebar)
+  // 1. Render แถบ/ปุ่มเลือกวันฝั่งขวา (Sidebar) — ใช้แทนปุ่ม "สลับวันชม" เดิมที่ตัดออกแล้ว
   renderRightSidebarDays(activeEventData, dayData);
 
   // 2. โหลดวิดีโอของวันที่เลือกเข้า Player
