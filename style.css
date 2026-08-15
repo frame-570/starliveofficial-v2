@@ -635,12 +635,29 @@ html, body {
 }
 .event-card-meta {
   display: flex;
-  align-items: center;
-  justify-content: space-between;
-  font-size: 12.5px;
-  color: var(--muted);
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 6px;
 }
-.event-card-price { color: var(--amber); font-weight: 600; }
+.event-card-date {
+  font-size: 11.5px;
+  color: var(--muted);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  max-width: 100%;
+}
+.event-card-price {
+  display: inline-block;
+  color: var(--amber);
+  font-weight: 700;
+  font-size: 12.5px;
+  background: rgba(242, 183, 5, 0.12);
+  border: 1px solid rgba(242, 183, 5, 0.28);
+  border-radius: 20px;
+  padding: 3px 10px;
+  white-space: nowrap;
+}
 
 /* Login page */
 .login-shell {
@@ -978,7 +995,8 @@ html, body {
   
   .event-card-body { padding: 10px 12px 14px; }
   .event-card-title { font-size: 13.5px; }
-  .event-card-meta { font-size: 11px; }
+  .event-card-date { font-size: 10.5px; }
+  .event-card-price { font-size: 11.5px; padding: 3px 9px; }
 
   .event-detail-grid { grid-template-columns: 1fr; }
   .event-detail-purchase { position: static; }
@@ -998,9 +1016,8 @@ html, body {
 @media (max-width: 420px) {
   .top-bar { padding: 12px 10px; }
   .marquee-brand.small { font-size: 8.5px; gap: 4px; }
-  .top-bar-title { max-width: 58vw; gap: 6px; }
-  .top-bar-title h2 { font-size: 12px; max-width: 34vw; }
-  .viewer-badge, .live-badge { font-size: 9px; padding: 3px 6px; }
+  .top-bar-title { font-size: 12px; max-width: 34vw; }
+  .viewer-badge, .live-badge { font-size: 10px; padding: 4px 8px; }
   .top-bar-right { gap: 4px; }
 }
 
