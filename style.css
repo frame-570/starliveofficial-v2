@@ -998,8 +998,9 @@ html, body {
 @media (max-width: 420px) {
   .top-bar { padding: 12px 10px; }
   .marquee-brand.small { font-size: 8.5px; gap: 4px; }
-  .top-bar-title { font-size: 12px; max-width: 34vw; }
-  .viewer-badge, .live-badge { font-size: 10px; padding: 4px 8px; }
+  .top-bar-title { max-width: 58vw; gap: 6px; }
+  .top-bar-title h2 { font-size: 12px; max-width: 34vw; }
+  .viewer-badge, .live-badge { font-size: 9px; padding: 3px 6px; }
   .top-bar-right { gap: 4px; }
 }
 
