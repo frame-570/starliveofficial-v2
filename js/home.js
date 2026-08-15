@@ -69,7 +69,7 @@ function renderCard(event) {
       <div class="event-card-body">
         <h3 class="display event-card-title">${escapeHtml(event.title)}</h3>
         <div class="event-card-meta">
-          <span>${escapeHtml(dateLabel)}</span>
+          <span class="event-card-date">${escapeHtml(dateLabel)}</span>
           <span class="event-card-price">${escapeHtml(priceLabel)}</span>
         </div>
       </div>
