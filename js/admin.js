@@ -890,6 +890,7 @@ const promptpayIdInput = document.getElementById("promptpayIdInput");
 const promptpayNameInput = document.getElementById("promptpayNameInput");
 const shopNameInput = document.getElementById("shopNameInput");
 const lineOaInput = document.getElementById("lineOaInput");
+const tiktokUrlInput = document.getElementById("tiktokUrlInput");
 const watchRulesNoticeInput = document.getElementById("watchRulesNoticeInput");
 
 settingsBtn.addEventListener("click", openSettings);
@@ -916,6 +917,7 @@ async function openSettings() {
   promptpayNameInput.value = appData?.promptpay_name || "";
   shopNameInput.value = appData?.shop_name || "";
   lineOaInput.value = appData?.line_oa_url || "";
+  tiktokUrlInput.value = appData?.tiktok_url || "";
 
   // 2. ดึงค่าข้อความกฎการรับชม (system_settings)
   const { data: sysData } = await supabase
@@ -953,6 +955,7 @@ settingsForm.addEventListener("submit", async (e) => {
       promptpay_name: promptpayNameInput.value.trim() || null,
       shop_name: shopNameInput.value.trim() || null,
       line_oa_url: lineOaInput.value.trim() || null,
+      tiktok_url: tiktokUrlInput.value.trim() || null,
     };
 
     const { error: appErr } = await supabase.from("app_settings").upsert(payload);
