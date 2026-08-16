@@ -25,8 +25,7 @@ async function loadEvents() {
 
   const { data: events, error } = await supabase
     .from("events")
-    .select("*, event_days(event_date), ticket_packages(price)")
-    .order("created_at", { ascending: false });
+    .select("*, event_days(event_date), ticket_packages(price)");
 
   loading.style.display = "none";
 
@@ -41,13 +40,24 @@ async function loadEvents() {
     return;
   }
 
-  grid.innerHTML = events.map(renderCard).join("");
+  // เรียงจากวันจัดงานล่าสุด (วันสุดท้ายของงาน) ไปเก่าสุด ไม่ใช่วันที่สร้างในระบบ
+  // งานที่ยังไม่กำหนดวันเลย ให้ตกไปอยู่ท้ายสุด
+  const sortedEvents = [...events].sort((a, b) => getLastEventDate(b) - getLastEventDate(a));
+
+  grid.innerHTML = sortedEvents.map(renderCard).join("");
 
   grid.querySelectorAll("[data-event-id]").forEach((el) => {
     el.addEventListener("click", () => {
       window.location.href = `./event-detail.html?id=${el.dataset.eventId}`;
     });
   });
+}
+
+function getLastEventDate(event) {
+  const dates = (event.event_days || [])
+    .map((d) => new Date(d.event_date).getTime())
+    .filter((t) => !isNaN(t));
+  return dates.length ? Math.max(...dates) : -Infinity;
 }
 
 function renderCard(event) {
