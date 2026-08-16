@@ -3,6 +3,7 @@ import { renderHeaderAuth } from "./auth.js";
 
 renderHeaderAuth();
 loadEvents();
+loadFooterSocial();
 
 const THAI_MONTHS = [
   "มกราคม", "กุมภาพันธ์", "มีนาคม", "เมษายน", "พฤษภาคม", "มิถุนายน",
@@ -91,4 +92,35 @@ function escapeHtml(str) {
   const div = document.createElement("div");
   div.textContent = str ?? "";
   return div.innerHTML;
+}
+
+async function loadFooterSocial() {
+  const wrap = document.getElementById("footerSocial");
+  if (!wrap) return;
+
+  const { data } = await supabase
+    .from("app_settings")
+    .select("line_oa_url, tiktok_url")
+    .eq("id", 1)
+    .maybeSingle();
+
+  const icons = [];
+
+  if (data?.tiktok_url) {
+    icons.push(`
+      <a href="${escapeHtml(data.tiktok_url)}" target="_blank" rel="noopener" class="site-footer-icon" aria-label="TikTok">
+        <svg viewBox="0 0 24 24" width="19" height="19" fill="currentColor"><path d="M16.6 5.82s.51.5 0 0A4.278 4.278 0 0 1 15.54 3h-3.09v12.4a2.592 2.592 0 0 1-2.59 2.5c-1.42 0-2.6-1.16-2.6-2.6 0-1.72 1.66-3.01 3.37-2.48V9.66c-3.45-.46-6.47 2.22-6.47 5.64 0 3.33 2.76 5.7 5.69 5.7 3.14 0 5.69-2.55 5.69-5.7V9.01a7.35 7.35 0 0 0 4.3 1.38V7.3s-1.88.09-3.24-1.48Z"/></svg>
+      </a>
+    `);
+  }
+
+  if (data?.line_oa_url) {
+    icons.push(`
+      <a href="${escapeHtml(data.line_oa_url)}" target="_blank" rel="noopener" class="site-footer-icon" aria-label="LINE">
+        <svg viewBox="0 0 24 24" width="19" height="19" fill="currentColor"><path d="M12 2C6.48 2 2 5.94 2 10.8c0 4.36 3.58 8.01 8.42 8.71.33.07.77.22.88.5.1.26.07.66.03.92l-.14.86c-.04.26-.2 1 .88.55s5.8-3.42 7.92-5.85C21.4 14.05 22 12.5 22 10.8 22 5.94 17.52 2 12 2Zm-3.3 11.06H7.05a.4.4 0 0 1-.4-.4V8.32c0-.22.18-.4.4-.4s.4.18.4.4v3.94h1.25c.22 0 .4.18.4.4s-.18.4-.4.4Zm1.9-.4c0 .22-.18.4-.4.4s-.4-.18-.4-.4V8.32c0-.22.18-.4.4-.4s.4.18.4.4v4.34Zm4.68 0c0 .18-.11.33-.28.38a.4.4 0 0 1-.44-.14l-2.13-2.9v2.66c0 .22-.18.4-.4.4s-.4-.18-.4-.4V8.32c0-.18.11-.33.28-.38a.38.38 0 0 1 .44.13l2.13 2.9V8.32c0-.22.18-.4.4-.4s.4.18.4.4v4.34Zm3.09-2.57c.22 0 .4.18.4.4s-.18.4-.4.4h-1.65v1.37h1.65c.22 0 .4.18.4.4s-.18.4-.4.4h-2.05a.4.4 0 0 1-.4-.4V8.32c0-.22.18-.4.4-.4h2.05c.22 0 .4.18.4.4s-.18.4-.4.4h-1.65v1.37Z"/></svg>
+      </a>
+    `);
+  }
+
+  wrap.innerHTML = icons.join("");
 }
