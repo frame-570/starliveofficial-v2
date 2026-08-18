@@ -125,8 +125,8 @@ slipInput.addEventListener("change", () => {
 // ---------- popup elements ----------
 const verifyOverlay = document.getElementById("verifyOverlay");
 const stepChecking = document.getElementById("verifyStepChecking");
-const stepSuccess = document.getElementById("verifyStepSuccess");
 const stepFailed = document.getElementById("verifyStepFailed");
+const successCard = document.getElementById("successCard");
 
 submitSlipBtn.addEventListener("click", submitSlip);
 document.getElementById("retrySlipBtn").addEventListener("click", () => {
@@ -146,7 +146,6 @@ async function submitSlip() {
 
   verifyOverlay.style.display = "flex";
   stepChecking.style.display = "block";
-  stepSuccess.style.display = "none";
   stepFailed.style.display = "none";
   submitSlipBtn.disabled = true;
 
@@ -190,9 +189,10 @@ async function submitSlip() {
 }
 
 function showSuccess(result) {
-  stepChecking.style.display = "none";
-  stepFailed.style.display = "none";
-  stepSuccess.style.display = "block";
+  // ปิดป๊อปอัพตรวจสอบสลิป แล้วสลับไปแสดงหน้ารหัสเข้าชมแบบหน้าปกติ (ไม่ใช่ป๊อปอัพ)
+  verifyOverlay.style.display = "none";
+  paymentCard.style.display = "none";
+  successCard.style.display = "block";
 
   document.getElementById("successOrderDetails").innerHTML = `
     <div style="display:flex; justify-content:space-between;"><span class="muted">เลขที่คำสั่งซื้อ</span><span>${escapeHtml(result.order_number)}</span></div>
@@ -240,7 +240,6 @@ function maybeShowOpenchatPopup() {
 
 function showFail(reason) {
   stepChecking.style.display = "none";
-  stepSuccess.style.display = "none";
   stepFailed.style.display = "block";
   document.getElementById("failReasonText").textContent = reason;
 }
