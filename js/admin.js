@@ -88,6 +88,47 @@ function appAlert(message, { type = "info" } = {}) {
 }
 
 // ============================================================
+// Slip Image Modal
+// ============================================================
+let slipModalOverlay = null;
+
+function ensureSlipModalOverlay() {
+  if (slipModalOverlay) return slipModalOverlay;
+
+  slipModalOverlay = document.createElement("div");
+  slipModalOverlay.className = "modal-overlay";
+  slipModalOverlay.style.display = "none";
+  slipModalOverlay.style.zIndex = "99999";
+  slipModalOverlay.innerHTML = `
+    <div class="admin-card modal-card" style="width:min(480px, 92vw); text-align:center; padding:16px;">
+      <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:12px;">
+        <span style="font-family:'Prompt',sans-serif; font-weight:600; font-size:14.5px;">สลิปการโอนเงิน</span>
+        <button type="button" id="slipModalClose" class="icon-btn ghost" style="padding:4px 10px;">✕</button>
+      </div>
+      <img id="slipModalImage" src="" alt="สลิปการโอนเงิน" style="width:100%; max-height:70vh; object-fit:contain; border-radius:10px; background:#0d0d10;" />
+      <a id="slipModalOpenNewTab" href="" target="_blank" rel="noopener" class="icon-btn ghost" style="display:inline-block; margin-top:14px; text-decoration:none;">เปิดในแท็บใหม่</a>
+    </div>
+  `;
+  document.body.appendChild(slipModalOverlay);
+
+  slipModalOverlay.querySelector("#slipModalClose").onclick = () => {
+    slipModalOverlay.style.display = "none";
+  };
+  slipModalOverlay.onclick = (e) => {
+    if (e.target === slipModalOverlay) slipModalOverlay.style.display = "none";
+  };
+
+  return slipModalOverlay;
+}
+
+function showSlipModal(imageUrl) {
+  const overlay = ensureSlipModalOverlay();
+  overlay.querySelector("#slipModalImage").src = imageUrl;
+  overlay.querySelector("#slipModalOpenNewTab").href = imageUrl;
+  overlay.style.display = "flex";
+}
+
+// ============================================================
 // Auth Session Helper (ป้องกัน Session หลุด)
 // ============================================================
 async function ensureAuthSession() {
@@ -793,22 +834,21 @@ function renderOrderRow(order) {
   const slipBtn = row.querySelector('[data-action="view-slip"]');
   if (slipBtn) {
     slipBtn.addEventListener("click", async () => {
-      // เปิดแท็บเปล่าไว้ก่อนทันทีตอนกด (นับเป็น user gesture โดยตรง กัน popup blocker)
-      const newTab = window.open("about:blank", "_blank");
+      const originalText = slipBtn.textContent;
+      slipBtn.disabled = true;
+      slipBtn.textContent = "กำลังโหลด...";
 
       const { data, error } = await supabase.storage.from("payment-slips").createSignedUrl(order.slip_image_url, 120);
 
+      slipBtn.disabled = false;
+      slipBtn.textContent = originalText;
+
       if (error || !data?.signedUrl) {
-        newTab?.close();
         await appAlert("เปิดรูปสลิปไม่สำเร็จ: " + (error?.message || "ไม่พบไฟล์ในระบบ"), { type: "error" });
         return;
       }
 
-      if (newTab) {
-        newTab.location.href = data.signedUrl;
-      } else {
-        await appAlert("เบราว์เซอร์บล็อกการเปิดแท็บใหม่ กรุณาอนุญาต popup สำหรับเว็บนี้แล้วลองใหม่", { type: "error" });
-      }
+      showSlipModal(data.signedUrl);
     });
   }
 
