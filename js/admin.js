@@ -943,6 +943,8 @@ const promptpayIdInput = document.getElementById("promptpayIdInput");
 const promptpayNameInput = document.getElementById("promptpayNameInput");
 const shopNameInput = document.getElementById("shopNameInput");
 const lineOaInput = document.getElementById("lineOaInput");
+const lineOpenchatUrlInput = document.getElementById("lineOpenchatUrlInput");
+const lineOpenchatMessageInput = document.getElementById("lineOpenchatMessageInput");
 const tiktokUrlInput = document.getElementById("tiktokUrlInput");
 const watchRulesNoticeInput = document.getElementById("watchRulesNoticeInput");
 
@@ -969,6 +971,8 @@ async function openSettings() {
   promptpayNameInput.value = appData?.promptpay_name || "";
   shopNameInput.value = appData?.shop_name || "";
   lineOaInput.value = appData?.line_oa_url || "";
+  lineOpenchatUrlInput.value = appData?.line_openchat_url || "";
+  lineOpenchatMessageInput.value = appData?.line_openchat_message || "";
   tiktokUrlInput.value = appData?.tiktok_url || "";
 
   const { data: sysData } = await supabase
@@ -1002,6 +1006,8 @@ settingsForm.addEventListener("submit", async (e) => {
       promptpay_name: promptpayNameInput.value.trim() || null,
       shop_name: shopNameInput.value.trim() || null,
       line_oa_url: lineOaInput.value.trim() || null,
+      line_openchat_url: lineOpenchatUrlInput.value.trim() || null,
+      line_openchat_message: lineOpenchatMessageInput.value.trim() || null,
       tiktok_url: tiktokUrlInput.value.trim() || null,
     };
 
