@@ -107,6 +107,20 @@
   </div>
 </div>
 
+<!-- Popup ชวนเข้า LINE OpenChat (แสดงหลังตรวจสลิปสำเร็จ) -->
+<div id="openchatOverlay" class="modal-overlay" style="display:none; z-index:100001;">
+  <div class="admin-card modal-card" style="text-align:center;">
+    <div class="verify-icon" style="background:linear-gradient(135deg,#06c755,#04a648); color:#fff; font-size:22px;">📢</div>
+    <h2 class="display" style="font-size:17px; margin:14px 0 10px;">อย่าพลาดข่าวสารและอัปเดต</h2>
+    <p class="muted" id="openchatMessageText" style="font-size:13.5px; line-height:1.7; margin:0 0 22px;"></p>
+
+    <div style="display:flex; flex-direction:column; gap:10px;">
+      <a id="openchatJoinLink" href="#" target="_blank" rel="noopener" class="btn-marquee" style="margin:0; text-decoration:none;">เข้าร่วม LINE OpenChat</a>
+      <button type="button" id="openchatSkipBtn" class="icon-btn ghost">ข้ามไปก่อน</button>
+    </div>
+  </div>
+</div>
+
 <script type="module" src="./js/payment.js"></script>
 </body>
 </html>
