@@ -16,6 +16,7 @@ const alreadyPaidCard = document.getElementById("alreadyPaidCard");
 
 let currentOrder = null;
 let selectedFile = null;
+let openchatSettings = null;
 
 const session = await getSession();
 if (!session) {
@@ -67,10 +68,11 @@ async function renderPaymentCard(order) {
   // ดึงแถวแรกของ app_settings โดยไม่ต้องเจาะจง id = 1
   const { data: settingsList } = await supabase
     .from("app_settings")
-    .select("promptpay_id, promptpay_name, line_oa_url")
+    .select("promptpay_id, promptpay_name, line_oa_url, line_openchat_url, line_openchat_message")
     .limit(1);
 
   const settings = settingsList?.[0];
+  openchatSettings = settings;
 
   const lineOaLink = document.getElementById("lineOaLink");
   if (settings?.line_oa_url) lineOaLink.href = settings.line_oa_url;
@@ -199,6 +201,41 @@ function showSuccess(result) {
     <div style="display:flex; justify-content:space-between; font-weight:700; color:var(--amber);"><span>ยอดชำระ</span><span>${Number(currentOrder.amount).toLocaleString("th-TH")}฿</span></div>
   `;
   document.getElementById("successAccessCode").textContent = result.access_code;
+
+  maybeShowOpenchatPopup();
+}
+
+// ============================================================
+// Popup ชวนเข้า LINE OpenChat (แสดงหลังตรวจสลิปสำเร็จ)
+// ============================================================
+function maybeShowOpenchatPopup() {
+  const url = openchatSettings?.line_openchat_url;
+  if (!url) return; // แอดมินยังไม่ได้ตั้งค่าลิงก์ ไม่ต้องแสดงป๊อปอัพ
+
+  const overlay = document.getElementById("openchatOverlay");
+  const messageText = document.getElementById("openchatMessageText");
+  const joinLink = document.getElementById("openchatJoinLink");
+  const skipBtn = document.getElementById("openchatSkipBtn");
+
+  messageText.textContent =
+    openchatSettings?.line_openchat_message ||
+    "เข้าร่วม LINE OpenChat เพื่อรับข่าวสารและอัปเดตล่าสุดจากเรา";
+  joinLink.href = url;
+
+  const closeOverlay = () => {
+    overlay.style.display = "none";
+  };
+
+  skipBtn.onclick = closeOverlay;
+  overlay.onclick = (e) => {
+    if (e.target === overlay) closeOverlay();
+  };
+  joinLink.onclick = closeOverlay;
+
+  // หน่วงเล็กน้อยให้ผู้ใช้เห็นหน้ารหัสเข้าชมก่อน ค่อยเด้งป๊อปอัพชวนเข้า LINE
+  setTimeout(() => {
+    overlay.style.display = "flex";
+  }, 600);
 }
 
 function showFail(reason) {
