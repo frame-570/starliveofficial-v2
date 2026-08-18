@@ -751,7 +751,6 @@ async function loadOrders({ silent = false } = {}) {
   const { data, error } = await query;
 
   if (error) {
-    // ตอน poll เงียบ ๆ ถ้าเน็ตกระตุกไม่ต้องล้างของเดิมทิ้ง แค่ข้ามรอบนี้ไป
     if (!silent) {
       listEl.innerHTML = `<p class="error-text">โหลดข้อมูลไม่สำเร็จ: ${escapeHtml(error.message)}</p>`;
     }
@@ -794,8 +793,22 @@ function renderOrderRow(order) {
   const slipBtn = row.querySelector('[data-action="view-slip"]');
   if (slipBtn) {
     slipBtn.addEventListener("click", async () => {
+      // เปิดแท็บเปล่าไว้ก่อนทันทีตอนกด (นับเป็น user gesture โดยตรง กัน popup blocker)
+      const newTab = window.open("about:blank", "_blank");
+
       const { data, error } = await supabase.storage.from("payment-slips").createSignedUrl(order.slip_image_url, 120);
-      if (!error && data?.signedUrl) window.open(data.signedUrl, "_blank");
+
+      if (error || !data?.signedUrl) {
+        newTab?.close();
+        await appAlert("เปิดรูปสลิปไม่สำเร็จ: " + (error?.message || "ไม่พบไฟล์ในระบบ"), { type: "error" });
+        return;
+      }
+
+      if (newTab) {
+        newTab.location.href = data.signedUrl;
+      } else {
+        await appAlert("เบราว์เซอร์บล็อกการเปิดแท็บใหม่ กรุณาอนุญาต popup สำหรับเว็บนี้แล้วลองใหม่", { type: "error" });
+      }
     });
   }
 
@@ -905,7 +918,6 @@ async function openSettings() {
   settingsSaved.textContent = "";
   settingsOverlay.style.display = "flex";
 
-  // 1. ดึงค่าตั้งค่าทั่วไป (app_settings)
   const { data: appData, error: appError } = await supabase.from("app_settings").select("*").eq("id", 1).maybeSingle();
 
   if (appError) {
@@ -919,7 +931,6 @@ async function openSettings() {
   lineOaInput.value = appData?.line_oa_url || "";
   tiktokUrlInput.value = appData?.tiktok_url || "";
 
-  // 2. ดึงค่าข้อความกฎการรับชม (system_settings)
   const { data: sysData } = await supabase
     .from("system_settings")
     .select("value")
@@ -933,9 +944,6 @@ function closeSettings() {
   settingsOverlay.style.display = "none";
 }
 
-// ------------------------------------------------------------
-// บันทึกการตั้งค่าระบบ
-// ------------------------------------------------------------
 settingsForm.addEventListener("submit", async (e) => {
   e.preventDefault();
   settingsError.textContent = "";
@@ -948,7 +956,6 @@ settingsForm.addEventListener("submit", async (e) => {
   saveSettingsBtn.textContent = "กำลังบันทึก...";
 
   try {
-    // 1. บันทึกเข้า app_settings
     const payload = {
       id: 1,
       promptpay_id: promptpayIdInput.value.trim() || null,
@@ -961,7 +968,6 @@ settingsForm.addEventListener("submit", async (e) => {
     const { error: appErr } = await supabase.from("app_settings").upsert(payload);
     if (appErr) throw new Error("บันทึกข้อมูลทั่วไปไม่สำเร็จ: " + appErr.message);
 
-    // 2. บันทึกข้อความกฎการรับชมเข้า system_settings
     const watchRulesValue = watchRulesNoticeInput.value.trim();
     const { error: sysErr } = await supabase
       .from("system_settings")
@@ -969,7 +975,6 @@ settingsForm.addEventListener("submit", async (e) => {
 
     if (sysErr) throw new Error("บันทึกกฎไม่สำเร็จ: " + sysErr.message);
 
-    // ✅ ปิด Modal และแสดง Pop-up สำเร็จ
     closeSettings();
     await appAlert("บันทึกการตั้งค่าระบบเรียบร้อยแล้ว!", { type: "success" });
 
