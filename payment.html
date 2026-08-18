@@ -65,6 +65,23 @@
     <p class="error-text" id="slipError"></p>
     <button type="button" id="submitSlipBtn" class="btn-marquee" disabled>เสร็จสิ้น</button>
   </div>
+
+  <!-- หน้าแจ้งรหัสเข้าชม (หลังตรวจสลิปสำเร็จ) — หน้าปกติ ไม่ใช่ป๊อปอัพ -->
+  <div id="successCard" class="pass-card" style="display:none; width:100%; margin-top:10px; text-align:center;">
+    <div class="verify-icon verify-icon-success" style="margin:0 auto;">✓</div>
+    <h2 class="display" style="font-size:17px; margin:14px 0 18px;">ชำระเงินสำเร็จ</h2>
+
+    <div style="text-align:left; font-size:13.5px; line-height:2;" id="successOrderDetails"></div>
+
+    <p class="muted" style="font-size:12.5px; margin:18px 0 6px;">รหัสเข้าชม (เก็บไว้ให้ดี)</p>
+    <div class="access-code-display" id="successAccessCode"></div>
+    <button type="button" id="copyCodeBtn" class="icon-btn ghost" style="margin-top:10px;">คัดลอกรหัส</button>
+
+    <div style="display:flex; gap:10px; margin-top:22px;">
+      <a href="./orders.html" class="icon-btn" style="flex:1; text-decoration:none; text-align:center;">ประวัติการสั่งซื้อ</a>
+      <a href="./watch.html" class="btn-marquee" style="flex:1; margin:0; text-decoration:none;">เข้าชมทันที</a>
+    </div>
+  </div>
 </main>
 
 <!-- Popup ตรวจสอบสลิป -->
@@ -75,22 +92,6 @@
       <div class="spinner"></div>
       <h2 class="display" style="font-size:16px; margin:18px 0 6px;">กำลังตรวจสอบสลิปชำระเงิน</h2>
       <p class="muted" style="font-size:13px; margin:0;">กรุณารอสักครู่ ไม่ต้องปิดหน้าต่างนี้</p>
-    </div>
-
-    <div id="verifyStepSuccess" style="display:none;">
-      <div class="verify-icon verify-icon-success">✓</div>
-      <h2 class="display" style="font-size:17px; margin:14px 0 18px;">ชำระเงินสำเร็จ</h2>
-
-      <div style="text-align:left; font-size:13.5px; line-height:2;" id="successOrderDetails"></div>
-
-      <p class="muted" style="font-size:12.5px; margin:18px 0 6px;">รหัสเข้าชม (เก็บไว้ให้ดี)</p>
-      <div class="access-code-display" id="successAccessCode"></div>
-      <button type="button" id="copyCodeBtn" class="icon-btn ghost" style="margin-top:10px;">คัดลอกรหัส</button>
-
-      <div style="display:flex; gap:10px; margin-top:22px;">
-        <a href="./orders.html" class="icon-btn" style="flex:1; text-decoration:none; text-align:center;">ประวัติการสั่งซื้อ</a>
-        <a href="./watch.html" class="btn-marquee" style="flex:1; margin:0; text-decoration:none;">เข้าชมทันที</a>
-      </div>
     </div>
 
     <div id="verifyStepFailed" style="display:none;">
