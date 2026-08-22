@@ -185,6 +185,7 @@ loginForm.addEventListener("submit", async (e) => {
 
 document.getElementById("logoutBtn").addEventListener("click", async () => {
   stopOrdersPolling();
+  stopLiveViewersPolling();
   await supabase.auth.signOut();
   location.reload();
 });
@@ -267,6 +268,7 @@ signupForm.addEventListener("submit", async (e) => {
 supabase.auth.onAuthStateChange((event) => {
   if (event === "SIGNED_OUT") {
     stopOrdersPolling();
+    stopLiveViewersPolling();
     dashboard.style.display = "none";
     loginScreen.style.display = "flex";
   }
@@ -288,6 +290,7 @@ document.querySelectorAll(".admin-tab-btn").forEach((btn) => {
     document.getElementById("eventsTab").style.display = btn.dataset.tab === "events" ? "block" : "none";
     document.getElementById("ordersTab").style.display = btn.dataset.tab === "orders" ? "block" : "none";
     document.getElementById("manualTab").style.display = btn.dataset.tab === "manual" ? "block" : "none";
+    document.getElementById("liveTab").style.display = btn.dataset.tab === "live" ? "block" : "none";
 
     if (btn.dataset.tab === "orders") {
       loadOrders();
@@ -299,16 +302,26 @@ document.querySelectorAll(".admin-tab-btn").forEach((btn) => {
     if (btn.dataset.tab === "manual") {
       loadManualEventOptions();
     }
+
+    if (btn.dataset.tab === "live") {
+      loadLiveViewers();
+      startLiveViewersPolling();
+    } else {
+      stopLiveViewersPolling();
+    }
   });
 });
 
 // หยุด/เริ่ม poll ใหม่ตามการสลับแท็บของเบราว์เซอร์ (กันยิง request ตอนไม่ได้เปิดหน้าอยู่)
 document.addEventListener("visibilitychange", () => {
   const ordersTabActive = document.getElementById("ordersTab").style.display !== "none";
+  const liveTabActive = document.getElementById("liveTab").style.display !== "none";
   if (document.hidden) {
     stopOrdersPolling();
-  } else if (ordersTabActive) {
-    startOrdersPolling();
+    stopLiveViewersPolling();
+  } else {
+    if (ordersTabActive) startOrdersPolling();
+    if (liveTabActive) startLiveViewersPolling();
   }
 });
 
@@ -1112,6 +1125,73 @@ manualResultCopyBtn.addEventListener("click", async () => {
   manualResultCopyBtn.textContent = "คัดลอกแล้ว!";
   setTimeout(() => (manualResultCopyBtn.textContent = original), 1500);
 });
+
+// ============================================================
+// กำลังดูอยู่ตอนนี้ (Live viewers — อิงจาก viewing_sessions ที่ heartbeat จริง)
+// ============================================================
+const LIVE_VIEWERS_POLL_MS = 10000;
+const HEARTBEAT_TIMEOUT_SECONDS = 30; // ต้องตรงกับค่าใน Edge Function verify-access-code/heartbeat
+let liveViewersPollTimer = null;
+
+function startLiveViewersPolling() {
+  if (liveViewersPollTimer) return;
+  liveViewersPollTimer = setInterval(() => loadLiveViewers({ silent: true }), LIVE_VIEWERS_POLL_MS);
+}
+
+function stopLiveViewersPolling() {
+  if (liveViewersPollTimer) {
+    clearInterval(liveViewersPollTimer);
+    liveViewersPollTimer = null;
+  }
+}
+
+async function loadLiveViewers({ silent = false } = {}) {
+  const countEl = document.getElementById("liveViewerCount");
+  const listEl = document.getElementById("liveViewerList");
+  const emptyEl = document.getElementById("liveViewerEmptyState");
+
+  const cutoff = new Date(Date.now() - HEARTBEAT_TIMEOUT_SECONDS * 1000).toISOString();
+
+  const { data, error } = await supabase
+    .from("viewing_sessions")
+    .select("*, orders(order_number, access_code, events(title))")
+    .gte("last_seen_at", cutoff)
+    .order("last_seen_at", { ascending: false });
+
+  if (error) {
+    if (!silent) {
+      listEl.innerHTML = `<p class="error-text">โหลดข้อมูลไม่สำเร็จ: ${escapeHtml(error.message)}</p>`;
+    }
+    return;
+  }
+
+  const sessions = data || [];
+  countEl.textContent = sessions.length;
+
+  listEl.innerHTML = "";
+  emptyEl.style.display = sessions.length === 0 ? "block" : "none";
+
+  sessions.forEach((s) => {
+    const watchedSeconds = Math.max(0, Math.floor((Date.now() - new Date(s.created_at).getTime()) / 1000));
+    const watchedLabel =
+      watchedSeconds < 60 ? `${watchedSeconds} วินาที` : `${Math.floor(watchedSeconds / 60)} นาที`;
+
+    const row = document.createElement("div");
+    row.className = "session-row";
+    row.innerHTML = `
+      <div style="min-width:0;">
+        <div style="font-family:'Prompt',sans-serif; font-weight:600; font-size:14.5px; margin-bottom:4px;">
+          ${escapeHtml(s.orders?.events?.title || "-")} — วันที่ ${s.day_number}
+        </div>
+        <div class="muted" style="font-size:12px;">
+          ${escapeHtml(s.orders?.order_number || "-")} · รหัส ${escapeHtml(s.orders?.access_code || "-")} · ดูมาแล้ว ${watchedLabel}
+        </div>
+      </div>
+      <span class="status-pill" style="color:#46c882; font-size:12.5px; flex-shrink:0;">🟢 กำลังดู</span>
+    `;
+    listEl.appendChild(row);
+  });
+}
 
 // ============================================================
 // Settings Modal (ปุ่มตั้งค่าระบบ ⚙️)
