@@ -83,6 +83,7 @@
     <button type="button" class="admin-tab-btn active" data-tab="events">งาน</button>
     <button type="button" class="admin-tab-btn" data-tab="orders">ออเดอร์</button>
     <button type="button" class="admin-tab-btn" data-tab="manual">ออกรหัส</button>
+    <button type="button" class="admin-tab-btn" data-tab="live">กำลังดูอยู่ตอนนี้</button>
   </div>
 
   <!-- ============ Tab: งาน (Events) ============ -->
@@ -202,6 +203,18 @@
         <button type="submit" class="btn-marquee" id="manualOrderSubmitBtn" style="margin:0;">ออกรหัส</button>
       </form>
     </div>
+  </div>
+
+  <!-- ============ Tab: กำลังดูอยู่ตอนนี้ (Live viewers) ============ -->
+  <div id="liveTab" class="admin-tab-panel" style="display:none;">
+    <div class="admin-card" style="margin-bottom:20px; text-align:center;">
+      <p class="muted" style="font-size:12.5px; margin:0 0 6px;">กำลังรับชมอยู่ตอนนี้ (นับจากระบบล็อกอุปกรณ์จริง ไม่ใช่สถิติของ Cloudflare)</p>
+      <div class="display" id="liveViewerCount" style="font-size:36px; color:var(--amber); font-weight:800;">0</div>
+      <p class="muted" style="font-size:11.5px; margin:6px 0 0;">อัปเดตอัตโนมัติทุก 10 วินาที</p>
+    </div>
+
+    <div id="liveViewerList" style="display:flex; flex-direction:column; gap:10px;"></div>
+    <p id="liveViewerEmptyState" class="muted" style="display:none; text-align:center; padding:40px 0;">ยังไม่มีใครกำลังดูอยู่ตอนนี้</p>
   </div>
 </div>
 
