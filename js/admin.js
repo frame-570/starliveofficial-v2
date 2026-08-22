@@ -287,12 +287,17 @@ document.querySelectorAll(".admin-tab-btn").forEach((btn) => {
     btn.classList.add("active");
     document.getElementById("eventsTab").style.display = btn.dataset.tab === "events" ? "block" : "none";
     document.getElementById("ordersTab").style.display = btn.dataset.tab === "orders" ? "block" : "none";
+    document.getElementById("manualTab").style.display = btn.dataset.tab === "manual" ? "block" : "none";
 
     if (btn.dataset.tab === "orders") {
       loadOrders();
       startOrdersPolling();
     } else {
       stopOrdersPolling();
+    }
+
+    if (btn.dataset.tab === "manual") {
+      loadManualEventOptions();
     }
   });
 });
@@ -927,6 +932,186 @@ function escapeHtml(str) {
 function escapeAttr(str) {
   return escapeHtml(str).replace(/"/g, "&quot;");
 }
+
+// ============================================================
+// ออกรหัสไลน์ (Manual order — แอดมินตรวจสลิปเองผ่านแชท)
+// ============================================================
+const manualEventSelect = document.getElementById("manualEventSelect");
+const manualPackageSelect = document.getElementById("manualPackageSelect");
+const manualDayOptionSelect = document.getElementById("manualDayOptionSelect");
+const manualCustomerNote = document.getElementById("manualCustomerNote");
+const manualOrderForm = document.getElementById("manualOrderForm");
+const manualOrderError = document.getElementById("manualOrderError");
+const manualOrderSubmitBtn = document.getElementById("manualOrderSubmitBtn");
+
+const manualResultOverlay = document.getElementById("manualResultOverlay");
+const manualResultText = document.getElementById("manualResultText");
+const manualResultCloseBtn = document.getElementById("manualResultCloseBtn");
+const manualResultCopyBtn = document.getElementById("manualResultCopyBtn");
+
+let manualEventsCache = [];
+
+async function loadManualEventOptions() {
+  manualOrderError.textContent = "";
+  const { data, error } = await supabase
+    .from("events")
+    .select("id, title, status, event_days(day_number, event_date), ticket_packages(id, num_days, price, ticket_package_day_options(id, day_numbers, label))")
+    .order("created_at", { ascending: false });
+
+  if (error) {
+    manualOrderError.textContent = "โหลดรายการงานไม่สำเร็จ: " + error.message;
+    return;
+  }
+
+  manualEventsCache = data || [];
+
+  manualEventSelect.innerHTML =
+    `<option value="">-- เลือกงาน --</option>` +
+    manualEventsCache.map((ev) => `<option value="${escapeAttr(ev.id)}">${escapeHtml(ev.title)}</option>`).join("");
+
+  manualPackageSelect.innerHTML = `<option value="">-- เลือกงานก่อน --</option>`;
+  manualPackageSelect.disabled = true;
+  manualDayOptionSelect.innerHTML = `<option value="">-- เลือกแพ็กเกจก่อน --</option>`;
+  manualDayOptionSelect.disabled = true;
+}
+
+manualEventSelect.addEventListener("change", () => {
+  const ev = manualEventsCache.find((e) => e.id === manualEventSelect.value);
+  manualDayOptionSelect.innerHTML = `<option value="">-- เลือกแพ็กเกจก่อน --</option>`;
+  manualDayOptionSelect.disabled = true;
+
+  if (!ev || !ev.ticket_packages?.length) {
+    manualPackageSelect.innerHTML = `<option value="">-- งานนี้ยังไม่มีแพ็กเกจ --</option>`;
+    manualPackageSelect.disabled = true;
+    return;
+  }
+
+  manualPackageSelect.innerHTML =
+    `<option value="">-- เลือกแพ็กเกจ --</option>` +
+    ev.ticket_packages
+      .map((p) => `<option value="${escapeAttr(p.id)}">${p.num_days} วัน — ${Number(p.price).toLocaleString("th-TH")}฿</option>`)
+      .join("");
+  manualPackageSelect.disabled = false;
+});
+
+manualPackageSelect.addEventListener("change", () => {
+  const ev = manualEventsCache.find((e) => e.id === manualEventSelect.value);
+  const pkg = ev?.ticket_packages?.find((p) => p.id === manualPackageSelect.value);
+
+  if (!pkg || !pkg.ticket_package_day_options?.length) {
+    manualDayOptionSelect.innerHTML = `<option value="">-- ไม่มีตัวเลือกรอบวัน --</option>`;
+    manualDayOptionSelect.disabled = true;
+    return;
+  }
+
+  manualDayOptionSelect.innerHTML =
+    `<option value="">-- เลือกรอบวันที่ --</option>` +
+    pkg.ticket_package_day_options
+      .map((opt) => `<option value="${escapeAttr(opt.id)}">${escapeHtml(opt.label)}</option>`)
+      .join("");
+  manualDayOptionSelect.disabled = false;
+});
+
+manualOrderForm.addEventListener("submit", async (e) => {
+  e.preventDefault();
+  manualOrderError.textContent = "";
+
+  const session = await ensureAuthSession();
+  if (!session) return;
+
+  const eventId = manualEventSelect.value;
+  const packageId = manualPackageSelect.value;
+  const dayOptionId = manualDayOptionSelect.value;
+
+  if (!eventId || !packageId || !dayOptionId) {
+    manualOrderError.textContent = "กรุณาเลือกงาน/แพ็กเกจ/รอบวันที่ให้ครบ";
+    return;
+  }
+
+  manualOrderSubmitBtn.disabled = true;
+  manualOrderSubmitBtn.textContent = "กำลังออกรหัส...";
+
+  let body;
+  try {
+    const res = await fetch(`${FUNCTIONS_URL}/admin-issue-manual-code`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        apikey: SUPABASE_ANON_KEY,
+        Authorization: `Bearer ${session.access_token}`,
+      },
+      body: JSON.stringify({
+        eventId,
+        packageId,
+        dayOptionId,
+        customerNote: manualCustomerNote.value.trim() || null,
+      }),
+    });
+    body = await res.json();
+    if (!res.ok || !body.success) throw new Error(body.detail || body.error || "ออกรหัสไม่สำเร็จ");
+  } catch (err) {
+    manualOrderError.textContent = err.message;
+    manualOrderSubmitBtn.disabled = false;
+    manualOrderSubmitBtn.textContent = "ออกรหัส";
+    return;
+  }
+
+  manualOrderSubmitBtn.disabled = false;
+  manualOrderSubmitBtn.textContent = "ออกรหัส";
+
+  showManualResult(body);
+
+  manualOrderForm.reset();
+  manualPackageSelect.innerHTML = `<option value="">-- เลือกงานก่อน --</option>`;
+  manualPackageSelect.disabled = true;
+  manualDayOptionSelect.innerHTML = `<option value="">-- เลือกแพ็กเกจก่อน --</option>`;
+  manualDayOptionSelect.disabled = true;
+});
+
+function showManualResult(result) {
+  const watchUrl = `${window.location.origin}/watch.html?code=${result.access_code}`;
+  const expiresLabel = new Date(result.access_code_expires_at).toLocaleDateString("th-TH", {
+    year: "numeric",
+    month: "long",
+    day: "numeric",
+  });
+
+  const message = [
+    `🎫 STAR LIVE OFFICIAL`,
+    ``,
+    `คอนเสิร์ต: ${result.event_title}`,
+    `วันที่จัดงาน: ${result.event_date_label || "-"}`,
+    `แพ็กเกจ: ${result.package_num_days} วัน (${result.day_option_label})`,
+    ``,
+    `รหัสเข้าชม: ${result.access_code}`,
+    `ลิงก์เข้าชม (ใช้ดูได้ทั้งถ่ายทอดสดและรีรัน): ${watchUrl}`,
+    ``,
+    `📅 ใช้งานได้ถึงวันที่: ${expiresLabel}`,
+    ``,
+    `ขอบคุณที่อุดหนุน STAR LIVE OFFICIAL ครับ 💛`,
+  ].join("\n");
+
+  manualResultText.value = message;
+  manualResultOverlay.style.display = "flex";
+}
+
+manualResultCloseBtn.addEventListener("click", () => {
+  manualResultOverlay.style.display = "none";
+});
+manualResultOverlay.addEventListener("click", (e) => {
+  if (e.target === manualResultOverlay) manualResultOverlay.style.display = "none";
+});
+manualResultCopyBtn.addEventListener("click", async () => {
+  try {
+    await navigator.clipboard.writeText(manualResultText.value);
+  } catch {
+    manualResultText.select();
+    document.execCommand("copy");
+  }
+  const original = manualResultCopyBtn.textContent;
+  manualResultCopyBtn.textContent = "คัดลอกแล้ว!";
+  setTimeout(() => (manualResultCopyBtn.textContent = original), 1500);
+});
 
 // ============================================================
 // Settings Modal (ปุ่มตั้งค่าระบบ ⚙️)
