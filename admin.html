@@ -82,6 +82,7 @@
   <div class="admin-tabs">
     <button type="button" class="admin-tab-btn active" data-tab="events">งาน</button>
     <button type="button" class="admin-tab-btn" data-tab="orders">ออเดอร์</button>
+    <button type="button" class="admin-tab-btn" data-tab="manual">ออกรหัสไลน์</button>
   </div>
 
   <!-- ============ Tab: งาน (Events) ============ -->
@@ -162,6 +163,61 @@
     </div>
     <div id="adminOrderList" style="display:flex; flex-direction:column; gap:12px;"></div>
     <p id="orderEmptyState" class="muted" style="display:none; text-align:center; padding:40px 0;">ไม่มีออเดอร์ในหมวดนี้</p>
+  </div>
+
+  <!-- ============ Tab: ออกรหัสไลน์ (Manual/LINE orders) ============ -->
+  <div id="manualTab" class="admin-tab-panel" style="display:none;">
+    <div class="admin-card" style="max-width:520px;">
+      <h2 class="display" style="font-size:16px; margin:0 0 4px;">ออกรหัสให้ลูกค้าที่สั่งผ่านไลน์</h2>
+      <p class="muted" style="font-size:12.5px; margin:0 0 20px;">ใช้เมื่อแอดมินตรวจสลิปเองผ่านแชท LINE แล้ว เลือกงาน/แพ็กเกจที่มีอยู่จริงในระบบ ระบบจะออกรหัสให้ทันที (ถือว่าจ่ายแล้ว)</p>
+
+      <form id="manualOrderForm">
+        <div style="margin-bottom:14px;">
+          <label class="field-label" for="manualEventSelect">งาน</label>
+          <select id="manualEventSelect" class="field-input" required>
+            <option value="">-- เลือกงาน --</option>
+          </select>
+        </div>
+
+        <div style="margin-bottom:14px;">
+          <label class="field-label" for="manualPackageSelect">แพ็กเกจ</label>
+          <select id="manualPackageSelect" class="field-input" required disabled>
+            <option value="">-- เลือกงานก่อน --</option>
+          </select>
+        </div>
+
+        <div style="margin-bottom:14px;">
+          <label class="field-label" for="manualDayOptionSelect">รอบวันที่</label>
+          <select id="manualDayOptionSelect" class="field-input" required disabled>
+            <option value="">-- เลือกแพ็กเกจก่อน --</option>
+          </select>
+        </div>
+
+        <div style="margin-bottom:14px;">
+          <label class="field-label" for="manualCustomerNote">ชื่อ/ข้อมูลลูกค้า (ไว้อ้างอิงเอง ไม่แสดงให้ลูกค้าเห็น)</label>
+          <input id="manualCustomerNote" class="field-input" placeholder="เช่น LINE: คุณเอ 08x-xxx-xxxx" />
+        </div>
+
+        <p class="error-text" id="manualOrderError"></p>
+        <button type="submit" class="btn-marquee" id="manualOrderSubmitBtn" style="margin:0;">ออกรหัส</button>
+      </form>
+    </div>
+  </div>
+</div>
+
+<!-- Modal: ผลลัพธ์การออกรหัสไลน์ -->
+<div id="manualResultOverlay" class="modal-overlay" style="display:none;">
+  <div class="admin-card modal-card" style="text-align:center;">
+    <div class="verify-icon verify-icon-success">✓</div>
+    <h3 class="display" style="margin:14px 0 4px; font-size:17px;">ออกรหัสสำเร็จแล้ว</h3>
+    <p class="muted" style="font-size:12.5px; margin:0 0 16px;">คัดลอกข้อความด้านล่างไปส่งให้ลูกค้าทางไลน์ได้เลย</p>
+
+    <textarea id="manualResultText" readonly rows="10" class="field-input" style="text-align:left; font-family:'Sarabun',sans-serif; line-height:1.7; resize:vertical;"></textarea>
+
+    <div style="display:flex; gap:10px; margin-top:16px;">
+      <button type="button" id="manualResultCloseBtn" class="icon-btn" style="flex:1;">ปิด</button>
+      <button type="button" id="manualResultCopyBtn" class="btn-marquee" style="flex:1; margin:0;">คัดลอกข้อความ</button>
+    </div>
   </div>
 </div>
 
