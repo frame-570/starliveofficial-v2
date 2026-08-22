@@ -202,22 +202,19 @@ function showDaySelectionModal(data) {
     if (!isPurchased) {
       btn.disabled = true;
       btn.innerHTML = `<div class="day-title">${ICONS.lock} วันที่ ${day.day_number}</div><div class="day-status">ไม่มีสิทธิ์รับชม</div>`;
-    } else if (data.status === "live" && (day.live_youtube_url || day.live_cloudflare_uid)) {
-      btn.innerHTML = `<div class="day-title">${ICONS.liveDot} วันที่ ${day.day_number}</div><div class="day-status live">ถ่ายทอดสด</div>`;
-      btn.onclick = () => {
-        daySelectModal.style.display = "none";
-        // บันทึกวันที่เลือกไว้ใน State
-        currentSelectedDay = { dayData: day, mode: "live" };
-        // ส่งต่อไป Pop-up ที่ 2 (กฎข้อตกลง)
-        showRulesModal();
-      };
     } else if (day.rerun_youtube_url || day.rerun_cloudflare_uid) {
+      // เช็ครีรันก่อนเสมอ: วันที่มีรีรันตั้งไว้แปลว่าวันนั้นถ่ายทอดจบแล้ว ไม่ขึ้นกับสถานะวันอื่นในงานเดียวกัน
       btn.innerHTML = `<div class="day-title">${ICONS.play} วันที่ ${day.day_number}</div><div class="day-status rerun">รับชมรีรัน</div>`;
       btn.onclick = () => {
         daySelectModal.style.display = "none";
-        // บันทึกวันที่เลือกไว้ใน State
         currentSelectedDay = { dayData: day, mode: "rerun" };
-        // ส่งต่อไป Pop-up ที่ 2 (กฎข้อตกลง)
+        showRulesModal();
+      };
+    } else if (day.live_youtube_url || day.live_cloudflare_uid) {
+      btn.innerHTML = `<div class="day-title">${ICONS.liveDot} วันที่ ${day.day_number}</div><div class="day-status live">ถ่ายทอดสด</div>`;
+      btn.onclick = () => {
+        daySelectModal.style.display = "none";
+        currentSelectedDay = { dayData: day, mode: "live" };
         showRulesModal();
       };
     } else {
@@ -315,19 +312,20 @@ function renderRightSidebarDays(data, activeDay) {
     if (!isPurchased) {
       btn.disabled = true;
       btn.innerHTML = `${ICONS.lock} <span>วันที่ ${day.day_number}</span>`;
-    } else if (data.status === "live" && (day.live_youtube_url || day.live_cloudflare_uid)) {
-      btn.innerHTML = `${ICONS.liveDot} <span>สด: วันที่ ${day.day_number}</span>`;
-      btn.onclick = () => {
-        setActiveTab(btn);
-        currentSelectedDay = { dayData: day, mode: "live" };
-        loadSelectedDayStream(day, "live");
-      };
     } else if (day.rerun_youtube_url || day.rerun_cloudflare_uid) {
+      // เช็ครีรันก่อนเสมอ: วันที่มีรีรันตั้งไว้แปลว่าวันนั้นถ่ายทอดจบแล้ว ไม่ขึ้นกับสถานะวันอื่นในงานเดียวกัน
       btn.innerHTML = `${ICONS.play} <span>รีรัน: วันที่ ${day.day_number}</span>`;
       btn.onclick = () => {
         setActiveTab(btn);
         currentSelectedDay = { dayData: day, mode: "rerun" };
         loadSelectedDayStream(day, "rerun");
+      };
+    } else if (day.live_youtube_url || day.live_cloudflare_uid) {
+      btn.innerHTML = `${ICONS.liveDot} <span>สด: วันที่ ${day.day_number}</span>`;
+      btn.onclick = () => {
+        setActiveTab(btn);
+        currentSelectedDay = { dayData: day, mode: "live" };
+        loadSelectedDayStream(day, "live");
       };
     } else {
       btn.disabled = true;
