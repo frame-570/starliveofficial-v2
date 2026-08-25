@@ -1075,6 +1075,53 @@ html, body {
   .site-footer-inner { justify-content: center; text-align: center; flex-direction: column; }
 }
 
+/* ---------- Admin: mobile fixes (แก้ตัวหนังสือ/ปุ่มซ้อนกันบนจอแคบ) ---------- */
+@media (max-width: 640px) {
+  .admin-shell { padding: 20px 12px 60px; }
+  .admin-card { padding: 16px; }
+
+  /* แท็บบนสุด (งาน/ออเดอร์/ออกรหัสไลน์/กำลังดูอยู่ตอนนี้) ให้ตกบรรทัดได้แทนที่จะยัดแถวเดียว */
+  .admin-tabs {
+    flex-wrap: wrap;
+    row-gap: 6px;
+    column-gap: 14px;
+  }
+  .admin-tab-btn {
+    font-size: 12.5px;
+    padding: 8px 2px;
+    white-space: nowrap;
+  }
+
+  /* การ์ดแถวงาน/ออเดอร์/ผู้ชม: สลับจากแนวนอนเป็นสองชั้น (ข้อความบน ปุ่ม/สถานะล่าง) */
+  .session-row {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 12px;
+    padding: 14px;
+  }
+  .session-row > div:first-child {
+    width: 100%;
+  }
+  .session-row > div:last-child {
+    width: 100%;
+    flex-wrap: wrap !important;
+    justify-content: flex-start !important;
+  }
+  /* ชื่องาน/เลขออเดอร์ที่เคยตัดด้วย ellipsis บรรทัดเดียว ให้ขึ้นบรรทัดใหม่ได้แทนการซ้อนทับ */
+  .session-row > div:first-child > div:first-child {
+    white-space: normal !important;
+    overflow: visible !important;
+    text-overflow: unset !important;
+  }
+
+  /* dropdown เปลี่ยนสถานะงาน/ตัวกรองออเดอร์ ให้เต็มความกว้างแทนบีบเล็ก */
+  .session-row .status-select {
+    width: 100% !important;
+  }
+
+  .package-row { flex-wrap: wrap; }
+}
+
 @media (prefers-reduced-motion: reduce) {
   * { animation: none !important; transition: none !important; }
 }
