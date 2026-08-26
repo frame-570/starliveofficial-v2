@@ -17,6 +17,8 @@ const alreadyPaidCard = document.getElementById("alreadyPaidCard");
 let currentOrder = null;
 let selectedFile = null;
 let openchatSettings = null;
+let paymentSettings = null;
+let currentPromptpayPayload = null;
 
 const session = await getSession();
 if (!session) {
@@ -68,11 +70,12 @@ async function renderPaymentCard(order) {
   // ดึงแถวแรกของ app_settings โดยไม่ต้องเจาะจง id = 1
   const { data: settingsList } = await supabase
     .from("app_settings")
-    .select("promptpay_id, promptpay_name, line_oa_url, line_openchat_url, line_openchat_message")
+    .select("promptpay_id, promptpay_name, promptpay_logo_url, shop_name, line_oa_url, line_openchat_url, line_openchat_message")
     .limit(1);
 
   const settings = settingsList?.[0];
   openchatSettings = settings;
+  paymentSettings = settings;
 
   const lineOaLink = document.getElementById("lineOaLink");
   if (settings?.line_oa_url) lineOaLink.href = settings.line_oa_url;
@@ -85,8 +88,9 @@ async function renderPaymentCard(order) {
 
   document.getElementById("promptpayNameLabel").textContent = settings.promptpay_name || "";
 
-  // สร้าง QR Code จาก payload พร้อมเพย์
+  // สร้าง QR Code จาก payload พร้อมเพย์ (สำหรับแสดงบนหน้าเว็บ — คงเดิมทุกอย่าง)
   const payload = promptpayQr(settings.promptpay_id, { amount: Number(order.amount) });
+  currentPromptpayPayload = payload;
   const qrDataUrl = await QRCode.toDataURL(payload, { width: 280, margin: 1 });
   document.getElementById("qrImage").src = qrDataUrl;
 }
@@ -248,4 +252,137 @@ function escapeHtml(str) {
   const div = document.createElement("div");
   div.textContent = str ?? "";
   return div.innerHTML;
+}
+
+// ============================================================
+// บันทึกรูป QR (เลย์เอาต์ใหม่: พื้นหลังเว็บ + ชื่อร้าน/ยอดชำระสีเหลือง + โลโก้พร้อมเพย์กลาง QR)
+// เฉพาะรูปที่ดาวน์โหลดเท่านั้น — QR ที่แสดงบนหน้าเว็บด้านบนไม่เปลี่ยนแปลง
+// ============================================================
+const saveQrBtn = document.getElementById("saveQrBtn");
+
+saveQrBtn?.addEventListener("click", async () => {
+  if (!currentPromptpayPayload || !currentOrder) return;
+
+  saveQrBtn.disabled = true;
+  const originalText = saveQrBtn.textContent;
+  saveQrBtn.textContent = "กำลังสร้างรูป...";
+
+  try {
+    const blob = await buildQrDownloadImage();
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `promptpay-${currentOrder.order_number || "qr"}.png`;
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    setTimeout(() => URL.revokeObjectURL(url), 2000);
+  } catch (err) {
+    slipError.textContent = "สร้างรูป QR ไม่สำเร็จ กรุณาลองใหม่อีกครั้ง";
+  } finally {
+    saveQrBtn.disabled = false;
+    saveQrBtn.textContent = originalText;
+  }
+});
+
+function loadImage(src) {
+  return new Promise((resolve, reject) => {
+    const img = new Image();
+    img.crossOrigin = "anonymous";
+    img.onload = () => resolve(img);
+    img.onerror = reject;
+    img.src = src;
+  });
+}
+
+function drawRoundedRect(ctx, x, y, w, h, r) {
+  ctx.beginPath();
+  ctx.moveTo(x + r, y);
+  ctx.arcTo(x + w, y, x + w, y + h, r);
+  ctx.arcTo(x + w, y + h, x, y + h, r);
+  ctx.arcTo(x, y + h, x, y, r);
+  ctx.arcTo(x, y, x + w, y, r);
+  ctx.closePath();
+}
+
+async function buildQrDownloadImage() {
+  await document.fonts.ready; // กัน canvas วาดตัวอักษรก่อน web font โหลดเสร็จ
+
+  const BG = "#08070d";
+  const AMBER = "#f2b705";
+  const MUTED = "#9791ab";
+
+  const width = 480;
+  const height = 640;
+  const canvas = document.createElement("canvas");
+  canvas.width = width;
+  canvas.height = height;
+  const ctx = canvas.getContext("2d");
+
+  // พื้นหลัง
+  ctx.fillStyle = BG;
+  ctx.fillRect(0, 0, width, height);
+
+  // ชื่อร้าน (บนสุด)
+  const shopName = paymentSettings?.shop_name || paymentSettings?.promptpay_name || "STAR LIVE OFFICIAL";
+  ctx.fillStyle = AMBER;
+  ctx.textAlign = "center";
+  ctx.font = "700 26px 'Prompt', sans-serif";
+  ctx.fillText(shopName, width / 2, 56);
+
+  // ยอดชำระ
+  const amountLabel = `${Number(currentOrder.amount).toLocaleString("th-TH")}฿`;
+  ctx.font = "800 44px 'Prompt', sans-serif";
+  ctx.fillText(amountLabel, width / 2, 112);
+
+  // ชื่อบัญชีพร้อมเพย์ (ถ้ามี)
+  if (paymentSettings?.promptpay_name) {
+    ctx.fillStyle = MUTED;
+    ctx.font = "500 15px 'Sarabun', sans-serif";
+    ctx.fillText(paymentSettings.promptpay_name, width / 2, 140);
+  }
+
+  // สร้าง QR ระดับแก้ไขข้อผิดพลาดสูง (H) แยกต่างหาก เพื่อให้สแกนได้แม้มีโลโก้บัง
+  const qrSize = 340;
+  const qrDataUrl = await QRCode.toDataURL(currentPromptpayPayload, {
+    width: qrSize,
+    margin: 1,
+    errorCorrectionLevel: "H",
+  });
+  const qrImg = await loadImage(qrDataUrl);
+
+  const qrX = (width - qrSize) / 2;
+  const qrY = 168;
+
+  // กรอบขาวรองใต้ QR ให้ดูสะอาดตา
+  ctx.fillStyle = "#ffffff";
+  drawRoundedRect(ctx, qrX - 14, qrY - 14, qrSize + 28, qrSize + 28, 16);
+  ctx.fill();
+  ctx.drawImage(qrImg, qrX, qrY, qrSize, qrSize);
+
+  // โลโก้พร้อมเพย์ตรงกลาง QR (ถ้าแอดมินอัปโหลดไว้)
+  if (paymentSettings?.promptpay_logo_url) {
+    try {
+      const logoImg = await loadImage(paymentSettings.promptpay_logo_url);
+      const logoBoxSize = 76;
+      const logoX = width / 2 - logoBoxSize / 2;
+      const logoY = qrY + qrSize / 2 - logoBoxSize / 2;
+
+      ctx.fillStyle = "#ffffff";
+      drawRoundedRect(ctx, logoX, logoY, logoBoxSize, logoBoxSize, 12);
+      ctx.fill();
+
+      const pad = 8;
+      ctx.drawImage(logoImg, logoX + pad, logoY + pad, logoBoxSize - pad * 2, logoBoxSize - pad * 2);
+    } catch {
+      // โหลดโลโก้ไม่สำเร็จ (เช่น CORS) ก็ปล่อยผ่าน ให้ได้ QR เปล่าไปก่อนดีกว่าทำให้ทั้งฟังก์ชันพัง
+    }
+  }
+
+  // ข้อความท้ายภาพ
+  ctx.fillStyle = MUTED;
+  ctx.font = "400 13px 'Sarabun', sans-serif";
+  ctx.fillText("สแกนเพื่อชำระเงินผ่านแอปธนาคาร", width / 2, qrY + qrSize + 46);
+
+  return new Promise((resolve) => canvas.toBlob(resolve, "image/png"));
 }
