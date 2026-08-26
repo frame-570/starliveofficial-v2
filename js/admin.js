@@ -1212,6 +1212,16 @@ const lineOpenchatUrlInput = document.getElementById("lineOpenchatUrlInput");
 const lineOpenchatMessageInput = document.getElementById("lineOpenchatMessageInput");
 const tiktokUrlInput = document.getElementById("tiktokUrlInput");
 const watchRulesNoticeInput = document.getElementById("watchRulesNoticeInput");
+const promptpayLogoFile = document.getElementById("promptpayLogoFile");
+const promptpayLogoPreview = document.getElementById("promptpayLogoPreview");
+let currentPromptpayLogoUrl = "";
+
+promptpayLogoFile.addEventListener("change", () => {
+  const file = promptpayLogoFile.files[0];
+  if (!file) return;
+  promptpayLogoPreview.src = URL.createObjectURL(file);
+  promptpayLogoPreview.style.display = "block";
+});
 
 settingsBtn.addEventListener("click", openSettings);
 closeSettingsBtn.addEventListener("click", closeSettings);
@@ -1240,6 +1250,15 @@ async function openSettings() {
   lineOpenchatMessageInput.value = appData?.line_openchat_message || "";
   tiktokUrlInput.value = appData?.tiktok_url || "";
 
+  currentPromptpayLogoUrl = appData?.promptpay_logo_url || "";
+  promptpayLogoFile.value = "";
+  if (currentPromptpayLogoUrl) {
+    promptpayLogoPreview.src = currentPromptpayLogoUrl;
+    promptpayLogoPreview.style.display = "block";
+  } else {
+    promptpayLogoPreview.style.display = "none";
+  }
+
   const { data: sysData } = await supabase
     .from("system_settings")
     .select("value")
@@ -1265,11 +1284,23 @@ settingsForm.addEventListener("submit", async (e) => {
   saveSettingsBtn.textContent = "กำลังบันทึก...";
 
   try {
+    let promptpayLogoUrl = currentPromptpayLogoUrl;
+    const logoFile = promptpayLogoFile.files[0];
+    if (logoFile) {
+      const ext = logoFile.name.split(".").pop() || "png";
+      const path = `promptpay-logo-${crypto.randomUUID()}.${ext}`;
+      const { error: uploadError } = await supabase.storage.from("event-banners").upload(path, logoFile, { upsert: false });
+      if (uploadError) throw new Error("อัปโหลดโลโก้พร้อมเพย์ไม่สำเร็จ: " + uploadError.message);
+      const { data: publicUrlData } = supabase.storage.from("event-banners").getPublicUrl(path);
+      promptpayLogoUrl = publicUrlData.publicUrl;
+    }
+
     const payload = {
       id: 1,
       promptpay_id: promptpayIdInput.value.trim() || null,
       promptpay_name: promptpayNameInput.value.trim() || null,
       shop_name: shopNameInput.value.trim() || null,
+      promptpay_logo_url: promptpayLogoUrl || null,
       line_oa_url: lineOaInput.value.trim() || null,
       line_openchat_url: lineOpenchatUrlInput.value.trim() || null,
       line_openchat_message: lineOpenchatMessageInput.value.trim() || null,
