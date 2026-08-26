@@ -1082,7 +1082,7 @@ manualOrderForm.addEventListener("submit", async (e) => {
 });
 
 function showManualResult(result) {
-  const watchUrl = `${window.location.origin}/watch.html?code=${result.access_code}`;
+  const watchUrl = `${window.location.origin}/watch?code=${result.access_code}`;
   const expiresLabel = new Date(result.access_code_expires_at).toLocaleDateString("th-TH", {
     year: "numeric",
     month: "long",
