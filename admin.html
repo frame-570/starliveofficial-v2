@@ -238,62 +238,116 @@
 <div id="settingsOverlay" class="modal-overlay" style="display:none;">
   <div class="admin-card modal-card" style="max-width: 520px;">
     <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:16px;">
-      <h2 class="display" style="font-size:16px; margin:0; color:var(--amber);">⚙️ ตั้งค่าระบบ</h2>
+      <div style="display:flex; align-items:center; gap:8px;">
+        <button type="button" id="settingsBackBtn" class="icon-btn ghost" style="display:none; padding:5px 9px;" aria-label="กลับ">←</button>
+        <h2 class="display" id="settingsTitle" style="font-size:16px; margin:0; color:var(--amber);">⚙️ ตั้งค่าระบบ</h2>
+      </div>
       <button type="button" id="closeSettingsBtn" class="icon-btn ghost" style="padding:5px 9px;" aria-label="ปิด">✕</button>
     </div>
 
     <form id="settingsForm">
-      <div style="margin-bottom:14px;">
-        <label class="field-label" for="promptpayIdInput">หมายเลขพร้อมเพย์ (เบอร์โทร / เลขบัตรประชาชน)</label>
-        <input id="promptpayIdInput" class="field-input" placeholder="เช่น 0812345678" />
+
+      <!-- เมนูหมวดหมู่ -->
+      <div id="settingsMenu" class="settings-menu">
+        <button type="button" class="settings-menu-item" data-category="shop">
+          <span class="settings-menu-icon">🏪</span>
+          <span class="settings-menu-text">
+            <strong>ข้อมูลร้าน</strong>
+            <small>ชื่อร้านที่แสดงในระบบ</small>
+          </span>
+          <span class="settings-menu-arrow">›</span>
+        </button>
+
+        <button type="button" class="settings-menu-item" data-category="payment">
+          <span class="settings-menu-icon">💳</span>
+          <span class="settings-menu-text">
+            <strong>การชำระเงิน</strong>
+            <small>พร้อมเพย์ ชื่อบัญชี และโลโก้ QR</small>
+          </span>
+          <span class="settings-menu-arrow">›</span>
+        </button>
+
+        <button type="button" class="settings-menu-item" data-category="contact">
+          <span class="settings-menu-icon">💬</span>
+          <span class="settings-menu-text">
+            <strong>ช่องทางติดต่อ & โซเชียล</strong>
+            <small>LINE OA, LINE OpenChat, TikTok</small>
+          </span>
+          <span class="settings-menu-arrow">›</span>
+        </button>
+
+        <button type="button" class="settings-menu-item" data-category="rules">
+          <span class="settings-menu-icon">📋</span>
+          <span class="settings-menu-text">
+            <strong>กฎการรับชม</strong>
+            <small>ข้อความ Pop-up ก่อนเข้าดูไลฟ์</small>
+          </span>
+          <span class="settings-menu-arrow">›</span>
+        </button>
       </div>
 
-      <div style="margin-bottom:14px;">
-        <label class="field-label" for="promptpayNameInput">ชื่อบัญชี / ชื่อร้าน (แสดงหน้าชำระเงิน)</label>
-        <input id="promptpayNameInput" class="field-input" placeholder="เช่น Star Live Official" />
+      <!-- หมวด: ข้อมูลร้าน -->
+      <div id="settingsCategoryShop" class="settings-category" style="display:none;">
+        <div style="margin-bottom:14px;">
+          <label class="field-label" for="shopNameInput">ชื่อร้าน (แสดงในระบบ)</label>
+          <input id="shopNameInput" class="field-input" placeholder="Star Live Official" />
+        </div>
       </div>
 
-      <div style="margin-bottom:14px;">
-        <label class="field-label" for="shopNameInput">ชื่อร้าน (แสดงในระบบ)</label>
-        <input id="shopNameInput" class="field-input" placeholder="Star Live Official" />
+      <!-- หมวด: การชำระเงิน -->
+      <div id="settingsCategoryPayment" class="settings-category" style="display:none;">
+        <div style="margin-bottom:14px;">
+          <label class="field-label" for="promptpayIdInput">หมายเลขพร้อมเพย์ (เบอร์โทร / เลขบัตรประชาชน)</label>
+          <input id="promptpayIdInput" class="field-input" placeholder="เช่น 0812345678" />
+        </div>
+
+        <div style="margin-bottom:14px;">
+          <label class="field-label" for="promptpayNameInput">ชื่อบัญชี / ชื่อร้าน (แสดงหน้าชำระเงิน)</label>
+          <input id="promptpayNameInput" class="field-input" placeholder="เช่น Star Live Official" />
+        </div>
+
+        <div style="margin-bottom:14px;">
+          <label class="field-label" for="promptpayLogoFile">โลโก้พร้อมเพย์ (แสดงตรงกลาง QR ตอนลูกค้ากด "บันทึกรูป QR")</label>
+          <input id="promptpayLogoFile" type="file" accept="image/*" class="field-input" style="padding:8px;" />
+          <img id="promptpayLogoPreview" style="display:none; max-width:80px; margin-top:8px; border-radius:8px; background:#fff; padding:4px;" />
+        </div>
       </div>
 
-      <div style="margin-bottom:14px;">
-        <label class="field-label" for="promptpayLogoFile">โลโก้พร้อมเพย์ (แสดงตรงกลาง QR ตอนลูกค้ากด "บันทึกรูป QR")</label>
-        <input id="promptpayLogoFile" type="file" accept="image/*" class="field-input" style="padding:8px;" />
-        <img id="promptpayLogoPreview" style="display:none; max-width:80px; margin-top:8px; border-radius:8px; background:#fff; padding:4px;" />
+      <!-- หมวด: ช่องทางติดต่อ & โซเชียล -->
+      <div id="settingsCategoryContact" class="settings-category" style="display:none;">
+        <div style="margin-bottom:14px;">
+          <label class="field-label" for="lineOaInput">ลิงก์ LINE OA (สำหรับติดต่อแอดมิน)</label>
+          <input id="lineOaInput" class="field-input" placeholder="https://line.me/R/ti/p/@your-line-oa" />
+        </div>
+
+        <div style="margin-bottom:14px;">
+          <label class="field-label" for="lineOpenchatUrlInput">ลิงก์ LINE OpenChat (ชวนลูกค้าเข้าหลังชำระเงินสำเร็จ)</label>
+          <input id="lineOpenchatUrlInput" class="field-input" placeholder="https://line.me/ti/g2/xxxxxxxx" />
+        </div>
+
+        <div style="margin-bottom:14px;">
+          <label class="field-label" for="lineOpenchatMessageInput">ข้อความชวนเข้า LINE OpenChat (แสดงใน Pop-up หลังตรวจสลิปสำเร็จ)</label>
+          <textarea id="lineOpenchatMessageInput" class="field-input" rows="3" placeholder="เข้าร่วม LINE OpenChat เพื่อรับข่าวสารและอัปเดตล่าสุดจากเรา" style="resize:vertical; font-family:'Sarabun',sans-serif; line-height:1.6;"></textarea>
+        </div>
+
+        <div style="margin-bottom:14px;">
+          <label class="field-label" for="tiktokUrlInput">ลิงก์ TikTok (แสดงเป็นไอคอนที่ Footer หน้าแรก)</label>
+          <input id="tiktokUrlInput" class="field-input" placeholder="https://www.tiktok.com/@your-account" />
+        </div>
       </div>
 
-      <div style="margin-bottom:14px;">
-        <label class="field-label" for="lineOaInput">ลิงก์ LINE OA (สำหรับติดต่อแอดมิน)</label>
-        <input id="lineOaInput" class="field-input" placeholder="https://line.me/R/ti/p/@your-line-oa" />
-      </div>
-
-      <div style="margin-bottom:14px;">
-        <label class="field-label" for="lineOpenchatUrlInput">ลิงก์ LINE OpenChat (ชวนลูกค้าเข้าหลังชำระเงินสำเร็จ)</label>
-        <input id="lineOpenchatUrlInput" class="field-input" placeholder="https://line.me/ti/g2/xxxxxxxx" />
-      </div>
-
-      <div style="margin-bottom:14px;">
-        <label class="field-label" for="lineOpenchatMessageInput">ข้อความชวนเข้า LINE OpenChat (แสดงใน Pop-up หลังตรวจสลิปสำเร็จ)</label>
-        <textarea id="lineOpenchatMessageInput" class="field-input" rows="3" placeholder="เข้าร่วม LINE OpenChat เพื่อรับข่าวสารและอัปเดตล่าสุดจากเรา" style="resize:vertical; font-family:'Sarabun',sans-serif; line-height:1.6;"></textarea>
-      </div>
-
-      <div style="margin-bottom:14px;">
-        <label class="field-label" for="tiktokUrlInput">ลิงก์ TikTok (แสดงเป็นไอคอนที่ Footer หน้าแรก)</label>
-        <input id="tiktokUrlInput" class="field-input" placeholder="https://www.tiktok.com/@your-account" />
-      </div>
-
-      <!-- ส่วนแก้ไขข้อความกฎ/ข้อตกลงการรับชม -->
-      <div style="margin-bottom:14px;">
-        <label class="field-label" for="watchRulesNoticeInput">ข้อความกฎและข้อตกลงการรับชม (แสดงใน Pop-up หน้าชมสด)</label>
-        <textarea id="watchRulesNoticeInput" class="field-input" rows="5" placeholder="กรอกกฎการรับชมที่นี่..." style="resize:vertical; font-family:'Sarabun',sans-serif; line-height:1.6;"></textarea>
+      <!-- หมวด: กฎการรับชม -->
+      <div id="settingsCategoryRules" class="settings-category" style="display:none;">
+        <div style="margin-bottom:14px;">
+          <label class="field-label" for="watchRulesNoticeInput">ข้อความกฎและข้อตกลงการรับชม (แสดงใน Pop-up หน้าชมสด)</label>
+          <textarea id="watchRulesNoticeInput" class="field-input" rows="5" placeholder="กรอกกฎการรับชมที่นี่..." style="resize:vertical; font-family:'Sarabun',sans-serif; line-height:1.6;"></textarea>
+        </div>
       </div>
 
       <p class="error-text" id="settingsError"></p>
       <p class="muted" id="settingsSaved" style="text-align:center; font-size:13px; margin:0 0 4px; min-height:16px; color:#46c882;"></p>
 
-      <div style="display:flex; gap:10px;">
+      <div id="settingsFooterButtons" style="display:none; gap:10px;">
         <button type="submit" class="btn-marquee" style="margin:0;" id="saveSettingsBtn">บันทึกการตั้งค่า</button>
         <button type="button" id="cancelSettingsBtn" class="icon-btn" style="padding:0 18px;">ยกเลิก</button>
       </div>
