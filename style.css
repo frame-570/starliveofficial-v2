@@ -1125,3 +1125,63 @@ html, body {
 @media (prefers-reduced-motion: reduce) {
   * { animation: none !important; transition: none !important; }
 }
+
+/* ---------- Settings modal: category menu ---------- */
+.settings-menu {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+.settings-menu-item {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  width: 100%;
+  background: rgba(255, 255, 255, 0.03);
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  padding: 14px 16px;
+  cursor: pointer;
+  text-align: left;
+  transition: border-color 0.18s, background 0.18s, transform 0.18s;
+}
+.settings-menu-item:hover {
+  border-color: var(--amber-dim);
+  background: rgba(242, 183, 5, 0.06);
+  transform: translateY(-1px);
+}
+.settings-menu-icon {
+  font-size: 22px;
+  flex-shrink: 0;
+  width: 36px;
+  text-align: center;
+}
+.settings-menu-text {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.settings-menu-text strong {
+  font-family: "Prompt", sans-serif;
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--text);
+}
+.settings-menu-text small {
+  font-size: 12px;
+  color: var(--muted);
+}
+.settings-menu-arrow {
+  font-size: 20px;
+  color: var(--muted);
+  flex-shrink: 0;
+}
+.settings-category {
+  animation: settings-slide-in 0.18s ease-out both;
+}
+@keyframes settings-slide-in {
+  from { opacity: 0; transform: translateX(8px); }
+  to { opacity: 1; transform: translateX(0); }
+}
