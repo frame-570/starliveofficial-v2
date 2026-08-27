@@ -360,7 +360,7 @@ async function buildQrDownloadImage() {
   ctx.fill();
   ctx.drawImage(qrImg, qrX, qrY, qrSize, qrSize);
 
-  // โลโก้พร้อมเพย์ตรงกลาง QR (ถ้าแอดมินอัปโหลดไว้)
+  // โลโก้พร้อมเพย์ตรงกลาง QR (ถ้าแอดมินอัปโหลดไว้) — วาดตรงๆ ตามความโปร่งใสของไฟล์จริง ไม่เติมพื้นหลังทับ
   if (paymentSettings?.promptpay_logo_url) {
     try {
       const logoImg = await loadImage(paymentSettings.promptpay_logo_url);
@@ -368,12 +368,7 @@ async function buildQrDownloadImage() {
       const logoX = width / 2 - logoBoxSize / 2;
       const logoY = qrY + qrSize / 2 - logoBoxSize / 2;
 
-      ctx.fillStyle = "#ffffff";
-      drawRoundedRect(ctx, logoX, logoY, logoBoxSize, logoBoxSize, 12);
-      ctx.fill();
-
-      const pad = 8;
-      ctx.drawImage(logoImg, logoX + pad, logoY + pad, logoBoxSize - pad * 2, logoBoxSize - pad * 2);
+      ctx.drawImage(logoImg, logoX, logoY, logoBoxSize, logoBoxSize);
     } catch {
       // โหลดโลโก้ไม่สำเร็จ (เช่น CORS) ก็ปล่อยผ่าน ให้ได้ QR เปล่าไปก่อนดีกว่าทำให้ทั้งฟังก์ชันพัง
     }
