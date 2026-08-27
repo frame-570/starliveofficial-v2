@@ -1230,10 +1230,52 @@ settingsOverlay.addEventListener("click", (e) => {
   if (e.target === settingsOverlay) closeSettings();
 });
 
+// ---------- เมนูหมวดหมู่การตั้งค่า ----------
+const settingsMenu = document.getElementById("settingsMenu");
+const settingsTitle = document.getElementById("settingsTitle");
+const settingsBackBtn = document.getElementById("settingsBackBtn");
+const settingsFooterButtons = document.getElementById("settingsFooterButtons");
+const settingsCategoryPanels = document.querySelectorAll(".settings-category");
+
+const SETTINGS_CATEGORY_LABELS = {
+  shop: "🏪 ข้อมูลร้าน",
+  payment: "💳 การชำระเงิน",
+  contact: "💬 ช่องทางติดต่อ & โซเชียล",
+  rules: "📋 กฎการรับชม",
+};
+
+function showSettingsMenu() {
+  settingsMenu.style.display = "flex";
+  settingsCategoryPanels.forEach((panel) => (panel.style.display = "none"));
+  settingsBackBtn.style.display = "none";
+  settingsFooterButtons.style.display = "none";
+  settingsTitle.textContent = "⚙️ ตั้งค่าระบบ";
+}
+
+function showSettingsCategory(category) {
+  settingsMenu.style.display = "none";
+  settingsCategoryPanels.forEach((panel) => {
+    panel.style.display = panel.id === `settingsCategory${capitalize(category)}` ? "block" : "none";
+  });
+  settingsBackBtn.style.display = "inline-flex";
+  settingsFooterButtons.style.display = "flex";
+  settingsTitle.textContent = SETTINGS_CATEGORY_LABELS[category] || "⚙️ ตั้งค่าระบบ";
+}
+
+function capitalize(str) {
+  return str.charAt(0).toUpperCase() + str.slice(1);
+}
+
+document.querySelectorAll(".settings-menu-item").forEach((btn) => {
+  btn.addEventListener("click", () => showSettingsCategory(btn.dataset.category));
+});
+settingsBackBtn.addEventListener("click", showSettingsMenu);
+
 async function openSettings() {
   settingsError.textContent = "";
   settingsSaved.textContent = "";
   settingsOverlay.style.display = "flex";
+  showSettingsMenu();
 
   const { data: appData, error: appError } = await supabase.from("app_settings").select("*").eq("id", 1).maybeSingle();
 
