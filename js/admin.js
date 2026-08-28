@@ -1072,7 +1072,7 @@ manualOrderForm.addEventListener("submit", async (e) => {
   manualOrderSubmitBtn.disabled = false;
   manualOrderSubmitBtn.textContent = "ออกรหัส";
 
-  showManualResult(body);
+  await showManualResult(body);
 
   manualOrderForm.reset();
   manualPackageSelect.innerHTML = `<option value="">-- เลือกงานก่อน --</option>`;
@@ -1081,7 +1081,7 @@ manualOrderForm.addEventListener("submit", async (e) => {
   manualDayOptionSelect.disabled = true;
 });
 
-function showManualResult(result) {
+async function showManualResult(result) {
   const watchUrl = `${window.location.origin}/watch?code=${result.access_code}`;
   const expiresLabel = new Date(result.access_code_expires_at).toLocaleDateString("th-TH", {
     year: "numeric",
@@ -1089,7 +1089,14 @@ function showManualResult(result) {
     day: "numeric",
   });
 
-  const message = [
+  // ดึงลิงก์ LINE OpenChat ตัวเดียวกับที่บันทึกไว้ในหน้าตั้งค่า (หมวดช่องทางติดต่อ & โซเชียล)
+  const { data: settings } = await supabase
+    .from("app_settings")
+    .select("line_openchat_url, line_openchat_message")
+    .eq("id", 1)
+    .maybeSingle();
+
+  const lines = [
     `🎫 STAR LIVE OFFICIAL`,
     ``,
     `คอนเสิร์ต: ${result.event_title}`,
@@ -1100,11 +1107,18 @@ function showManualResult(result) {
     `ลิงก์เข้าชม (ใช้ดูได้ทั้งถ่ายทอดสดและรีรัน): ${watchUrl}`,
     ``,
     `📅 ใช้งานได้ถึงวันที่: ${expiresLabel}`,
-    ``,
-    `ขอบคุณที่อุดหนุน STAR LIVE OFFICIAL ครับ 💛`,
-  ].join("\n");
+  ];
 
-  manualResultText.value = message;
+  if (settings?.line_openchat_url) {
+    lines.push(``);
+    lines.push(settings.line_openchat_message?.trim() || `เข้าร่วม LINE OpenChat เพื่อรับข่าวสารและอัปเดตล่าสุดจากเรา`);
+    lines.push(settings.line_openchat_url);
+  }
+
+  lines.push(``);
+  lines.push(`ขอบคุณที่อุดหนุน STAR LIVE OFFICIAL ครับ 💛`);
+
+  manualResultText.value = lines.join("\n");
   manualResultOverlay.style.display = "flex";
 }
 
