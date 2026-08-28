@@ -776,6 +776,13 @@ const ORDER_STATUS_LABELS = {
 
 document.getElementById("orderStatusFilter").addEventListener("change", loadOrders);
 
+const orderSearchInput = document.getElementById("orderSearchInput");
+let orderSearchDebounce = null;
+orderSearchInput.addEventListener("input", () => {
+  clearTimeout(orderSearchDebounce);
+  orderSearchDebounce = setTimeout(() => loadOrders(), 300);
+});
+
 // ---------- Auto-refresh: poll ออเดอร์ใหม่ทุก 10 วิ เฉพาะตอนเปิด tab นี้อยู่ ----------
 const ORDERS_POLL_MS = 10000;
 let ordersPollTimer = null;
@@ -798,6 +805,7 @@ async function loadOrders({ silent = false } = {}) {
   const listEl = document.getElementById("adminOrderList");
   const emptyEl = document.getElementById("orderEmptyState");
   const filter = document.getElementById("orderStatusFilter").value;
+  const searchTerm = orderSearchInput.value.trim();
 
   let query = supabase
     .from("orders")
@@ -806,6 +814,13 @@ async function loadOrders({ silent = false } = {}) {
     .limit(100);
 
   if (filter) query = query.eq("status", filter);
+
+  if (searchTerm) {
+    const term = searchTerm.replace(/[%,]/g, ""); // กันอักขระที่ไปชนกับ syntax ของ .or()
+    query = query.or(
+      `order_number.ilike.%${term}%,access_code.ilike.%${term}%,customer_note.ilike.%${term}%`
+    );
+  }
 
   const { data, error } = await query;
 
@@ -818,6 +833,7 @@ async function loadOrders({ silent = false } = {}) {
 
   listEl.innerHTML = "";
   emptyEl.style.display = data.length === 0 ? "block" : "none";
+  emptyEl.textContent = searchTerm ? "ไม่พบออเดอร์ที่ตรงกับคำค้นหา" : "ไม่มีออเดอร์ในหมวดนี้";
   data.forEach((order) => listEl.appendChild(renderOrderRow(order)));
 }
 
@@ -838,16 +854,22 @@ function renderOrderRow(order) {
         <span>${Number(order.amount).toLocaleString("th-TH")}฿</span>
         <span>${created}</span>
         ${order.access_code ? `<span class="pin-chip">${escapeHtml(order.access_code)}</span>` : ""}
+        ${order.customer_note ? `<span>👤 ${escapeHtml(order.customer_note)}</span>` : ""}
       </div>
       ${order.status === "failed" && order.verification_reason ? `<p class="error-text" style="margin:6px 0 0;">${escapeHtml(order.verification_reason)}</p>` : ""}
     </div>
-    <div style="display:flex; align-items:center; gap:8px; flex-shrink:0;">
+    <div style="display:flex; align-items:center; gap:8px; flex-shrink:0; flex-wrap:wrap;">
       <span class="status-pill status-${escapeHtml(order.status)}" style="font-size:12.5px;">${ORDER_STATUS_LABELS[order.status] || order.status}</span>
-      ${order.slip_image_url ? `<button class="icon-btn ghost" data-action="view-slip">ดูสลิป</button>` : ""}
+      ${order.slip_image_url ? `<button class="icon-btn ghost" data-action="view-slip">ดูสลิป</button>` : `<button class="icon-btn ghost" data-action="attach-slip">เพิ่มสลิป</button>`}
       ${order.status !== "paid" && order.status !== "cancelled" ? `<button class="icon-btn" data-action="manual-approve" style="border-color:#46c882; color:#46c882;">อนุมัติด้วยมือ</button>` : ""}
       <button class="icon-btn ghost" data-action="delete-order" style="border-color:var(--crimson); color:var(--crimson);">ลบ</button>
     </div>
   `;
+
+  const attachSlipBtn = row.querySelector('[data-action="attach-slip"]');
+  if (attachSlipBtn) {
+    attachSlipBtn.addEventListener("click", () => openAttachSlipPicker(order, attachSlipBtn));
+  }
 
   const slipBtn = row.querySelector('[data-action="view-slip"]');
   if (slipBtn) {
@@ -936,6 +958,50 @@ function renderOrderRow(order) {
   return row;
 }
 
+// ---------- แนบ/เปลี่ยนสลิปให้ออเดอร์ที่มีอยู่แล้ว (สำหรับสลิปมีปัญหา หรือออเดอร์ไลน์ที่ยังไม่ได้แนบ) ----------
+let attachSlipInput = null;
+
+function ensureAttachSlipInput() {
+  if (attachSlipInput) return attachSlipInput;
+  attachSlipInput = document.createElement("input");
+  attachSlipInput.type = "file";
+  attachSlipInput.accept = "image/*";
+  attachSlipInput.style.display = "none";
+  document.body.appendChild(attachSlipInput);
+  return attachSlipInput;
+}
+
+function openAttachSlipPicker(order, triggerBtn) {
+  const input = ensureAttachSlipInput();
+  input.value = "";
+  input.onchange = async () => {
+    const file = input.files[0];
+    if (!file) return;
+
+    const originalText = triggerBtn.textContent;
+    triggerBtn.disabled = true;
+    triggerBtn.textContent = "กำลังอัปโหลด...";
+
+    try {
+      const ext = file.name.split(".").pop() || "jpg";
+      const path = `manual/${order.id}-${Date.now()}.${ext}`;
+      const { error: uploadError } = await supabase.storage.from("payment-slips").upload(path, file, { upsert: false });
+      if (uploadError) throw new Error(uploadError.message);
+
+      const { error: updateError } = await supabase.from("orders").update({ slip_image_url: path }).eq("id", order.id);
+      if (updateError) throw new Error(updateError.message);
+
+      await appAlert("แนบสลิปเรียบร้อยแล้ว", { type: "success" });
+      loadOrders();
+    } catch (err) {
+      await appAlert("แนบสลิปไม่สำเร็จ: " + err.message, { type: "error" });
+      triggerBtn.disabled = false;
+      triggerBtn.textContent = originalText;
+    }
+  };
+  input.click();
+}
+
 function escapeHtml(str) {
   const div = document.createElement("div");
   div.textContent = str ?? "";
@@ -953,6 +1019,8 @@ const manualEventSelect = document.getElementById("manualEventSelect");
 const manualPackageSelect = document.getElementById("manualPackageSelect");
 const manualDayOptionSelect = document.getElementById("manualDayOptionSelect");
 const manualCustomerNote = document.getElementById("manualCustomerNote");
+const manualSlipFile = document.getElementById("manualSlipFile");
+const manualSlipPreview = document.getElementById("manualSlipPreview");
 const manualOrderForm = document.getElementById("manualOrderForm");
 const manualOrderError = document.getElementById("manualOrderError");
 const manualOrderSubmitBtn = document.getElementById("manualOrderSubmitBtn");
@@ -963,6 +1031,13 @@ const manualResultCloseBtn = document.getElementById("manualResultCloseBtn");
 const manualResultCopyBtn = document.getElementById("manualResultCopyBtn");
 
 let manualEventsCache = [];
+
+manualSlipFile.addEventListener("change", () => {
+  const file = manualSlipFile.files[0];
+  if (!file) return;
+  manualSlipPreview.src = URL.createObjectURL(file);
+  manualSlipPreview.style.display = "block";
+});
 
 async function loadManualEventOptions() {
   manualOrderError.textContent = "";
@@ -1072,9 +1147,25 @@ manualOrderForm.addEventListener("submit", async (e) => {
   manualOrderSubmitBtn.disabled = false;
   manualOrderSubmitBtn.textContent = "ออกรหัส";
 
+  // แนบสลิปเก็บไว้อ้างอิง (ถ้าแอดมินเลือกไฟล์ไว้) — ไม่บังคับ ถ้าอัปโหลดพลาดก็ไม่ทำให้การออกรหัสที่สำเร็จแล้วเสียหาย
+  const slipFile = manualSlipFile.files[0];
+  if (slipFile && body.orderId) {
+    try {
+      const ext = slipFile.name.split(".").pop() || "jpg";
+      const path = `manual/${body.orderId}-${Date.now()}.${ext}`;
+      const { error: uploadError } = await supabase.storage.from("payment-slips").upload(path, slipFile, { upsert: false });
+      if (!uploadError) {
+        await supabase.from("orders").update({ slip_image_url: path }).eq("id", body.orderId);
+      }
+    } catch {
+      // ไม่ต้องแจ้ง error ผู้ใช้ เพราะรหัสออกสำเร็จไปแล้ว การแนบสลิปเป็นแค่ของเสริมไว้อ้างอิง
+    }
+  }
+
   await showManualResult(body);
 
   manualOrderForm.reset();
+  manualSlipPreview.style.display = "none";
   manualPackageSelect.innerHTML = `<option value="">-- เลือกงานก่อน --</option>`;
   manualPackageSelect.disabled = true;
   manualDayOptionSelect.innerHTML = `<option value="">-- เลือกแพ็กเกจก่อน --</option>`;
