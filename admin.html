@@ -153,7 +153,8 @@
 
   <!-- ============ Tab: ออเดอร์ (Orders) ============ -->
   <div id="ordersTab" class="admin-tab-panel" style="display:none;">
-    <div style="margin-bottom:16px;">
+    <div style="display:flex; gap:10px; margin-bottom:16px; flex-wrap:wrap;">
+      <input id="orderSearchInput" class="field-input" style="flex:1; min-width:200px;" placeholder="ค้นหาเลขออเดอร์ / รหัสเข้าชม / ชื่อลูกค้า..." />
       <select id="orderStatusFilter" class="field-input" style="max-width:220px;">
         <option value="">ทุกสถานะ</option>
         <option value="pending_payment">รอชำระเงิน</option>
@@ -199,10 +200,17 @@
           <input id="manualCustomerNote" class="field-input" placeholder="เช่น LINE: คุณเอ 08x-xxx-xxxx" />
         </div>
 
+        <div style="margin-bottom:14px;">
+          <label class="field-label" for="manualSlipFile">แนบสลิป (ไม่บังคับ — เก็บไว้อ้างอิง เผื่อลูกค้าลืมรหัสทีหลังจะได้หาเจอง่าย)</label>
+          <input id="manualSlipFile" type="file" accept="image/*" class="field-input" style="padding:8px;" />
+          <img id="manualSlipPreview" style="display:none; max-width:160px; margin-top:8px; border-radius:8px;" />
+        </div>
+
         <p class="error-text" id="manualOrderError"></p>
         <button type="submit" class="btn-marquee" id="manualOrderSubmitBtn" style="margin:0;">ออกรหัส</button>
       </form>
     </div>
+    <p class="muted" style="max-width:520px; font-size:12px; margin:14px 0 0;">ค้นหาออเดอร์/รหัสที่เคยออกไปแล้วได้ใน tab "ออเดอร์" ด้านบน — พิมพ์ชื่อลูกค้า เลขออเดอร์ หรือรหัสเข้าชมในช่องค้นหาได้เลย</p>
   </div>
 
   <!-- ============ Tab: กำลังดูอยู่ตอนนี้ (Live viewers) ============ -->
