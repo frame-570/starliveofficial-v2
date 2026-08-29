@@ -1119,6 +1119,14 @@ html, body {
     width: 100% !important;
   }
 
+  /* รหัสเข้าชม (pin-chip) ในการ์ดออเดอร์: บังคับให้ขึ้นบรรทัดใหม่เสมอ
+     ไม่ให้ตำแหน่งเลื่อนไปมาตามความยาวข้อความก่อนหน้าที่ไม่เท่ากันในแต่ละการ์ด */
+  .session-row .pin-chip {
+    display: block !important;
+    width: fit-content;
+    margin-top: 6px;
+  }
+
   .package-row { flex-wrap: wrap; }
 }
 
