@@ -1,6 +1,19 @@
 import { extractYouTubeId } from "./supabaseClient.js";
 import { SUPABASE_ANON_KEY, FUNCTIONS_URL } from "./config.js";
 
+const THAI_MONTHS = [
+  "มกราคม", "กุมภาพันธ์", "มีนาคม", "เมษายน", "พฤษภาคม", "มิถุนายน",
+  "กรกฎาคม", "สิงหาคม", "กันยายน", "ตุลาคม", "พฤศจิกายน", "ธันวาคม",
+];
+
+// แปลง event_date (YYYY-MM-DD) เป็น "29 สิงหาคม" ให้ลูกค้าเข้าใจง่ายกว่า "วันที่ 1"
+function formatDayDateLabel(day) {
+  if (!day?.event_date) return day?.label || `วันที่ ${day?.day_number ?? ""}`;
+  const d = new Date(day.event_date + "T00:00:00");
+  if (isNaN(d.getTime())) return day.label || `วันที่ ${day.day_number ?? ""}`;
+  return `${d.getDate()} ${THAI_MONTHS[d.getMonth()]}`;
+}
+
 // ==========================================
 // 1. DOM Elements
 // ==========================================
@@ -201,17 +214,17 @@ function showDaySelectionModal(data) {
 
     if (!isPurchased) {
       btn.disabled = true;
-      btn.innerHTML = `<div class="day-title">${ICONS.lock} วันที่ ${day.day_number}</div><div class="day-status">ไม่มีสิทธิ์รับชม</div>`;
+      btn.innerHTML = `<div class="day-title">${ICONS.lock} ${formatDayDateLabel(day)}</div><div class="day-status">ไม่มีสิทธิ์รับชม</div>`;
     } else if (day.rerun_youtube_url || day.rerun_cloudflare_uid) {
       // เช็ครีรันก่อนเสมอ: วันที่มีรีรันตั้งไว้แปลว่าวันนั้นถ่ายทอดจบแล้ว ไม่ขึ้นกับสถานะวันอื่นในงานเดียวกัน
-      btn.innerHTML = `<div class="day-title">${ICONS.play} วันที่ ${day.day_number}</div><div class="day-status rerun">รับชมรีรัน</div>`;
+      btn.innerHTML = `<div class="day-title">${ICONS.play} ${formatDayDateLabel(day)}</div><div class="day-status rerun">รับชมรีรัน</div>`;
       btn.onclick = () => {
         daySelectModal.style.display = "none";
         currentSelectedDay = { dayData: day, mode: "rerun" };
         showRulesModal();
       };
     } else if (day.live_youtube_url || day.live_cloudflare_uid) {
-      btn.innerHTML = `<div class="day-title">${ICONS.liveDot} วันที่ ${day.day_number}</div><div class="day-status live">ถ่ายทอดสด</div>`;
+      btn.innerHTML = `<div class="day-title">${ICONS.liveDot} ${formatDayDateLabel(day)}</div><div class="day-status live">ถ่ายทอดสด</div>`;
       btn.onclick = () => {
         daySelectModal.style.display = "none";
         currentSelectedDay = { dayData: day, mode: "live" };
@@ -219,7 +232,7 @@ function showDaySelectionModal(data) {
       };
     } else {
       btn.disabled = true;
-      btn.innerHTML = `<div class="day-title">${ICONS.clock} วันที่ ${day.day_number}</div><div class="day-status">ยังไม่ถึงวันถ่ายทอดสด</div>`;
+      btn.innerHTML = `<div class="day-title">${ICONS.clock} ${formatDayDateLabel(day)}</div><div class="day-status">ยังไม่ถึงวันถ่ายทอดสด</div>`;
     }
 
     dayOptionsList.appendChild(btn);
@@ -311,17 +324,17 @@ function renderRightSidebarDays(data, activeDay) {
 
     if (!isPurchased) {
       btn.disabled = true;
-      btn.innerHTML = `${ICONS.lock} <span>วันที่ ${day.day_number}</span>`;
+      btn.innerHTML = `${ICONS.lock} <span>${formatDayDateLabel(day)}</span>`;
     } else if (day.rerun_youtube_url || day.rerun_cloudflare_uid) {
       // เช็ครีรันก่อนเสมอ: วันที่มีรีรันตั้งไว้แปลว่าวันนั้นถ่ายทอดจบแล้ว ไม่ขึ้นกับสถานะวันอื่นในงานเดียวกัน
-      btn.innerHTML = `${ICONS.play} <span>รีรัน: วันที่ ${day.day_number}</span>`;
+      btn.innerHTML = `${ICONS.play} <span>รีรัน: ${formatDayDateLabel(day)}</span>`;
       btn.onclick = () => {
         setActiveTab(btn);
         currentSelectedDay = { dayData: day, mode: "rerun" };
         loadSelectedDayStream(day, "rerun");
       };
     } else if (day.live_youtube_url || day.live_cloudflare_uid) {
-      btn.innerHTML = `${ICONS.liveDot} <span>สด: วันที่ ${day.day_number}</span>`;
+      btn.innerHTML = `${ICONS.liveDot} <span>สด: ${formatDayDateLabel(day)}</span>`;
       btn.onclick = () => {
         setActiveTab(btn);
         currentSelectedDay = { dayData: day, mode: "live" };
@@ -329,7 +342,7 @@ function renderRightSidebarDays(data, activeDay) {
       };
     } else {
       btn.disabled = true;
-      btn.innerHTML = `${ICONS.clock} <span>วันที่ ${day.day_number} (ยังไม่ถึงวัน)</span>`;
+      btn.innerHTML = `${ICONS.clock} <span>${formatDayDateLabel(day)} (ยังไม่ถึงวัน)</span>`;
     }
 
     dayTabContainer.appendChild(btn);
