@@ -347,6 +347,43 @@ const eventEmptyState = document.getElementById("eventEmptyState");
 let currentBannerUrl = "";
 let dayRowCount = 0;
 
+const THAI_MONTHS = [
+  "มกราคม", "กุมภาพันธ์", "มีนาคม", "เมษายน", "พฤษภาคม", "มิถุนายน",
+  "กรกฎาคม", "สิงหาคม", "กันยายน", "ตุลาคม", "พฤศจิกายน", "ธันวาคม",
+];
+
+// แปลง event_date (YYYY-MM-DD) เป็น "29 สิงหาคม" ให้อ่านง่ายกว่า "วันที่ N"
+// ถ้ายังไม่ได้เลือกวันที่ (แถวใหม่ที่ยังไม่กรอก) จะ fallback ไปใช้ "วันที่ N" ไปก่อน
+function formatDayLabel(dateStr, fallbackDayNumber) {
+  if (!dateStr) return `วันที่ ${fallbackDayNumber}`;
+  const d = new Date(dateStr + "T00:00:00");
+  if (isNaN(d.getTime())) return `วันที่ ${fallbackDayNumber}`;
+  return `${d.getDate()} ${THAI_MONTHS[d.getMonth()]}`;
+}
+
+// สร้าง label ของแพ็กเกจ (สิ่งที่ลูกค้าเห็นตอนเลือกรอบวันที่ซื้อบัตร) จากวันที่จริง
+// เช่น ซื้อ 1 วัน -> "29 สิงหาคม", ซื้อ 2 วันจาก 3 วัน -> "29 สิงหาคม + 30 สิงหาคม", ซื้อครบทุกวัน -> "ทุกวัน (29-31 สิงหาคม)"
+function formatComboLabel(combo, totalDaysCount) {
+  const sorted = [...combo].sort((a, b) => a.day_number - b.day_number);
+  const hasAllDates = sorted.every((d) => d.event_date);
+
+  if (sorted.length === totalDaysCount && totalDaysCount > 1 && hasAllDates) {
+    const dates = sorted.map((d) => d.event_date).sort();
+    const dayNums = dates.map((d) => new Date(d + "T00:00:00").getDate());
+    const lastMonth = THAI_MONTHS[new Date(dates[dates.length - 1] + "T00:00:00").getMonth()];
+    return `ทุกวัน (${dayNums.join("-")} ${lastMonth})`;
+  }
+
+  if (hasAllDates) {
+    return sorted.map((d) => formatDayLabel(d.event_date, d.day_number)).join(" + ");
+  }
+
+  // fallback กันเผื่อบางวันไม่มี event_date (ไม่ควรเกิดขึ้นจริง)
+  return sorted.length === totalDaysCount && totalDaysCount > 1
+    ? `ทุกวัน (${sorted.length} วัน)`
+    : `วันที่ ${sorted.map((d) => d.day_number).join("+")}`;
+}
+
 evBannerFile.addEventListener("change", () => {
   const file = evBannerFile.files[0];
   if (!file) return;
@@ -378,7 +415,7 @@ function addDayRow(dayData = {}) {
 
   row.innerHTML = `
     <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:10px;">
-      <span style="font-weight:600; font-size:14px;" class="day-title-label">วันที่ ${n}</span>
+      <span style="font-weight:600; font-size:14px;" class="day-title-label">${formatDayLabel(date, n)}</span>
       <button type="button" class="icon-btn ghost remove-day-btn" style="padding:4px 10px; font-size:12px;">ลบวันนี้</button>
     </div>
     
@@ -412,6 +449,11 @@ function addDayRow(dayData = {}) {
     rebuildPackageRows();
   });
 
+  // อัปเดตหัวข้อวันที่แบบ live ตอนแอดมินเลือก/เปลี่ยนวันที่
+  row.querySelector(".day-date-input").addEventListener("change", (e) => {
+    row.querySelector(".day-title-label").textContent = formatDayLabel(e.target.value, row.dataset.dayNumber);
+  });
+
   dayRows.appendChild(row);
   rebuildPackageRows();
 }
@@ -419,7 +461,8 @@ function addDayRow(dayData = {}) {
 function renumberDayRows() {
   [...dayRows.children].forEach((row, i) => {
     row.dataset.dayNumber = i + 1;
-    row.querySelector(".day-title-label").textContent = `วันที่ ${i + 1}`;
+    const dateVal = row.querySelector(".day-date-input").value;
+    row.querySelector(".day-title-label").textContent = formatDayLabel(dateVal, i + 1);
   });
   dayRowCount = dayRows.children.length;
 }
@@ -430,11 +473,12 @@ function getDaysFromForm() {
     const liveVal = row.querySelector(".day-live-url").value.trim();
     const rerunPlat = row.querySelector(".day-rerun-platform").value;
     const rerunVal = row.querySelector(".day-rerun-url").value.trim();
+    const dateVal = row.querySelector(".day-date-input").value;
 
     return {
       day_number: i + 1,
-      event_date: row.querySelector(".day-date-input").value,
-      label: row.querySelector(".day-label-input").value.trim() || `วันที่ ${i + 1}`,
+      event_date: dateVal,
+      label: row.querySelector(".day-label-input").value.trim() || formatDayLabel(dateVal, i + 1),
       live_platform: livePlat || null,
       live_youtube_url: livePlat === "youtube" ? liveVal : null,
       live_cloudflare_uid: livePlat === "cloudflare" ? liveVal : null,
@@ -654,10 +698,7 @@ eventForm.addEventListener("submit", async (e) => {
       const optionRows = combos.map((combo) => ({
         package_id: pkgRow.id,
         day_numbers: combo.map((d) => d.day_number),
-        label:
-          combo.length === sortedDays.length && sortedDays.length > 1
-            ? `ทุกวัน (${combo.length} วัน)`
-            : `วันที่ ${combo.map((d) => d.day_number).join("+")}`,
+        label: formatComboLabel(combo, sortedDays.length),
       }));
 
       const { error: optError } = await supabase.from("ticket_package_day_options").insert(optionRows);
@@ -1296,7 +1337,7 @@ async function loadLiveViewers({ silent = false } = {}) {
 
   const { data, error } = await supabase
     .from("viewing_sessions")
-    .select("*, orders(order_number, access_code, events(title))")
+    .select("*, orders(order_number, access_code, events(title, event_days(day_number, event_date)))")
     .gte("last_seen_at", cutoff)
     .order("last_seen_at", { ascending: false });
 
@@ -1318,12 +1359,15 @@ async function loadLiveViewers({ silent = false } = {}) {
     const watchedLabel =
       watchedSeconds < 60 ? `${watchedSeconds} วินาที` : `${Math.floor(watchedSeconds / 60)} นาที`;
 
+    const matchedDay = s.orders?.events?.event_days?.find((d) => d.day_number === s.day_number);
+    const dayLabel = formatDayLabel(matchedDay?.event_date, s.day_number);
+
     const row = document.createElement("div");
     row.className = "session-row";
     row.innerHTML = `
       <div style="min-width:0;">
         <div style="font-family:'Prompt',sans-serif; font-weight:600; font-size:14.5px; margin-bottom:4px;">
-          ${escapeHtml(s.orders?.events?.title || "-")} — วันที่ ${s.day_number}
+          ${escapeHtml(s.orders?.events?.title || "-")} — ${dayLabel}
         </div>
         <div class="muted" style="font-size:12px;">
           ${escapeHtml(s.orders?.order_number || "-")} · รหัส ${escapeHtml(s.orders?.access_code || "-")} · ดูมาแล้ว ${watchedLabel}
