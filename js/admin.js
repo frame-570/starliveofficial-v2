@@ -701,7 +701,9 @@ eventForm.addEventListener("submit", async (e) => {
         label: formatComboLabel(combo, sortedDays.length),
       }));
 
-      const { error: optError } = await supabase.from("ticket_package_day_options").insert(optionRows);
+      const { error: optError } = await supabase
+        .from("ticket_package_day_options")
+        .upsert(optionRows, { onConflict: "package_id, day_numbers" });
       if (optError) throw new Error(optError.message);
     }
 
@@ -1355,9 +1357,8 @@ async function loadLiveViewers({ silent = false } = {}) {
   emptyEl.style.display = sessions.length === 0 ? "block" : "none";
 
   sessions.forEach((s) => {
-    const watchedSeconds = Math.max(0, Math.floor((Date.now() - new Date(s.created_at).getTime()) / 1000));
-    const watchedLabel =
-      watchedSeconds < 60 ? `${watchedSeconds} วินาที` : `${Math.floor(watchedSeconds / 60)} นาที`;
+    const lastSeenSeconds = Math.max(0, Math.floor((Date.now() - new Date(s.last_seen_at).getTime()) / 1000));
+    const lastSeenLabel = lastSeenSeconds < 5 ? "เมื่อครู่นี้" : `${lastSeenSeconds} วินาทีที่แล้ว`;
 
     const matchedDay = s.orders?.events?.event_days?.find((d) => d.day_number === s.day_number);
     const dayLabel = formatDayLabel(matchedDay?.event_date, s.day_number);
@@ -1370,7 +1371,7 @@ async function loadLiveViewers({ silent = false } = {}) {
           ${escapeHtml(s.orders?.events?.title || "-")} — ${dayLabel}
         </div>
         <div class="muted" style="font-size:12px;">
-          ${escapeHtml(s.orders?.order_number || "-")} · รหัส ${escapeHtml(s.orders?.access_code || "-")} · ดูมาแล้ว ${watchedLabel}
+          ${escapeHtml(s.orders?.order_number || "-")} · รหัส ${escapeHtml(s.orders?.access_code || "-")} · อัปเดตล่าสุด ${lastSeenLabel}
         </div>
       </div>
       <span class="status-pill" style="color:#46c882; font-size:12.5px; flex-shrink:0;">🟢 กำลังดู</span>
