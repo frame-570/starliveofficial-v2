@@ -809,7 +809,7 @@ async function loadOrders({ silent = false } = {}) {
 
   let query = supabase
     .from("orders")
-    .select("*, events(title), ticket_packages(num_days), ticket_package_day_options(label)")
+    .select("*, events(title, event_days(event_date)), ticket_packages(num_days), ticket_package_day_options(label)")
     .order("created_at", { ascending: false })
     .limit(100);
 
@@ -861,10 +861,27 @@ function renderOrderRow(order) {
     <div style="display:flex; align-items:center; gap:8px; flex-shrink:0; flex-wrap:wrap;">
       <span class="status-pill status-${escapeHtml(order.status)}" style="font-size:12.5px;">${ORDER_STATUS_LABELS[order.status] || order.status}</span>
       ${order.slip_image_url ? `<button class="icon-btn ghost" data-action="view-slip">ดูสลิป</button>` : `<button class="icon-btn ghost" data-action="attach-slip">เพิ่มสลิป</button>`}
+      ${order.access_code ? `<button class="icon-btn ghost" data-action="copy-message">คัดลอกข้อความ</button>` : ""}
       ${order.status !== "paid" && order.status !== "cancelled" ? `<button class="icon-btn" data-action="manual-approve" style="border-color:#46c882; color:#46c882;">อนุมัติด้วยมือ</button>` : ""}
       <button class="icon-btn ghost" data-action="delete-order" style="border-color:var(--crimson); color:var(--crimson);">ลบ</button>
     </div>
   `;
+
+  const copyMessageBtn = row.querySelector('[data-action="copy-message"]');
+  if (copyMessageBtn) {
+    copyMessageBtn.addEventListener("click", async () => {
+      const lines = await buildCustomerMessageLines({
+        eventTitle: order.events?.title || "-",
+        eventDateLabel: formatEventDateLabel(order.events?.event_days),
+        packageNumDays: order.ticket_packages?.num_days || "-",
+        dayOptionLabel: order.ticket_package_day_options?.label || "-",
+        accessCode: order.access_code,
+        expiresAt: order.access_code_expires_at,
+      });
+      manualResultText.value = lines.join("\n");
+      manualResultOverlay.style.display = "flex";
+    });
+  }
 
   const attachSlipBtn = row.querySelector('[data-action="attach-slip"]');
   if (attachSlipBtn) {
@@ -1172,9 +1189,10 @@ manualOrderForm.addEventListener("submit", async (e) => {
   manualDayOptionSelect.disabled = true;
 });
 
-async function showManualResult(result) {
-  const watchUrl = `${window.location.origin}/watch?code=${result.access_code}`;
-  const expiresLabel = new Date(result.access_code_expires_at).toLocaleDateString("th-TH", {
+// ---------- สร้างข้อความส่งลูกค้า (ใช้ร่วมกันทั้งออกรหัสไลน์ และปุ่มคัดลอกในหน้าออเดอร์) ----------
+async function buildCustomerMessageLines({ eventTitle, eventDateLabel, packageNumDays, dayOptionLabel, accessCode, expiresAt }) {
+  const watchUrl = `${window.location.origin}/watch?code=${accessCode}`;
+  const expiresLabel = new Date(expiresAt).toLocaleDateString("th-TH", {
     year: "numeric",
     month: "long",
     day: "numeric",
@@ -1190,11 +1208,11 @@ async function showManualResult(result) {
   const lines = [
     `🎫 STAR LIVE OFFICIAL`,
     ``,
-    `คอนเสิร์ต: ${result.event_title}`,
-    `วันที่จัดงาน: ${result.event_date_label || "-"}`,
-    `แพ็กเกจ: ${result.package_num_days} วัน (${result.day_option_label})`,
+    `คอนเสิร์ต: ${eventTitle}`,
+    `วันที่จัดงาน: ${eventDateLabel || "-"}`,
+    `แพ็กเกจ: ${packageNumDays} วัน (${dayOptionLabel})`,
     ``,
-    `รหัสเข้าชม: ${result.access_code}`,
+    `รหัสเข้าชม: ${accessCode}`,
     `ลิงก์เข้าชม (ใช้ดูได้ทั้งถ่ายทอดสดและรีรัน): ${watchUrl}`,
     ``,
     `📅 ใช้งานได้ถึงวันที่: ${expiresLabel}`,
@@ -1208,6 +1226,25 @@ async function showManualResult(result) {
 
   lines.push(``);
   lines.push(`ขอบคุณที่อุดหนุน STAR LIVE OFFICIAL ครับ 💛`);
+
+  return lines;
+}
+
+function formatEventDateLabel(eventDays) {
+  const dates = (eventDays || []).map((d) => d.event_date).filter(Boolean).sort();
+  if (!dates.length) return "";
+  return dates.length === 1 ? dates[0] : `${dates[0]} ถึง ${dates[dates.length - 1]}`;
+}
+
+async function showManualResult(result) {
+  const lines = await buildCustomerMessageLines({
+    eventTitle: result.event_title,
+    eventDateLabel: result.event_date_label,
+    packageNumDays: result.package_num_days,
+    dayOptionLabel: result.day_option_label,
+    accessCode: result.access_code,
+    expiresAt: result.access_code_expires_at,
+  });
 
   manualResultText.value = lines.join("\n");
   manualResultOverlay.style.display = "flex";
