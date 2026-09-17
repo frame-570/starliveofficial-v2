@@ -291,6 +291,7 @@ document.querySelectorAll(".admin-tab-btn").forEach((btn) => {
     document.getElementById("ordersTab").style.display = btn.dataset.tab === "orders" ? "block" : "none";
     document.getElementById("manualTab").style.display = btn.dataset.tab === "manual" ? "block" : "none";
     document.getElementById("liveTab").style.display = btn.dataset.tab === "live" ? "block" : "none";
+    document.getElementById("summaryTab").style.display = btn.dataset.tab === "summary" ? "block" : "none";
     document.getElementById("discountTab").style.display = btn.dataset.tab === "discount" ? "block" : "none";
 
     if (btn.dataset.tab === "orders") {
@@ -309,6 +310,10 @@ document.querySelectorAll(".admin-tab-btn").forEach((btn) => {
       startLiveViewersPolling();
     } else {
       stopLiveViewersPolling();
+    }
+
+    if (btn.dataset.tab === "summary") {
+      loadSummary();
     }
 
     if (btn.dataset.tab === "discount") {
@@ -1355,11 +1360,18 @@ manualResultCopyBtn.addEventListener("click", async () => {
 // ============================================================
 const LIVE_VIEWERS_POLL_MS = 10000;
 const HEARTBEAT_TIMEOUT_SECONDS = 30; // ต้องตรงกับค่าใน Edge Function verify-access-code/heartbeat
+const VIEW_START_STORAGE_KEY = "slo_admin_view_starts";
 let liveViewersPollTimer = null;
+let liveViewersTickTimer = null;
 
 function startLiveViewersPolling() {
-  if (liveViewersPollTimer) return;
-  liveViewersPollTimer = setInterval(() => loadLiveViewers({ silent: true }), LIVE_VIEWERS_POLL_MS);
+  if (!liveViewersPollTimer) {
+    liveViewersPollTimer = setInterval(() => loadLiveViewers({ silent: true }), LIVE_VIEWERS_POLL_MS);
+  }
+  // เดินนาฬิกาทุก 1 วินาที เพื่อให้ตัวเลข "ดูแล้ว.." และ "อัปเดตเมื่อ.." ขยับเองระหว่างรอ poll รอบถัดไป
+  if (!liveViewersTickTimer) {
+    liveViewersTickTimer = setInterval(tickLiveViewerTimes, 1000);
+  }
 }
 
 function stopLiveViewersPolling() {
@@ -1367,6 +1379,73 @@ function stopLiveViewersPolling() {
     clearInterval(liveViewersPollTimer);
     liveViewersPollTimer = null;
   }
+  if (liveViewersTickTimer) {
+    clearInterval(liveViewersTickTimer);
+    liveViewersTickTimer = null;
+  }
+}
+
+// ---------- เวลาเริ่มดู ----------
+// ปกติจะอ่านจากคอลัมน์ started_at ของตาราง viewing_sessions (ดู SQL ที่แนบให้)
+// ถ้ายังไม่ได้เพิ่มคอลัมน์ จะ fallback มาจำเวลาที่แอดมินเห็น session_token นี้ครั้งแรกไว้ใน localStorage แทน
+function readViewStarts() {
+  try {
+    return JSON.parse(localStorage.getItem(VIEW_START_STORAGE_KEY) || "{}");
+  } catch {
+    return {};
+  }
+}
+
+function resolveViewStart(session) {
+  const raw = session.started_at || session.session_started_at || session.created_at;
+  if (raw) {
+    const ms = new Date(raw).getTime();
+    if (!isNaN(ms)) return { ms, exact: true };
+  }
+
+  // fallback: ผูกกับ session_token — กรอกรหัสใหม่ = token ใหม่ = เริ่มนับใหม่
+  const key = `${session.order_id || session.id}:${session.session_token || ""}`;
+  const store = readViewStarts();
+  const now = Date.now();
+
+  if (!store[key]) store[key] = now;
+
+  // ล้างของเก่าเกิน 24 ชม. กัน localStorage บวม
+  for (const k of Object.keys(store)) {
+    if (now - store[k] > 24 * 60 * 60 * 1000) delete store[k];
+  }
+  try {
+    localStorage.setItem(VIEW_START_STORAGE_KEY, JSON.stringify(store));
+  } catch {}
+
+  return { ms: store[key], exact: false };
+}
+
+function formatWatchedLabel(startMs, exact) {
+  const totalSeconds = Math.max(0, Math.floor((Date.now() - startMs) / 1000));
+  const hours = Math.floor(totalSeconds / 3600);
+  const minutes = Math.floor((totalSeconds % 3600) / 60);
+  const prefix = exact ? "" : "≈";
+
+  if (totalSeconds < 60) return `${prefix}ดูแล้วไม่ถึง 1 นาที`;
+  if (hours === 0) return `${prefix}ดูแล้ว ${minutes} นาที`;
+  return `${prefix}ดูแล้ว ${hours} ชม. ${minutes} นาที`;
+}
+
+function formatLastSeenLabel(lastSeenMs) {
+  const seconds = Math.max(0, Math.floor((Date.now() - lastSeenMs) / 1000));
+  if (seconds < 5) return "อัปเดตเมื่อครู่นี้";
+  return `อัปเดตเมื่อ ${seconds} วินาทีที่แล้ว`;
+}
+
+// อัปเดตเฉพาะตัวเลขเวลาในแถวที่ render ไว้แล้ว (ไม่ยิง request ใหม่)
+function tickLiveViewerTimes() {
+  document.querySelectorAll("[data-watched-start]").forEach((el) => {
+    el.textContent = formatWatchedLabel(Number(el.dataset.watchedStart), el.dataset.watchedExact === "1");
+  });
+  document.querySelectorAll("[data-last-seen]").forEach((el) => {
+    el.textContent = formatLastSeenLabel(Number(el.dataset.lastSeen));
+  });
 }
 
 async function loadLiveViewers({ silent = false } = {}) {
@@ -1396,8 +1475,8 @@ async function loadLiveViewers({ silent = false } = {}) {
   emptyEl.style.display = sessions.length === 0 ? "block" : "none";
 
   sessions.forEach((s) => {
-    const lastSeenSeconds = Math.max(0, Math.floor((Date.now() - new Date(s.last_seen_at).getTime()) / 1000));
-    const lastSeenLabel = lastSeenSeconds < 5 ? "เมื่อครู่นี้" : `${lastSeenSeconds} วินาทีที่แล้ว`;
+    const lastSeenMs = new Date(s.last_seen_at).getTime();
+    const start = resolveViewStart(s);
 
     const matchedDay = s.orders?.events?.event_days?.find((d) => d.day_number === s.day_number);
     const dayLabel = formatDayLabel(matchedDay?.event_date, s.day_number);
@@ -1410,10 +1489,119 @@ async function loadLiveViewers({ silent = false } = {}) {
           ${escapeHtml(s.orders?.events?.title || "-")} — ${dayLabel}
         </div>
         <div class="muted" style="font-size:12px;">
-          ${escapeHtml(s.orders?.order_number || "-")} · รหัส ${escapeHtml(s.orders?.access_code || "-")} · อัปเดตล่าสุด ${lastSeenLabel}
+          ${escapeHtml(s.orders?.order_number || "-")} · รหัส ${escapeHtml(s.orders?.access_code || "-")}
+        </div>
+        <div style="font-size:12px; margin-top:4px; display:flex; gap:10px; flex-wrap:wrap;">
+          <span style="color:#46c882;" data-watched-start="${start.ms}" data-watched-exact="${start.exact ? 1 : 0}">
+            ${formatWatchedLabel(start.ms, start.exact)}
+          </span>
+          <span class="muted" data-last-seen="${lastSeenMs}">${formatLastSeenLabel(lastSeenMs)}</span>
         </div>
       </div>
       <span class="status-pill" style="color:#46c882; font-size:12.5px; flex-shrink:0;">🟢 กำลังดู</span>
+    `;
+    listEl.appendChild(row);
+  });
+}
+
+// ============================================================
+// สรุปยอด (รวมยอดแต่ละงาน + จำนวนลูกค้า)
+// ============================================================
+document.getElementById("summaryRangeSelect").addEventListener("change", loadSummary);
+document.getElementById("summaryRefreshBtn").addEventListener("click", () => loadSummary());
+
+// นับ "คน" ให้ใกล้ความจริงที่สุด: ลูกค้าที่ล็อกอินนับจาก user_id,
+// ส่วนออเดอร์ที่แอดมินออกรหัสเองผ่านไลน์ (ไม่มี user_id) นับจากชื่อ/ข้อมูลลูกค้าที่บันทึกไว้
+function customerKeyOf(order) {
+  if (order.user_id) return `u:${order.user_id}`;
+  const note = (order.customer_note || "").trim().toLowerCase();
+  if (note) return `n:${note}`;
+  return `o:${order.id}`; // ไม่มีข้อมูลอะไรเลย ถือเป็นคนละคน
+}
+
+function summaryRangeStartISO() {
+  const value = document.getElementById("summaryRangeSelect").value;
+  if (value === "all") return null;
+  if (value === "today") {
+    const d = new Date();
+    d.setHours(0, 0, 0, 0);
+    return d.toISOString();
+  }
+  return new Date(Date.now() - Number(value) * 24 * 60 * 60 * 1000).toISOString();
+}
+
+async function loadSummary() {
+  const listEl = document.getElementById("summaryEventList");
+  const emptyEl = document.getElementById("summaryEmptyState");
+
+  let query = supabase
+    .from("orders")
+    .select("id, amount, user_id, customer_note, event_id, created_at, events(title)")
+    .eq("status", "paid")
+    .limit(5000);
+
+  const since = summaryRangeStartISO();
+  if (since) query = query.gte("created_at", since);
+
+  const { data, error } = await query;
+
+  if (error) {
+    listEl.innerHTML = `<p class="error-text">โหลดข้อมูลไม่สำเร็จ: ${escapeHtml(error.message)}</p>`;
+    return;
+  }
+
+  const orders = data || [];
+
+  // รวมยอดแยกตามงาน
+  const byEvent = new Map();
+  const allCustomers = new Set();
+  let grandRevenue = 0;
+
+  orders.forEach((o) => {
+    const key = o.event_id || "unknown";
+    if (!byEvent.has(key)) {
+      byEvent.set(key, {
+        title: o.events?.title || "(ไม่พบชื่องาน)",
+        revenue: 0,
+        orders: 0,
+        customers: new Set(),
+      });
+    }
+    const bucket = byEvent.get(key);
+    const amount = Number(o.amount) || 0;
+
+    bucket.revenue += amount;
+    bucket.orders += 1;
+    bucket.customers.add(customerKeyOf(o));
+
+    grandRevenue += amount;
+    allCustomers.add(customerKeyOf(o));
+  });
+
+  document.getElementById("summaryTotalRevenue").textContent = `${grandRevenue.toLocaleString("th-TH")}฿`;
+  document.getElementById("summaryTotalCustomers").textContent = allCustomers.size.toLocaleString("th-TH");
+  document.getElementById("summaryTotalOrders").textContent = orders.length.toLocaleString("th-TH");
+
+  const rows = [...byEvent.values()].sort((a, b) => b.revenue - a.revenue);
+
+  listEl.innerHTML = "";
+  emptyEl.style.display = rows.length === 0 ? "block" : "none";
+
+  rows.forEach((ev) => {
+    const row = document.createElement("div");
+    row.className = "session-row";
+    row.innerHTML = `
+      <div style="min-width:0;">
+        <div style="font-family:'Prompt',sans-serif; font-weight:600; font-size:14.5px; margin-bottom:4px;">
+          ${escapeHtml(ev.title)}
+        </div>
+        <div class="muted" style="font-size:12px;">
+          ลูกค้า ${ev.customers.size.toLocaleString("th-TH")} คน · ขายได้ ${ev.orders.toLocaleString("th-TH")} บัตร
+        </div>
+      </div>
+      <span class="display" style="color:var(--amber); font-weight:800; font-size:17px; flex-shrink:0;">
+        ${ev.revenue.toLocaleString("th-TH")}฿
+      </span>
     `;
     listEl.appendChild(row);
   });
