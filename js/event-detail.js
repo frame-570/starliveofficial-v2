@@ -20,6 +20,23 @@ let currentEvent = null;
 let selectedPackage = null;
 let selectedDayOptionId = null;
 let appliedDiscount = null; // { code, discountedAmount, discountAmount, discountLabel }
+let currentSession = await getSession(); // ใช้เช็กว่าล็อกอินหรือยัง (โค้ดส่วนลดบังคับล็อกอิน)
+
+// พาไปหน้าเข้าสู่ระบบ แล้วกลับมาที่หน้างานเดิม พร้อมจำโค้ดส่วนลดที่พิมพ์ค้างไว้
+function gotoLogin(code) {
+  const target = new URL(window.location.href);
+  if (code) target.searchParams.set("code", code);
+  const redirect = target.pathname + target.search;
+  window.location.href = `./login.html?redirect=${encodeURIComponent(redirect)}`;
+}
+
+// แสดงข้อความเตือนใต้ช่องโค้ดส่วนลด เมื่อยังไม่ได้ล็อกอิน
+function showLoginHintIfNeeded() {
+  if (currentSession) return;
+  const resultText = document.getElementById("discountResultText");
+  if (!resultText || resultText.textContent) return;
+  resultText.textContent = "ต้องเข้าสู่ระบบก่อน จึงจะใช้โค้ดส่วนลดและชำระเงินได้";
+}
 
 if (!eventId) {
   showNotFound();
@@ -44,6 +61,16 @@ async function loadEvent() {
   currentEvent = data;
   renderEvent(data);
   shell.style.display = "block";
+
+  // กลับมาจากหน้าล็อกอินพร้อมโค้ดที่พิมพ์ค้างไว้ -> เติมให้และกดใช้โค้ดให้อัตโนมัติ
+  const pendingCode = params.get("code");
+  const discountInput = document.getElementById("discountCodeInput");
+  if (pendingCode && discountInput) {
+    discountInput.value = pendingCode.toUpperCase();
+    if (currentSession) document.getElementById("applyDiscountBtn")?.click();
+  }
+
+  showLoginHintIfNeeded();
 }
 
 function showNotFound() {
@@ -221,6 +248,7 @@ function resetDiscount() {
     resultText.textContent = "";
     resultText.classList.remove("error-text");
   }
+  showLoginHintIfNeeded();
 }
 
 document.getElementById("applyDiscountBtn").addEventListener("click", async () => {
@@ -240,6 +268,17 @@ document.getElementById("applyDiscountBtn").addEventListener("click", async () =
   if (!code) {
     resultText.textContent = "กรุณากรอกโค้ดส่วนลด";
     resultText.classList.add("error-text");
+    return;
+  }
+
+  // ---------- บังคับล็อกอินก่อนใช้โค้ดส่วนลด ----------
+  currentSession = await getSession();
+  if (!currentSession) {
+    appliedDiscount = null;
+    updateTotal();
+    resultText.textContent = "ต้องเข้าสู่ระบบก่อนจึงจะใช้โค้ดส่วนลดได้ กำลังพาไปหน้าเข้าสู่ระบบ...";
+    resultText.classList.add("error-text");
+    setTimeout(() => gotoLogin(code), 900);
     return;
   }
 
@@ -305,9 +344,13 @@ document.getElementById("payBtn").addEventListener("click", async () => {
   errorEl.textContent = "";
 
   const session = await getSession();
+  currentSession = session;
   if (!session) {
-    const redirect = `./login.html?redirect=${encodeURIComponent(window.location.pathname + window.location.search)}`;
-    window.location.href = redirect;
+    // ยังไม่ล็อกอิน -> ตัดส่วนลดออกก่อน (กันใช้ส่วนลดโดยไม่ล็อกอิน) แล้วพาไปหน้าเข้าสู่ระบบ
+    const pendingCode = appliedDiscount?.code || document.getElementById("discountCodeInput")?.value.trim().toUpperCase();
+    appliedDiscount = null;
+    updateTotal();
+    gotoLogin(pendingCode);
     return;
   }
 
