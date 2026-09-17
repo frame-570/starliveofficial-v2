@@ -84,6 +84,7 @@
     <button type="button" class="admin-tab-btn" data-tab="orders">ออเดอร์</button>
     <button type="button" class="admin-tab-btn" data-tab="manual">ออกรหัส</button>
     <button type="button" class="admin-tab-btn" data-tab="live">กำลังดูอยู่ตอนนี้</button>
+    <button type="button" class="admin-tab-btn" data-tab="summary">สรุปยอด</button>
     <button type="button" class="admin-tab-btn" data-tab="discount">โค้ดส่วนลด</button>
   </div>
 
@@ -224,6 +225,40 @@
 
     <div id="liveViewerList" style="display:flex; flex-direction:column; gap:10px;"></div>
     <p id="liveViewerEmptyState" class="muted" style="display:none; text-align:center; padding:40px 0;">ยังไม่มีใครกำลังดูอยู่ตอนนี้</p>
+  </div>
+
+  <!-- ============ Tab: สรุปยอด (Revenue summary) ============ -->
+  <div id="summaryTab" class="admin-tab-panel" style="display:none;">
+    <div style="display:flex; gap:10px; margin-bottom:16px; flex-wrap:wrap; align-items:center;">
+      <select id="summaryRangeSelect" class="field-input" style="max-width:220px;">
+        <option value="all">ทั้งหมด</option>
+        <option value="today">วันนี้</option>
+        <option value="7">7 วันล่าสุด</option>
+        <option value="30">30 วันล่าสุด</option>
+      </select>
+      <button type="button" id="summaryRefreshBtn" class="icon-btn ghost" style="width:auto; padding:0 16px;">รีเฟรช</button>
+      <span class="muted" style="font-size:12px;">นับเฉพาะออเดอร์ที่ชำระเงินสำเร็จแล้ว</span>
+    </div>
+
+    <div class="admin-card" style="margin-bottom:20px;">
+      <div id="summaryTotals" style="display:flex; gap:20px; flex-wrap:wrap; justify-content:space-around; text-align:center;">
+        <div>
+          <p class="muted" style="font-size:12.5px; margin:0 0 4px;">ยอดขายรวมทั้งหมด</p>
+          <div class="display" id="summaryTotalRevenue" style="font-size:30px; color:var(--amber); font-weight:800;">0฿</div>
+        </div>
+        <div>
+          <p class="muted" style="font-size:12.5px; margin:0 0 4px;">จำนวนลูกค้า (คน)</p>
+          <div class="display" id="summaryTotalCustomers" style="font-size:30px; font-weight:800;">0</div>
+        </div>
+        <div>
+          <p class="muted" style="font-size:12.5px; margin:0 0 4px;">จำนวนบัตรที่ขายได้</p>
+          <div class="display" id="summaryTotalOrders" style="font-size:30px; font-weight:800;">0</div>
+        </div>
+      </div>
+    </div>
+
+    <div id="summaryEventList" style="display:flex; flex-direction:column; gap:12px;"></div>
+    <p id="summaryEmptyState" class="muted" style="display:none; text-align:center; padding:40px 0;">ยังไม่มียอดขายในช่วงเวลานี้</p>
   </div>
 
   <!-- ============ Tab: โค้ดส่วนลด (Discount codes) ============ -->
