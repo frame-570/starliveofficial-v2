@@ -1,0 +1,33 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>ประวัติการสั่งซื้อ — Star Live Official</title>
+<link rel="preconnect" href="https://fonts.googleapis.com" /> <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'><defs><radialGradient id='g' cx='50%25' cy='50%25' r='50%25'><stop offset='0%25' stop-color='%23FFF275'/><stop offset='60%25' stop-color='%23FFD700'/><stop offset='100%25' stop-color='%23FFA500'/></radialGradient></defs><path d='M12 0C12 6.627 6.627 12 0 12C6.627 12 12 17.373 12 24C12 17.373 17.373 12 24 12C17.373 12 12 6.627 12 0Z' fill='url(%23g)'/></svg>">
+<link href="https://fonts.googleapis.com/css2?family=Prompt:wght@500;600;700;800&family=Sarabun:wght@400;500;600&display=swap" rel="stylesheet" />
+<link rel="stylesheet" href="./style.css" />
+</head>
+<body>
+<div class="stage-bg"></div>
+
+<header class="home-header">
+  <a href="./index.html" class="marquee-brand" style="text-decoration:none;"><span class="bulb"></span> STAR LIVE OFFICIAL</a>
+  <div class="home-header-right">
+    <a href="./watch.html" class="icon-btn ghost home-watch-btn">ชมไลฟ์สด/รีรัน</a>
+    <div id="headerAuthArea"></div>
+  </div>
+</header>
+
+<main class="home-shell" style="max-width:640px;">
+  <h1 class="display" style="font-size:20px; text-align:center; margin:10px 0 24px;">ประวัติการสั่งซื้อ</h1>
+
+  <p id="loadingText" class="muted" style="text-align:center; padding:40px 0;">กำลังโหลด...</p>
+  <p id="emptyText" class="muted" style="display:none; text-align:center; padding:40px 0;">ยังไม่มีคำสั่งซื้อ</p>
+
+  <div id="orderList" style="display:flex; flex-direction:column; gap:14px;"></div>
+</main>
+
+<script type="module" src="./js/orders.js"></script>
+</body>
+</html>
