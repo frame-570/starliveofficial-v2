@@ -293,6 +293,7 @@ document.querySelectorAll(".admin-tab-btn").forEach((btn) => {
     document.getElementById("liveTab").style.display = btn.dataset.tab === "live" ? "block" : "none";
     document.getElementById("summaryTab").style.display = btn.dataset.tab === "summary" ? "block" : "none";
     document.getElementById("discountTab").style.display = btn.dataset.tab === "discount" ? "block" : "none";
+    document.getElementById("membersTab").style.display = btn.dataset.tab === "members" ? "block" : "none";
 
     if (btn.dataset.tab === "orders") {
       loadOrders();
@@ -318,6 +319,10 @@ document.querySelectorAll(".admin-tab-btn").forEach((btn) => {
 
     if (btn.dataset.tab === "discount") {
       loadDiscountCodes();
+    }
+
+    if (btn.dataset.tab === "members") {
+      loadMembers();
     }
   });
 });
@@ -1759,6 +1764,92 @@ function renderDiscountRow(code) {
   });
 
   return row;
+}
+
+// ============================================================
+// สมาชิก (Members) — ดูว่าใครสมัครเข้ามาใช้งานบ้าง
+// ============================================================
+let membersCache = [];
+
+document.getElementById("memberSearchInput").addEventListener("input", (e) => {
+  renderMemberList(filterMembers(e.target.value.trim()));
+});
+
+function filterMembers(term) {
+  if (!term) return membersCache;
+  const lower = term.toLowerCase();
+  return membersCache.filter(
+    (m) =>
+      (m.display_name || "").toLowerCase().includes(lower) ||
+      (m.email || "").toLowerCase().includes(lower) ||
+      (m.phone || "").toLowerCase().includes(lower)
+  );
+}
+
+async function loadMembers() {
+  const listEl = document.getElementById("memberListWrap");
+  const emptyEl = document.getElementById("memberEmptyState");
+  const countEl = document.getElementById("memberCountLabel");
+
+  listEl.innerHTML = `<p class="muted" style="text-align:center; padding:20px 0;">กำลังโหลด...</p>`;
+
+  // 1. ดึงรายชื่อสมาชิก (ไม่รวมบัญชีแอดมิน)
+  const { data: members, error } = await supabase
+    .from("profiles")
+    .select("id, display_name, email, phone, created_at")
+    .eq("is_admin", false)
+    .order("created_at", { ascending: false });
+
+  if (error) {
+    listEl.innerHTML = `<p class="error-text">โหลดข้อมูลไม่สำเร็จ: ${escapeHtml(error.message)}</p>`;
+    return;
+  }
+
+  // 2. นับจำนวนออเดอร์ของแต่ละคน (เอาไว้ดูคร่าว ๆ ว่าใครซื้อไปแล้วกี่ครั้ง)
+  const { data: orders } = await supabase.from("orders").select("user_id, status").not("user_id", "is", null);
+  const orderCountByUser = {};
+  (orders || []).forEach((o) => {
+    if (o.status !== "paid") return;
+    orderCountByUser[o.user_id] = (orderCountByUser[o.user_id] || 0) + 1;
+  });
+
+  membersCache = (members || []).map((m) => ({ ...m, paidOrderCount: orderCountByUser[m.id] || 0 }));
+
+  countEl.textContent = `ทั้งหมด ${membersCache.length} คน`;
+  emptyEl.style.display = membersCache.length === 0 ? "block" : "none";
+
+  renderMemberList(membersCache);
+}
+
+function renderMemberList(members) {
+  const listEl = document.getElementById("memberListWrap");
+  listEl.innerHTML = "";
+
+  if (members.length === 0) {
+    listEl.innerHTML = `<p class="muted" style="text-align:center; padding:30px 0;">ไม่พบสมาชิกที่ตรงกับคำค้นหา</p>`;
+    return;
+  }
+
+  members.forEach((m) => {
+    const joined = new Date(m.created_at).toLocaleDateString("th-TH", { year: "numeric", month: "long", day: "numeric" });
+
+    const row = document.createElement("div");
+    row.className = "session-row";
+    row.innerHTML = `
+      <div style="min-width:0;">
+        <div style="font-family:'Prompt',sans-serif; font-weight:600; font-size:14.5px; margin-bottom:4px;">
+          ${escapeHtml(m.display_name || "ไม่ได้ตั้งชื่อ")}
+        </div>
+        <div class="muted" style="font-size:12px;">
+          ${escapeHtml(m.email || "-")} ${m.phone ? "· " + escapeHtml(m.phone) : ""}
+        </div>
+        <div class="muted" style="font-size:12px; margin-top:2px;">
+          สมัครเมื่อ ${joined} · ซื้อสำเร็จแล้ว ${m.paidOrderCount} ครั้ง
+        </div>
+      </div>
+    `;
+    listEl.appendChild(row);
+  });
 }
 
 // ============================================================
