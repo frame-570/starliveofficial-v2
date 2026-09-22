@@ -86,6 +86,7 @@
     <button type="button" class="admin-tab-btn" data-tab="live">กำลังดูอยู่ตอนนี้</button>
     <button type="button" class="admin-tab-btn" data-tab="summary">สรุปยอด</button>
     <button type="button" class="admin-tab-btn" data-tab="discount">โค้ดส่วนลด</button>
+    <button type="button" class="admin-tab-btn" data-tab="members">สมาชิก</button>
   </div>
 
   <!-- ============ Tab: งาน (Events) ============ -->
@@ -299,6 +300,16 @@
 
     <div id="discountListWrap" style="display:flex; flex-direction:column; gap:12px;"></div>
     <p id="discountEmptyState" class="muted" style="display:none; text-align:center; padding:40px 0;">ยังไม่มีโค้ดส่วนลดในระบบ</p>
+  </div>
+
+  <!-- ============ Tab: สมาชิก (Members) ============ -->
+  <div id="membersTab" class="admin-tab-panel" style="display:none;">
+    <div style="display:flex; gap:10px; margin-bottom:16px; flex-wrap:wrap; align-items:center;">
+      <input id="memberSearchInput" class="field-input" style="flex:1; min-width:200px;" placeholder="ค้นหาชื่อ / อีเมล / เบอร์โทร..." />
+      <span class="muted" id="memberCountLabel" style="font-size:12.5px; white-space:nowrap;"></span>
+    </div>
+    <div id="memberListWrap" style="display:flex; flex-direction:column; gap:12px;"></div>
+    <p id="memberEmptyState" class="muted" style="display:none; text-align:center; padding:40px 0;">ยังไม่มีสมาชิกสมัครเข้ามา</p>
   </div>
 </div>
 
