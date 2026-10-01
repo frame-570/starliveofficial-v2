@@ -290,7 +290,7 @@ document.getElementById("applyDiscountBtn").addEventListener("click", async () =
     const res = await fetch(`${FUNCTIONS_URL}/validate-discount-code`, {
       method: "POST",
       headers: { "Content-Type": "application/json", apikey: SUPABASE_ANON_KEY, Authorization: `Bearer ${SUPABASE_ANON_KEY}` },
-      body: JSON.stringify({ code, amount: selectedPackage.price }),
+      body: JSON.stringify({ code, amount: selectedPackage.price, eventId: currentEvent?.id }),
     });
     body = await res.json();
   } catch {
