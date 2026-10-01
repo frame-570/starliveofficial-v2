@@ -41,6 +41,11 @@ const rulesContent = document.getElementById("rulesContent");
 const dontShowAgainCheck = document.getElementById("dontShowAgainCheck");
 const acceptRulesBtn = document.getElementById("acceptRulesBtn");
 
+// E-Photo
+const ephotoModal = document.getElementById("ephotoModal");
+const ephotoBody = document.getElementById("ephotoBody");
+const ephotoCloseBtn = document.getElementById("ephotoCloseBtn");
+
 // ==========================================
 // 2. State Management
 // ==========================================
@@ -57,7 +62,8 @@ const ICONS = {
   lock: `<svg class="icon-svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>`,
   play: `<svg class="icon-svg" viewBox="0 0 24 24" fill="currentColor"><polygon points="5 3 19 12 5 21 5 3"/></svg>`,
   clock: `<svg class="icon-svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>`,
-  liveDot: `<span class="icon-live-dot"></span>`
+  liveDot: `<span class="icon-live-dot"></span>`,
+  camera: `<svg class="icon-svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/><circle cx="12" cy="13" r="4"/></svg>`
 };
 
 // ==========================================
@@ -347,6 +353,8 @@ function renderRightSidebarDays(data, activeDay) {
 
     dayTabContainer.appendChild(btn);
   });
+
+  appendEphotoButton();
 }
 
 function setActiveTab(activeBtn) {
@@ -534,6 +542,8 @@ function resetToCodeScreen() {
   activeEventData = null;
   currentSelectedDay = null;
 
+  if (ephotoModal) ephotoModal.style.display = "none";
+
   // หยุดการเล่นวิดีโอ (ถอด src ของ Iframe)
   if (streamFrame) streamFrame.src = "";
 
@@ -593,3 +603,148 @@ function startLockoutCountdown(seconds) {
     render();
   }, 1000);
 }
+
+
+// ==========================================
+// 7. E-Photo (รับรูปภาพอย่างเป็นทางการ — ลิงก์ตั้งค่าโดยแอดมินแยกตามงานและวัน)
+// ==========================================
+// ลิงก์ไม่ได้ถูกส่งมากับ event_days ตอนเข้าหน้าชม แต่ขอผ่าน edge function "get-ephoto"
+// ที่ตรวจรหัสเข้าชม + สิทธิ์ของวันนั้นอีกครั้งก่อนคืนลิงก์ให้เสมอ
+
+function appendEphotoButton() {
+  if (!dayTabContainer) return;
+  const btn = document.createElement("button");
+  btn.type = "button";
+  btn.className = "ephoto-btn";
+  btn.innerHTML = `${ICONS.camera} <span>E-Photo</span>`;
+  btn.addEventListener("click", handleEphotoClick);
+  dayTabContainer.appendChild(btn);
+}
+
+function handleEphotoClick() {
+  if (!activeEventData) return;
+  const purchasedDays = (activeEventData.purchased_days || [1]).map(Number);
+  const eventDays = activeEventData.event_days || [];
+
+  // ซื้อหลายวัน -> ให้เลือกวันที่จะรับ E-Photo ก่อน
+  if (purchasedDays.length > 1 && eventDays.length > 1) {
+    showEphotoDayPicker(purchasedDays, eventDays);
+    return;
+  }
+
+  const dayNumber = purchasedDays[0] || Number(currentSelectedDay?.dayData?.day_number) || 1;
+  requestEphoto(dayNumber, eventDays);
+}
+
+function showEphotoDayPicker(purchasedDays, eventDays) {
+  const days = [...eventDays]
+    .filter((d) => purchasedDays.includes(Number(d.day_number)))
+    .sort((a, b) => a.day_number - b.day_number);
+  const activeNo = Number(currentSelectedDay?.dayData?.day_number);
+
+  ephotoBody.innerHTML = `
+    <div class="ephoto-icon">${ICONS.camera}</div>
+    <h3 class="display ephoto-title">รับ E-Photo</h3>
+    <p class="muted ephoto-sub">คุณมีสิทธิ์หลายวัน กรุณาเลือกวันที่ต้องการรับ E-Photo</p>
+    <div class="day-options-list" id="ephotoDayList"></div>
+  `;
+  const list = ephotoBody.querySelector("#ephotoDayList");
+  days.forEach((day) => {
+    const b = document.createElement("button");
+    b.type = "button";
+    b.className = "day-option-btn";
+    b.innerHTML = `<div class="day-title">${ICONS.camera} ${formatDayDateLabel(day)}</div>` +
+      (Number(day.day_number) === activeNo ? `<div class="day-status">วันที่กำลังรับชม</div>` : "");
+    b.onclick = () => requestEphoto(Number(day.day_number), eventDays);
+    list.appendChild(b);
+  });
+  ephotoModal.style.display = "flex";
+}
+
+async function requestEphoto(dayNumber, eventDays) {
+  const day = (eventDays || []).find((d) => Number(d.day_number) === Number(dayNumber));
+  const dateLabel = day ? formatDayDateLabel(day) : "";
+
+  ephotoBody.innerHTML = `
+    <div class="ephoto-icon">${ICONS.camera}</div>
+    <h3 class="display ephoto-title">กำลังตรวจสอบ E-Photo...</h3>
+    <p class="muted ephoto-sub">กรุณารอสักครู่</p>
+  `;
+  ephotoModal.style.display = "flex";
+
+  let res, body;
+  try {
+    res = await fetch(`${FUNCTIONS_URL}/get-ephoto`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        apikey: SUPABASE_ANON_KEY,
+        Authorization: `Bearer ${SUPABASE_ANON_KEY}`,
+      },
+      body: JSON.stringify({ code: currentAccessCode, orderId: currentOrderId, dayNumber }),
+    });
+    body = await res.json().catch(() => ({}));
+  } catch (e) {
+    renderEphotoState("error", dateLabel);
+    return;
+  }
+
+  if (!res.ok) {
+    renderEphotoState("error", dateLabel);
+    return;
+  }
+
+  if (body.url) {
+    renderEphotoState("ready", dateLabel, body.url);
+  } else {
+    renderEphotoState("empty", dateLabel);
+  }
+}
+
+function renderEphotoState(state, dateLabel, url) {
+  const dateText = dateLabel ? `ของวันที่ ${escapeHtmlText(dateLabel)}` : "";
+
+  if (state === "ready") {
+    ephotoBody.innerHTML = `
+      <div class="ephoto-icon ephoto-icon-ready">${ICONS.camera}</div>
+      <h3 class="display ephoto-title">E-Photo พร้อมให้รับแล้ว!</h3>
+      <p class="muted ephoto-sub">E-Photo ${dateText}<br>กดปุ่มด้านล่างเพื่อเปิดและบันทึกรูปของคุณ</p>
+      <a class="btn-marquee ephoto-open-link" href="${escapeHtmlText(url)}" target="_blank" rel="noopener noreferrer">เปิดรับ E-Photo</a>
+      <button type="button" class="icon-btn ephoto-later-btn" id="ephotoDismissBtn">ปิด</button>
+    `;
+  } else if (state === "empty") {
+    ephotoBody.innerHTML = `
+      <div class="ephoto-icon ephoto-icon-wait">${ICONS.clock}</div>
+      <h3 class="display ephoto-title">E-Photo ยังไม่พร้อมให้รับ</h3>
+      <p class="muted ephoto-sub">
+        ขณะนี้ทีมงานยังไม่ได้เปิดให้รับ E-Photo ${dateText}<br>
+        ขออภัยในความล่าช้า กรุณากลับมาตรวจสอบอีกครั้งภายหลัง<br>
+        ลิงก์จะปรากฏในปุ่มนี้ทันทีที่พร้อมให้รับ
+      </p>
+      <button type="button" class="icon-btn ephoto-later-btn" id="ephotoDismissBtn">รับทราบ</button>
+    `;
+  } else {
+    ephotoBody.innerHTML = `
+      <div class="ephoto-icon ephoto-icon-wait">${ICONS.clock}</div>
+      <h3 class="display ephoto-title">โหลด E-Photo ไม่สำเร็จ</h3>
+      <p class="muted ephoto-sub">เกิดข้อผิดพลาดในการเชื่อมต่อ กรุณาลองใหม่อีกครั้ง</p>
+      <button type="button" class="icon-btn ephoto-later-btn" id="ephotoDismissBtn">ปิด</button>
+    `;
+  }
+  ephotoBody.querySelector("#ephotoDismissBtn")?.addEventListener("click", closeEphotoModal);
+}
+
+function closeEphotoModal() {
+  if (ephotoModal) ephotoModal.style.display = "none";
+}
+
+function escapeHtmlText(str) {
+  const div = document.createElement("div");
+  div.textContent = str ?? "";
+  return div.innerHTML.replace(/"/g, "&quot;");
+}
+
+ephotoCloseBtn?.addEventListener("click", closeEphotoModal);
+ephotoModal?.addEventListener("click", (e) => {
+  if (e.target === ephotoModal) closeEphotoModal();
+});
