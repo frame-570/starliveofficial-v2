@@ -388,6 +388,14 @@
           </span>
           <span class="settings-menu-arrow">›</span>
         </button>
+        <button type="button" class="settings-menu-item" data-category="ephoto">
+          <span class="settings-menu-icon">📸</span>
+          <span class="settings-menu-text">
+            <strong>E-Photo</strong>
+            <small>ตั้งค่าลิงก์รับ E-Photo แยกตามงานและวัน (ปุ่มในหน้ารับชม)</small>
+          </span>
+          <span class="settings-menu-arrow">›</span>
+        </button>
       </div>
 
       <!-- หมวด: ข้อมูลร้าน -->
@@ -469,6 +477,28 @@
         <p class="muted" id="specialNotesSaved" style="text-align:center; font-size:13px; margin:0 0 4px; min-height:16px; color:#46c882;"></p>
 
         <button type="button" class="btn-marquee" style="margin:0;" id="saveSpecialNotesBtn" disabled>บันทึกรายละเอียดพิเศษ</button>
+      </div>
+
+      <!-- หมวด: E-Photo (ลิงก์ต่อวันของแต่ละงาน บันทึกแยกเอกเทศเหมือนรายละเอียดพิเศษ) -->
+      <div id="settingsCategoryEphoto" class="settings-category" style="display:none;">
+        <div style="margin-bottom:14px;">
+          <label class="field-label" for="ephotoEventSelect">เลือกงาน</label>
+          <select id="ephotoEventSelect" class="field-input">
+            <option value="">-- เลือกงาน --</option>
+          </select>
+        </div>
+
+        <div id="ephotoDaysList" style="display:flex; flex-direction:column; gap:14px; margin-bottom:14px;"></div>
+
+        <p class="muted" style="font-size:12.5px; margin:0 0 12px; line-height:1.6;">
+          วางลิงก์ Google Drive (หรือลิงก์อื่น) ของแต่ละวัน — ปล่อยว่างไว้ = ลูกค้าจะเห็นข้อความ "ยังไม่พร้อมให้รับ E-Photo"
+          ลูกค้าต้องกรอกรหัสเข้าชมของตัวเองในหน้ารับชมก่อนจึงจะกดรับได้
+        </p>
+
+        <p class="error-text" id="ephotoError"></p>
+        <p class="muted" id="ephotoSaved" style="text-align:center; font-size:13px; margin:0 0 4px; min-height:16px; color:#46c882;"></p>
+
+        <button type="button" class="btn-marquee" style="margin:0;" id="saveEphotoBtn" disabled>บันทึกลิงก์ E-Photo</button>
       </div>
 
       <p class="error-text" id="settingsError"></p>
