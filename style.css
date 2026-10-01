@@ -1255,3 +1255,24 @@ html, body {
 .ephoto-sub { font-size: 13.5px; line-height: 1.7; margin: 0 0 18px; }
 .ephoto-open-link { display: block; text-decoration: none; text-align: center; margin-top: 4px; }
 .ephoto-later-btn { width: 100%; margin-top: 10px; padding: 11px 16px; justify-content: center; }
+
+
+/* ===== ปุ่มรีเฟรชออเดอร์ (วงกลม) ===== */
+.order-refresh-btn {
+  flex-shrink: 0;
+  width: 46px;
+  height: 46px;
+  border-radius: 50%;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border: 1.5px solid rgba(255, 210, 60, 0.55);
+  background: rgba(255, 210, 60, 0.1);
+  color: #ffd23c;
+  cursor: pointer;
+  transition: background 0.2s ease, transform 0.2s ease;
+}
+.order-refresh-btn:hover { background: rgba(255, 210, 60, 0.22); }
+.order-refresh-btn:disabled { cursor: default; opacity: 0.8; }
+.order-refresh-btn.is-spinning svg { animation: order-refresh-spin 0.8s linear infinite; }
+@keyframes order-refresh-spin { to { transform: rotate(360deg); } }
