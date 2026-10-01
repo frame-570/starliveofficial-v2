@@ -268,11 +268,19 @@
       <h2 class="display" style="font-size:16px; margin:0 0 16px;">สร้างโค้ดส่วนลดใหม่</h2>
       <form id="discountForm">
         <div style="margin-bottom:14px;">
-          <label class="field-label" for="discountCodeCreateInput">โค้ด (6 หลัก ตัวเลข+ตัวอักษรพิมพ์ใหญ่เท่านั้น)</label>
+          <label class="field-label" for="discountCodeCreateInput">โค้ด (ขั้นต่ำ 6 ตัว ไม่จำกัดความยาว ตัวเลข+ตัวอักษรพิมพ์ใหญ่เท่านั้น)</label>
           <div style="display:flex; gap:8px;">
-            <input id="discountCodeCreateInput" class="field-input" placeholder="เช่น SAVE50" maxlength="6" style="text-transform:uppercase;" required pattern="[A-Z0-9]{6}" />
+            <input id="discountCodeCreateInput" class="field-input" placeholder="เช่น SAVE50" style="text-transform:uppercase;" required pattern="[A-Z0-9]{6,}" />
+            <select id="randomDiscountLengthSelect" class="field-input" style="flex-shrink:0; width:auto;" aria-label="ความยาวโค้ดที่สุ่ม">
+              <option value="6">6 ตัว</option>
+              <option value="7">7 ตัว</option>
+              <option value="8">8 ตัว</option>
+              <option value="9">9 ตัว</option>
+              <option value="10">10 ตัว</option>
+            </select>
             <button type="button" id="randomDiscountCodeBtn" class="icon-btn ghost" style="flex-shrink:0; width:auto; padding:0 16px;">สุ่มโค้ด</button>
           </div>
+          <p class="muted" style="font-size:12px; margin:6px 0 0;">ปุ่มสุ่มโค้ดสุ่มได้ 6–10 ตัว (เลือกจำนวนตัวทางซ้ายของปุ่ม) หรือพิมพ์เองก็ได้ ยาวเท่าไรก็ได้ตั้งแต่ 6 ตัวขึ้นไป</p>
         </div>
 
         <div style="margin-bottom:14px;">
@@ -291,6 +299,19 @@
         <div style="margin-bottom:14px;">
           <label class="field-label" for="discountMaxUsesInput">ใช้ได้กี่สิทธิ์</label>
           <input id="discountMaxUsesInput" type="number" min="1" step="1" class="field-input" placeholder="เช่น 20" required />
+        </div>
+
+        <div style="margin-bottom:14px;">
+          <label class="field-label" for="discountEventSelect">ใช้ได้กับงาน</label>
+          <select id="discountEventSelect" class="field-input">
+            <option value="">ทุกงาน</option>
+          </select>
+        </div>
+
+        <div style="margin-bottom:14px;">
+          <label class="field-label" for="discountExpiresInput">ใช้ได้ถึงวันที่ (เว้นว่าง = ไม่มีวันหมดอายุ)</label>
+          <input id="discountExpiresInput" type="date" class="field-input" />
+          <p class="muted" style="font-size:12px; margin:6px 0 0;">ใช้ได้จนถึงเวลา 23:59 น. ของวันที่เลือก (เวลาประเทศไทย)</p>
         </div>
 
         <p class="error-text" id="discountFormError"></p>
