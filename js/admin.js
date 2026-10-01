@@ -1626,9 +1626,12 @@ const discountMaxUsesInput = document.getElementById("discountMaxUsesInput");
 const discountFormError = document.getElementById("discountFormError");
 const createDiscountBtn = document.getElementById("createDiscountBtn");
 const randomDiscountCodeBtn = document.getElementById("randomDiscountCodeBtn");
+const randomDiscountLengthSelect = document.getElementById("randomDiscountLengthSelect");
+const discountEventSelect = document.getElementById("discountEventSelect");
+const discountExpiresInput = document.getElementById("discountExpiresInput");
 
 discountCodeCreateInput.addEventListener("input", () => {
-  discountCodeCreateInput.value = discountCodeCreateInput.value.toUpperCase().replace(/[^A-Z0-9]/g, "").slice(0, 6);
+  discountCodeCreateInput.value = discountCodeCreateInput.value.toUpperCase().replace(/[^A-Z0-9]/g, "");
 });
 
 discountTypeSelect.addEventListener("change", () => {
@@ -1637,10 +1640,12 @@ discountTypeSelect.addEventListener("change", () => {
 });
 
 randomDiscountCodeBtn.addEventListener("click", () => {
-  const bytes = new Uint8Array(6);
+  // สุ่มได้ 6–10 ตัว ตามที่เลือกในช่องข้างปุ่ม
+  const len = Math.min(10, Math.max(6, Number(randomDiscountLengthSelect.value) || 6));
+  const bytes = new Uint8Array(len);
   crypto.getRandomValues(bytes);
   let code = "";
-  for (let i = 0; i < 6; i++) code += DISCOUNT_CHARSET[bytes[i] % DISCOUNT_CHARSET.length];
+  for (let i = 0; i < len; i++) code += DISCOUNT_CHARSET[bytes[i] % DISCOUNT_CHARSET.length];
   discountCodeCreateInput.value = code;
 });
 
@@ -1656,8 +1661,8 @@ discountForm.addEventListener("submit", async (e) => {
   const discountValue = Number(discountValueInput.value);
   const maxUses = Number(discountMaxUsesInput.value);
 
-  if (!/^[A-Z0-9]{6}$/.test(code)) {
-    discountFormError.textContent = "โค้ดต้องมี 6 หลัก เป็นตัวเลขหรือตัวอักษรพิมพ์ใหญ่เท่านั้น";
+  if (!/^[A-Z0-9]{6,}$/.test(code)) {
+    discountFormError.textContent = "โค้ดต้องมีอย่างน้อย 6 ตัว เป็นตัวเลขหรือตัวอักษรพิมพ์ใหญ่เท่านั้น";
     return;
   }
   if (!discountValue || discountValue <= 0) {
@@ -1673,6 +1678,19 @@ discountForm.addEventListener("submit", async (e) => {
     return;
   }
 
+  // วันหมดอายุ: ใช้ได้ถึงสิ้นวันที่เลือก (23:59:59 เวลาไทย) / เว้นว่าง = ไม่หมดอายุ
+  const expiresDate = discountExpiresInput.value;
+  let expiresAt = null;
+  if (expiresDate) {
+    expiresAt = new Date(`${expiresDate}T23:59:59+07:00`);
+    if (isNaN(expiresAt.getTime()) || expiresAt < new Date()) {
+      discountFormError.textContent = "วันหมดอายุต้องไม่เป็นวันที่ผ่านมาแล้ว";
+      return;
+    }
+    expiresAt = expiresAt.toISOString();
+  }
+  const eventId = discountEventSelect.value || null;
+
   createDiscountBtn.disabled = true;
   createDiscountBtn.textContent = "กำลังสร้าง...";
 
@@ -1681,6 +1699,8 @@ discountForm.addEventListener("submit", async (e) => {
     discount_type: discountType,
     discount_value: discountValue,
     max_uses: maxUses,
+    event_id: eventId,
+    expires_at: expiresAt,
   });
 
   createDiscountBtn.disabled = false;
@@ -1695,6 +1715,7 @@ discountForm.addEventListener("submit", async (e) => {
 
   discountForm.reset();
   discountValueLabel.textContent = "ลดกี่บาท";
+  discountEventSelect.value = "";
   await appAlert(`สร้างโค้ด ${code} เรียบร้อยแล้ว`, { type: "success" });
   loadDiscountCodes();
 });
@@ -1703,24 +1724,42 @@ async function loadDiscountCodes() {
   const listEl = document.getElementById("discountListWrap");
   const emptyEl = document.getElementById("discountEmptyState");
 
-  const { data, error } = await supabase.from("discount_codes").select("*").order("created_at", { ascending: false });
+  const [codesRes, eventsRes] = await Promise.all([
+    supabase.from("discount_codes").select("*").order("created_at", { ascending: false }),
+    supabase.from("events").select("id, title").order("created_at", { ascending: false }),
+  ]);
+  const { data, error } = codesRes;
 
   if (error) {
     listEl.innerHTML = `<p class="error-text">โหลดข้อมูลไม่สำเร็จ: ${escapeHtml(error.message)}</p>`;
     return;
   }
 
+  // เติมรายการงานในช่อง "ใช้ได้กับงาน" (คงค่าที่เลือกไว้เดิม)
+  const events = eventsRes.data || [];
+  const keepValue = discountEventSelect.value;
+  discountEventSelect.innerHTML =
+    `<option value="">ทุกงาน</option>` +
+    events.map((ev) => `<option value="${escapeAttr(ev.id)}">${escapeHtml(ev.title)}</option>`).join("");
+  discountEventSelect.value = keepValue;
+  const eventTitleById = new Map(events.map((ev) => [String(ev.id), ev.title]));
+
   listEl.innerHTML = "";
   emptyEl.style.display = data.length === 0 ? "block" : "none";
-  data.forEach((code) => listEl.appendChild(renderDiscountRow(code)));
+  data.forEach((code) => listEl.appendChild(renderDiscountRow(code, eventTitleById)));
 }
 
-function renderDiscountRow(code) {
+function renderDiscountRow(code, eventTitleById = new Map()) {
   const row = document.createElement("div");
   row.className = "session-row";
 
   const valueLabel = code.discount_type === "percent" ? `ลด ${code.discount_value}%` : `ลด ${Number(code.discount_value).toLocaleString("th-TH")}฿`;
   const isExhausted = code.used_count >= code.max_uses;
+  const isExpired = !!code.expires_at && new Date(code.expires_at) < new Date();
+  const eventLabel = code.event_id ? (eventTitleById.get(String(code.event_id)) || "งานที่ถูกลบแล้ว") : "ทุกงาน";
+  const expiryLabel = code.expires_at
+    ? "ใช้ได้ถึง " + new Date(code.expires_at).toLocaleDateString("th-TH", { timeZone: "Asia/Bangkok", day: "numeric", month: "short", year: "numeric" })
+    : "ไม่มีวันหมดอายุ";
 
   row.innerHTML = `
     <div style="min-width:0;">
@@ -1730,6 +1769,8 @@ function renderDiscountRow(code) {
       <div class="muted" style="font-size:12.5px;">
         ${escapeHtml(valueLabel)} · ใช้ไปแล้ว ${code.used_count}/${code.max_uses} สิทธิ์
         ${isExhausted ? ' · <span style="color:var(--crimson);">ใช้ครบแล้ว</span>' : ""}
+        <br>งาน: ${escapeHtml(eventLabel)} · ${escapeHtml(expiryLabel)}
+        ${isExpired ? ' · <span style="color:var(--crimson);">หมดอายุแล้ว</span>' : ""}
         ${!code.is_active ? ' · <span style="color:var(--muted);">ปิดใช้งาน</span>' : ""}
       </div>
     </div>
