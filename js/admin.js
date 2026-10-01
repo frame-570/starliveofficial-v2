@@ -892,15 +892,55 @@ async function loadOrders({ silent = false } = {}) {
   listEl.innerHTML = "";
   emptyEl.style.display = data.length === 0 ? "block" : "none";
   emptyEl.textContent = searchTerm ? "ไม่พบออเดอร์ที่ตรงกับคำค้นหา" : "ไม่มีออเดอร์ในหมวดนี้";
-  data.forEach((order) => listEl.appendChild(renderOrderRow(order)));
+
+  // ดึงชื่อโค้ดส่วนลดของออเดอร์ที่ใช้โค้ด (แยก query เพื่อไม่ให้หน้าออเดอร์พังถ้าโหลดไม่สำเร็จ)
+  const discountCodeById = new Map();
+  const discountIds = [...new Set(data.map((o) => o.discount_code_id).filter(Boolean))];
+  if (discountIds.length) {
+    const { data: codes } = await supabase.from("discount_codes").select("id, code").in("id", discountIds);
+    (codes || []).forEach((c) => discountCodeById.set(c.id, c.code));
+  }
+
+  // ดึงชื่อ/อีเมลของผู้ซื้อ (ออเดอร์ที่ล็อกอินสั่งเอง) — แยก query เหมือนกัน กันหน้าออเดอร์พังถ้าโหลดไม่สำเร็จ
+  const profileById = new Map();
+  const userIds = [...new Set(data.map((o) => o.user_id).filter(Boolean))];
+  if (userIds.length) {
+    const { data: profiles } = await supabase.from("profiles").select("id, display_name, email").in("id", userIds);
+    (profiles || []).forEach((p) => profileById.set(p.id, p));
+  }
+
+  data.forEach((order) => listEl.appendChild(renderOrderRow(order, discountCodeById, profileById)));
 }
 
-function renderOrderRow(order) {
+function renderOrderRow(order, discountCodeById = new Map(), profileById = new Map()) {
   const row = document.createElement("div");
   row.className = "session-row";
   row.style.alignItems = "flex-start";
 
   const created = new Date(order.created_at).toLocaleString("th-TH", { dateStyle: "medium", timeStyle: "short" });
+
+  // บรรทัดที่ 3: "ซื้อโดย ..." แล้วตามด้วย "ใช้โค้ดส่วนลด ..." (ถ้ามี)
+  // - มี user_id = ลูกค้าสั่งผ่านเว็บ -> แสดงชื่อ + อีเมล
+  // - ไม่มี user_id = แอดมินออกรหัสให้เองผ่านระบบออกรหัส -> "ซื้อผ่าน Line"
+  let buyerText;
+  if (order.user_id) {
+    const profile = profileById.get(order.user_id);
+    const name = (profile?.display_name || "").trim();
+    const email = (profile?.email || "").trim();
+    if (name && email) buyerText = `ซื้อโดย ${escapeHtml(name)} (${escapeHtml(email)})`;
+    else if (name || email) buyerText = `ซื้อโดย ${escapeHtml(name || email)}`;
+    else buyerText = "ซื้อโดย (ไม่พบข้อมูลสมาชิก)";
+  } else {
+    buyerText = "ซื้อผ่าน Line";
+  }
+
+  const usedDiscountCode = order.discount_code_id ? discountCodeById.get(order.discount_code_id) : null;
+  const discountAmountNum = Number(order.discount_amount || 0);
+  const hasDiscount = !!order.discount_code_id || discountAmountNum > 0;
+  const discountText = hasDiscount
+    ? ` · <span style="color:var(--amber);">🏷️ ใช้โค้ดส่วนลด <strong style="letter-spacing:0.05em;">${escapeHtml(usedDiscountCode || "(โค้ดถูกลบแล้ว)")}</strong>${discountAmountNum > 0 ? ` · ลด ${discountAmountNum.toLocaleString("th-TH")}฿` : ""}</span>`
+    : "";
+  const discountLine = `<div style="margin-top:6px; font-size:12.5px;" class="muted">${buyerText}${discountText}</div>`;
 
   row.innerHTML = `
     <div style="min-width:0;">
@@ -914,6 +954,7 @@ function renderOrderRow(order) {
         ${order.access_code ? `<span class="pin-chip">${escapeHtml(order.access_code)}</span>` : ""}
         ${order.customer_note ? `<span>👤 ${escapeHtml(order.customer_note)}</span>` : ""}
       </div>
+      ${discountLine}
       ${order.status === "failed" && order.verification_reason ? `<p class="error-text" style="margin:6px 0 0;">${escapeHtml(order.verification_reason)}</p>` : ""}
     </div>
     <div style="display:flex; align-items:center; gap:8px; flex-shrink:0; flex-wrap:wrap;">
