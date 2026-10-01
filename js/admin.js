@@ -1902,6 +1902,7 @@ const SETTINGS_CATEGORY_LABELS = {
   contact: "💬 ช่องทางติดต่อ & โซเชียล",
   rules: "📋 กฎการรับชม",
   special: "📌 รายละเอียดพิเศษ",
+  ephoto: "📸 E-Photo",
 };
 
 function showSettingsMenu() {
@@ -1919,10 +1920,11 @@ function showSettingsCategory(category) {
   });
   settingsBackBtn.style.display = "inline-flex";
   // หมวด "รายละเอียดพิเศษ" มีปุ่มบันทึกของตัวเองแยกต่างหาก (บันทึกต่องาน ไม่ใช่ค่าตายตัวแบบหมวดอื่น)
-  settingsFooterButtons.style.display = category === "special" ? "none" : "flex";
+  settingsFooterButtons.style.display = category === "special" || category === "ephoto" ? "none" : "flex";
   settingsTitle.textContent = SETTINGS_CATEGORY_LABELS[category] || "⚙️ ตั้งค่าระบบ";
 
   if (category === "special") loadSpecialNotesEventOptions();
+  if (category === "ephoto") loadEphotoEventOptions();
 }
 
 function capitalize(str) {
@@ -2050,6 +2052,134 @@ saveSpecialNotesBtn.addEventListener("click", async () => {
 
   specialNotesSaved.textContent = "บันทึกเรียบร้อยแล้ว";
   setTimeout(() => (specialNotesSaved.textContent = ""), 2000);
+});
+
+// ---------- หมวด: E-Photo (ลิงก์ต่อวันของแต่ละงาน — เก็บในตาราง event_day_ephotos คีย์ event_id + day_number) ----------
+// ไม่เก็บไว้ใน event_days เพราะตอนบันทึกงานระบบลบ-สร้างแถววันใหม่ทุกครั้ง ลิงก์จะหายและไม่ปลอดภัย
+// (event_days ลูกค้าอ่านได้ ส่วนตารางนี้อ่านได้เฉพาะแอดมิน ลูกค้าขอผ่าน edge function get-ephoto เท่านั้น)
+const ephotoEventSelect = document.getElementById("ephotoEventSelect");
+const ephotoDaysList = document.getElementById("ephotoDaysList");
+const ephotoError = document.getElementById("ephotoError");
+const ephotoSaved = document.getElementById("ephotoSaved");
+const saveEphotoBtn = document.getElementById("saveEphotoBtn");
+let ephotoLoadedDayNumbers = [];
+
+async function loadEphotoEventOptions() {
+  ephotoError.textContent = "";
+  ephotoSaved.textContent = "";
+  ephotoDaysList.innerHTML = "";
+  saveEphotoBtn.disabled = true;
+
+  const { data, error } = await supabase.from("events").select("id, title").order("created_at", { ascending: false });
+  if (error) {
+    ephotoError.textContent = "โหลดรายการงานไม่สำเร็จ: " + error.message;
+    return;
+  }
+
+  ephotoEventSelect.innerHTML =
+    `<option value="">-- เลือกงาน --</option>` +
+    (data || []).map((ev) => `<option value="${escapeAttr(ev.id)}">${escapeHtml(ev.title)}</option>`).join("");
+}
+
+function formatEphotoDayLabel(day) {
+  const d = new Date(day.event_date + "T00:00:00");
+  const dateText = isNaN(d.getTime())
+    ? ""
+    : d.toLocaleDateString("th-TH", { day: "numeric", month: "long", year: "numeric" });
+  return `วันที่ ${day.day_number}${dateText ? " — " + dateText : ""}`;
+}
+
+ephotoEventSelect.addEventListener("change", async () => {
+  ephotoError.textContent = "";
+  ephotoSaved.textContent = "";
+  ephotoDaysList.innerHTML = "";
+  ephotoLoadedDayNumbers = [];
+  saveEphotoBtn.disabled = true;
+
+  const eventId = ephotoEventSelect.value;
+  if (!eventId) return;
+
+  const [daysRes, linksRes] = await Promise.all([
+    supabase.from("event_days").select("day_number, event_date").eq("event_id", eventId).order("day_number"),
+    supabase.from("event_day_ephotos").select("day_number, url").eq("event_id", eventId),
+  ]);
+
+  if (daysRes.error || linksRes.error) {
+    ephotoError.textContent = "โหลดข้อมูลไม่สำเร็จ: " + (daysRes.error || linksRes.error).message;
+    return;
+  }
+
+  const linkByDay = new Map((linksRes.data || []).map((r) => [Number(r.day_number), r.url]));
+  ephotoLoadedDayNumbers = (daysRes.data || []).map((d) => Number(d.day_number));
+
+  ephotoDaysList.innerHTML = (daysRes.data || [])
+    .map(
+      (day) => `
+      <div>
+        <label class="field-label">${escapeHtml(formatEphotoDayLabel(day))}</label>
+        <input type="url" class="field-input ephoto-url-input" data-day="${escapeAttr(day.day_number)}"
+          placeholder="https://drive.google.com/..." value="${escapeAttr(linkByDay.get(Number(day.day_number)) || "")}" />
+      </div>`
+    )
+    .join("");
+
+  saveEphotoBtn.disabled = false;
+});
+
+saveEphotoBtn.addEventListener("click", async () => {
+  const eventId = ephotoEventSelect.value;
+  if (!eventId) return;
+
+  const inputs = [...ephotoDaysList.querySelectorAll(".ephoto-url-input")];
+  const toSave = [];
+  const toDelete = [];
+
+  for (const input of inputs) {
+    const dayNumber = Number(input.dataset.day);
+    const url = input.value.trim();
+    if (!url) {
+      toDelete.push(dayNumber);
+      continue;
+    }
+    if (!/^https?:\/\//i.test(url)) {
+      ephotoError.textContent = `ลิงก์ของวันที่ ${dayNumber} ต้องขึ้นต้นด้วย https://`;
+      return;
+    }
+    toSave.push({ event_id: eventId, day_number: dayNumber, url, updated_at: new Date().toISOString() });
+  }
+
+  const session = await ensureAuthSession();
+  if (!session) return;
+
+  ephotoError.textContent = "";
+  ephotoSaved.textContent = "";
+  saveEphotoBtn.disabled = true;
+  saveEphotoBtn.textContent = "กำลังบันทึก...";
+
+  let errMsg = "";
+  if (toSave.length) {
+    const { error } = await supabase.from("event_day_ephotos").upsert(toSave, { onConflict: "event_id,day_number" });
+    if (error) errMsg = error.message;
+  }
+  if (!errMsg && toDelete.length) {
+    const { error } = await supabase
+      .from("event_day_ephotos")
+      .delete()
+      .eq("event_id", eventId)
+      .in("day_number", toDelete);
+    if (error) errMsg = error.message;
+  }
+
+  saveEphotoBtn.disabled = false;
+  saveEphotoBtn.textContent = "บันทึกลิงก์ E-Photo";
+
+  if (errMsg) {
+    ephotoError.textContent = "บันทึกไม่สำเร็จ: " + errMsg;
+    return;
+  }
+
+  ephotoSaved.textContent = "บันทึกเรียบร้อยแล้ว";
+  setTimeout(() => (ephotoSaved.textContent = ""), 2000);
 });
 
 settingsForm.addEventListener("submit", async (e) => {
