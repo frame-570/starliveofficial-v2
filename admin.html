@@ -8,6 +8,7 @@
 <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'><defs><radialGradient id='g' cx='50%' cy='50%' r='50%'><stop offset='0%' stop-color='%23FFFFFF'/><stop offset='40%' stop-color='%23FFF275'/><stop offset='100%' stop-color='%23FFB700'/></radialGradient></defs><path d='M12 0C12 6.627 6.627 12 0 12C6.627 12 12 17.373 12 24C12 17.373 17.373 12 24 12C17.373 12 12 6.627 12 0Z' fill='url(%23g)'/><path d='M19 2C19 3.1 18.1 4 17 4C18.1 4 19 4.9 19 6C19 4.9 19.9 4 21 4C19.9 4 19 3.1 19 2Z' fill='%23FFF'/></svg>">
 <link href="https://fonts.googleapis.com/css2?family=Prompt:wght@500;600;700;800&family=Sarabun:wght@400;500;600&display=swap" rel="stylesheet" />
 <link rel="stylesheet" href="./style.css" />
+<link rel="stylesheet" href="./cardshop.css" />
 </head>
 <body>
 <div class="stage-bg"></div>
@@ -67,7 +68,13 @@
 <!-- Dashboard -->
 <div id="dashboard" class="admin-shell" style="display:none;">
   <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:20px; flex-wrap:wrap; gap:12px;">
-    <div class="marquee-brand"><span class="bulb"></span> STAR LIVE OFFICIAL — ADMIN</div>
+    <div class="sys-switch" id="sysSwitch">
+      <button type="button" class="marquee-brand sys-brand" id="sysBrandBtn" aria-haspopup="true" aria-expanded="false"><span class="bulb"></span> STAR LIVE OFFICIAL — ADMIN <svg class="sys-caret" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="6 9 12 15 18 9"/></svg></button>
+      <div class="sys-menu" id="sysMenu" style="display:none;">
+        <a href="./admin.html" class="on">LIVE &amp; REPLAY<svg class="cs-ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="20 6 9 17 4 12"/></svg></a>
+        <a href="./cardshop-admin.html">CARD SHOP</a>
+      </div>
+    </div>
     <div style="display:flex; gap:10px;">
       <button id="settingsBtn" class="icon-btn ghost" title="ตั้งค่าระบบ" aria-label="ตั้งค่าระบบ">
         <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-3px;">
@@ -75,8 +82,7 @@
           <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"></path>
         </svg>
       </button>
-      <select id="systemSwitch" class="field-input" style="width:auto;margin-right:8px" aria-label="สลับระบบ" onchange="if(this.value==='card')location.href='./cardshop-admin.html'"><option value="live">LIVE &amp; REPLAY</option><option value="card">CARD SHOP</option></select>
-    <button id="logoutBtn" class="icon-btn">ออกจากระบบ</button>
+      <button id="logoutBtn" class="icon-btn">ออกจากระบบ</button>
     </div>
   </div>
 
@@ -538,5 +544,13 @@
 </div>
 
 <script type="module" src="./js/admin.js"></script>
+<script>
+  (function () {
+    var b = document.getElementById("sysBrandBtn"), m = document.getElementById("sysMenu");
+    if (!b || !m) return;
+    b.addEventListener("click", function (e) { e.stopPropagation(); var o = m.style.display === "block"; m.style.display = o ? "none" : "block"; b.setAttribute("aria-expanded", String(!o)); });
+    document.addEventListener("click", function () { m.style.display = "none"; b.setAttribute("aria-expanded", "false"); });
+  })();
+</script>
 </body>
 </html>
