@@ -834,6 +834,22 @@ const ORDER_STATUS_LABELS = {
 
 document.getElementById("orderStatusFilter").addEventListener("change", loadOrders);
 
+// ปุ่มรีเฟรชกลม (ข้างช่องค้นหา): โหลดใหม่ทันที หมุนระหว่างโหลด
+const orderRefreshBtn = document.getElementById("orderRefreshBtn");
+orderRefreshBtn.addEventListener("click", async () => {
+  if (orderRefreshBtn.disabled) return;
+  orderRefreshBtn.disabled = true;
+  orderRefreshBtn.classList.add("is-spinning");
+  const scrollY = window.scrollY;
+  try {
+    await loadOrders({ silent: false });
+  } finally {
+    orderRefreshBtn.classList.remove("is-spinning");
+    orderRefreshBtn.disabled = false;
+    window.scrollTo(0, scrollY);
+  }
+});
+
 const orderSearchInput = document.getElementById("orderSearchInput");
 let orderSearchDebounce = null;
 orderSearchInput.addEventListener("input", () => {
@@ -858,6 +874,8 @@ function stopOrdersPolling() {
     ordersPollTimer = null;
   }
 }
+
+let lastOrdersSignature = null;
 
 async function loadOrders({ silent = false } = {}) {
   const listEl = document.getElementById("adminOrderList");
@@ -889,10 +907,6 @@ async function loadOrders({ silent = false } = {}) {
     return;
   }
 
-  listEl.innerHTML = "";
-  emptyEl.style.display = data.length === 0 ? "block" : "none";
-  emptyEl.textContent = searchTerm ? "ไม่พบออเดอร์ที่ตรงกับคำค้นหา" : "ไม่มีออเดอร์ในหมวดนี้";
-
   // ดึงชื่อโค้ดส่วนลดของออเดอร์ที่ใช้โค้ด (แยก query เพื่อไม่ให้หน้าออเดอร์พังถ้าโหลดไม่สำเร็จ)
   const discountCodeById = new Map();
   const discountIds = [...new Set(data.map((o) => o.discount_code_id).filter(Boolean))];
@@ -909,7 +923,25 @@ async function loadOrders({ silent = false } = {}) {
     (profiles || []).forEach((p) => profileById.set(p.id, p));
   }
 
-  data.forEach((order) => listEl.appendChild(renderOrderRow(order, discountCodeById, profileById)));
+  // รีเฟรชอัตโนมัติ (silent): ถ้าข้อมูลเหมือนเดิมทุกอย่าง ไม่ต้องวาดใหม่เลย หน้าจะนิ่ง ไม่กระตุก
+  const signature = JSON.stringify([data, [...discountCodeById], [...profileById]]);
+  if (silent && signature === lastOrdersSignature) return;
+  lastOrdersSignature = signature;
+
+  // สร้างแถวทั้งหมดให้เสร็จก่อน แล้วสลับเข้าไปทีเดียว (เดิมล้างลิสต์ก่อนแล้วค่อยรอโหลด ทำให้หน้าสั้นลงชั่วคราวและเด้งขึ้นบน)
+  const scrollY = window.scrollY;
+  const fragment = document.createDocumentFragment();
+  data.forEach((order) => fragment.appendChild(renderOrderRow(order, discountCodeById, profileById)));
+  listEl.replaceChildren(fragment);
+
+  emptyEl.style.display = data.length === 0 ? "block" : "none";
+  emptyEl.textContent = searchTerm ? "ไม่พบออเดอร์ที่ตรงกับคำค้นหา" : "ไม่มีออเดอร์ในหมวดนี้";
+
+  // คงตำแหน่งที่ผู้ใช้เลื่อนดูอยู่ (ทั้งทันทีและหลังเบราว์เซอร์จัดเลย์เอาต์เสร็จ กันมือถือดีดกลับ)
+  if (window.scrollY !== scrollY) window.scrollTo(0, scrollY);
+  requestAnimationFrame(() => {
+    if (Math.abs(window.scrollY - scrollY) > 2) window.scrollTo(0, scrollY);
+  });
 }
 
 function renderOrderRow(order, discountCodeById = new Map(), profileById = new Map()) {
