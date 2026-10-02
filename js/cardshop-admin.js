@@ -33,6 +33,57 @@ function noticePopup(title, msg) {
   ov.querySelector("[data-ok]").onclick = close;
 }
 
+// ---------- สแกนบาร์โค้ดเลข Tracking (กล้องมือถือ/คอม) ----------
+const SCAN_ICON = `<svg class="cs-ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 7V5a2 2 0 0 1 2-2h2M17 3h2a2 2 0 0 1 2 2v2M21 17v2a2 2 0 0 1-2 2h-2M7 21H5a2 2 0 0 1-2-2v-2"/><path d="M7 8v8M11 8v8M14 8v8M17 8v8"/></svg>`;
+const SCAN_FORMATS = ["code_128", "code_39", "code_93", "codabar", "ean_13", "ean_8", "itf", "upc_a", "upc_e", "qr_code", "data_matrix"];
+
+// คืนค่าเลขที่สแกนได้ หรือ null ถ้ายกเลิก/สแกนไม่ได้
+function scanBarcode() {
+  return new Promise((resolve) => {
+    let done = false, stop = () => {};
+    const finish = (val) => { if (done) return; done = true; stop(); ov.remove(); resolve(val); };
+    const { ov } = popup(`<div class="ca-row" style="justify-content:space-between"><h3 class="display" style="margin:0">สแกนบาร์โค้ด Tracking</h3><button class="icon-btn ghost" data-x type="button" aria-label="ปิด" style="padding:5px 9px">✕</button></div>
+      <div class="ca-scan"><video id="scanVideo" playsinline muted autoplay></video><div class="ca-scan-line"></div></div>
+      <p class="muted" id="scanMsg" style="font-size:13px;text-align:center;margin:10px 0 0">เล็งกล้องไปที่บาร์โค้ดบนกล่องพัสดุ ระบบจะกรอกเลขให้อัตโนมัติ</p>`, () => finish(null));
+    ov.querySelector("[data-x]").onclick = () => finish(null);
+
+    (async () => {
+      const video = ov.querySelector("#scanVideo"), msg = ov.querySelector("#scanMsg");
+      const hit = (raw) => { const v = String(raw || "").replace(/[\s\u0000-\u001f]/g, ""); if (v) { navigator.vibrate?.(80); finish(v); } };
+      const constraints = { video: { facingMode: { ideal: "environment" } }, audio: false };
+      try {
+        if ("BarcodeDetector" in window) {
+          const sup = await BarcodeDetector.getSupportedFormats();
+          const formats = SCAN_FORMATS.filter((f) => sup.includes(f));
+          const det = new BarcodeDetector(formats.length ? { formats } : undefined);
+          const stream = await navigator.mediaDevices.getUserMedia(constraints);
+          stop = () => stream.getTracks().forEach((t) => t.stop());
+          if (done) { stop(); return; }
+          video.srcObject = stream; await video.play();
+          const tick = async () => {
+            if (done) return;
+            try { const r = await det.detect(video); if (r.length) { hit(r[0].rawValue); return; } } catch {}
+            setTimeout(tick, 150);
+          };
+          tick();
+        } else {
+          // เบราว์เซอร์ที่ไม่มี BarcodeDetector (เช่น iPhone Safari) ใช้ไลบรารี ZXing แทน
+          msg.textContent = "กำลังเปิดกล้อง...";
+          const { BrowserMultiFormatReader } = await import("https://esm.sh/@zxing/browser@0.1.5");
+          const controls = await new BrowserMultiFormatReader().decodeFromConstraints(constraints, video, (result) => { if (result) hit(result.getText()); });
+          stop = () => controls.stop();
+          if (done) stop(); else msg.textContent = "เล็งกล้องไปที่บาร์โค้ดบนกล่องพัสดุ ระบบจะกรอกเลขให้อัตโนมัติ";
+        }
+      } catch (e) {
+        msg.style.color = "var(--crimson)";
+        msg.textContent = e?.name === "NotAllowedError"
+          ? "ไม่ได้รับอนุญาตให้ใช้กล้อง กรุณาอนุญาตการใช้กล้องในเบราว์เซอร์ แล้วลองใหม่ หรือพิมพ์เลขเอง"
+          : "เปิดกล้องไม่ได้ในอุปกรณ์นี้ กรุณาพิมพ์เลข Tracking เอง";
+      }
+    })();
+  });
+}
+
 // ---------- ออกจากระบบ / ตั้งค่าร้าน (ปุ่มฟันเฟือง) ----------
 $("logoutBtn").onclick = async () => { await supabase.auth.signOut(); location.href = "./admin.html"; };
 $("settingsBtn").onclick = () => settingsPopup();
@@ -174,20 +225,27 @@ async function toggleDetail(btn, o, reload) {
       ${o.status !== "cancelled" ? `<button class="icon-btn ghost" data-act="cancel" type="button" style="color:var(--crimson)">ยกเลิกออเดอร์ (คืน Stock)</button>` : ""}</div>
     ${o.status === "paid" ? `<div class="ca-grid"><div><label class="field-label">สถานะจัดส่ง</label><select class="field-input" id="sS">${Object.entries(SHIP).map(([k, l]) => `<option value="${k}" ${o.shipping_status === k ? "selected" : ""}>${l}</option>`).join("")}</select></div>
       <div><label class="field-label">บริษัทขนส่ง</label><input class="field-input" id="sC" value="${esc(sh.carrier || "")}" placeholder="Flash / Kerry / ไปรษณีย์ไทย" /></div>
-      <div class="full"><label class="field-label">เลข Tracking</label><input class="field-input" id="sT" value="${esc(sh.tracking_no || "")}" /></div></div>
+      <div class="full"><label class="field-label">เลข Tracking (พิมพ์เองหรือกดสแกนบาร์โค้ด)</label>
+        <div class="ca-row" style="flex-wrap:nowrap"><input class="field-input" id="sT" style="flex:1;min-width:0" value="${esc(sh.tracking_no || "")}" autocomplete="off" />
+        <button class="icon-btn" data-scan type="button" title="สแกนบาร์โค้ด" aria-label="สแกนบาร์โค้ด" style="flex-shrink:0;display:inline-flex;align-items:center;gap:6px">${SCAN_ICON}<span>สแกน</span></button></div></div></div>
       <button class="btn-marquee" data-act="ship" type="button" style="margin:8px 0 0">บันทึกการจัดส่ง</button>` : ""}
     <p class="error-text" data-err></p>`;
   box.style.display = "block";
   const fail = (e) => (box.querySelector("[data-err]").textContent = "ไม่สำเร็จ: " + (e.message || e));
+  const scanBtn = box.querySelector("[data-scan]");
+  if (scanBtn) scanBtn.onclick = async () => {
+    const code = await scanBarcode();
+    if (code) { const inp = box.querySelector("#sT"); inp.value = code; inp.focus(); }  // กรอกให้ แก้ไขเองต่อได้
+  };
   box.querySelectorAll("[data-act]").forEach((b) => (b.onclick = async () => {
     const a = b.dataset.act; let r;
     if (a === "approve") r = await supabase.from("card_orders").update({ status: "paid", paid_at: new Date().toISOString() }).eq("id", o.id);
     else if (a === "reject") r = await supabase.from("card_orders").update({ status: "pending_payment", slip_url: null }).eq("id", o.id);
     else if (a === "cancel") { if (!(await confirmPopup("ยกเลิกออเดอร์", "ยกเลิกออเดอร์นี้และคืน Stock ให้สินค้า?", "ยกเลิกออเดอร์"))) return; r = await supabase.rpc("card_cancel_order", { p_order: o.id }); }
     else if (a === "ship") {
-      const st = $("sS").value, trk = $("sT").value.trim();
+      const st = box.querySelector("#sS").value, trk = box.querySelector("#sT").value.trim();
       r = await supabase.from("card_orders").update({ shipping_status: st }).eq("id", o.id);
-      if (!r.error) r = await supabase.from("card_shipments").upsert({ order_id: o.id, carrier: $("sC").value.trim() || null, tracking_no: trk || null, shipped_at: st === "shipped" ? new Date().toISOString() : sh.shipped_at || null, updated_at: new Date().toISOString() });
+      if (!r.error) r = await supabase.from("card_shipments").upsert({ order_id: o.id, carrier: box.querySelector("#sC").value.trim() || null, tracking_no: trk || null, shipped_at: st === "shipped" ? new Date().toISOString() : sh.shipped_at || null, updated_at: new Date().toISOString() });
     }
     if (r.error) fail(r.error); else reload();
   }));
