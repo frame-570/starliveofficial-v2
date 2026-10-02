@@ -256,7 +256,12 @@ async function showPayment(orderId) {
         headers: accessToken ? { Authorization: `Bearer ${accessToken}` } : {},
       });
       if (fnError) { showVerifyFail("ตรวจสอบสลิปไม่สำเร็จ กรุณาลองใหม่อีกครั้ง"); return; }
-      if (!result?.success) { showVerifyFail(result?.reason || "ตรวจสอบสลิปไม่สำเร็จ กรุณาลองใหม่อีกครั้ง"); return; }
+      if (!result?.success) {
+        const base = result?.reason || "ตรวจสอบสลิปไม่สำเร็จ กรุณาลองใหม่อีกครั้ง";
+        showVerifyFail(result?.sent_to_admin ? `${base} — ส่งสลิปให้แอดมินตรวจสอบแล้ว หากโอนถูกต้องแอดมินจะยืนยันให้` : base);
+        if (result?.sent_to_admin) loadAll();
+        return;
+      }
 
       verifyOverlay.style.display = "none";
       await loadAll();
