@@ -190,23 +190,46 @@ async function showCheckout() {
   };
 }
 
-// ---------- ชำระเงิน + อัปโหลดสลิป ----------
+// ---------- ชำระเงิน + อัปโหลดสลิป (ตรวจสลิปอัตโนมัติ เหมือนร้านไลฟ์) ----------
+const verifyOverlay = $("verifyOverlay");
+const stepChecking = $("verifyStepChecking");
+const stepFailed = $("verifyStepFailed");
+$("retrySlipBtn").onclick = () => { verifyOverlay.style.display = "none"; };
+
+function showVerifyChecking() {
+  verifyOverlay.style.display = "flex";
+  stepChecking.style.display = "block";
+  stepFailed.style.display = "none";
+}
+function showVerifyFail(reason) {
+  verifyOverlay.style.display = "flex";
+  stepChecking.style.display = "none";
+  stepFailed.style.display = "block";
+  $("failReasonText").textContent = reason;
+}
+
 async function showPayment(orderId) {
   const { data: o } = await supabase.from("card_orders").select("*").eq("id", orderId).maybeSingle();
   if (!o) { toast("ไม่พบคำสั่งซื้อ"); return; }
-  const { data: sl } = await supabase.from("app_settings").select("promptpay_id, promptpay_name").limit(1);
+  if (o.status === "paid") { toast("คำสั่งซื้อนี้ชำระเงินแล้ว"); showOrders(); return; }
+  const { data: sl } = await supabase.from("app_settings").select("promptpay_id, promptpay_name, promptpay_logo_url, shop_name, line_oa_url").limit(1);
   const s = sl?.[0];
+  if (s?.line_oa_url) $("lineOaLink").href = s.line_oa_url;
   openLayer(`<h2 class="display" style="margin:0 0 4px">ชำระเงิน</h2><p class="muted" style="margin:0 0 10px">เลขที่คำสั่งซื้อ ${esc(o.order_number)}</p>
     <div style="text-align:center"><div style="font:800 28px Prompt;color:var(--amber)">${baht(o.total)}</div>
-    ${s?.promptpay_id ? `<img id="qrImg" alt="QR พร้อมเพย์" style="width:240px;max-width:100%;background:#fff;border-radius:12px;padding:8px;margin:10px 0" /><div class="muted">${esc(s.promptpay_name || "")}</div>` : `<p class="error-text">ยังไม่ได้ตั้งค่าเลขพร้อมเพย์ กรุณาติดต่อแอดมิน</p>`}</div>
+    ${s?.promptpay_id ? `<img id="qrImg" alt="QR พร้อมเพย์" style="width:240px;max-width:100%;background:#fff;border-radius:12px;padding:8px;margin:10px 0" /><div class="muted">${esc(s.promptpay_name || "")}</div>
+    <button type="button" id="saveQrBtn" class="icon-btn ghost" style="display:block;margin:10px auto 0;width:auto">บันทึกรูป QR</button>
+    <p class="muted" style="font-size:12.5px;margin:10px 0 0">กรุณาบันทึกภาพหน้าจอเพื่อนำไปสแกนชำระเงินผ่านแอปธนาคาร</p>` : `<p class="error-text">ยังไม่ได้ตั้งค่าเลขพร้อมเพย์ กรุณาติดต่อแอดมิน</p>`}</div>
     <div class="slip-dropzone" id="drop" style="margin-top:14px;cursor:pointer;border:2px dashed var(--line);border-radius:14px;padding:18px;text-align:center"><img id="slipPrev" alt="" style="display:none;max-width:100%;max-height:220px;margin:0 auto 8px;border-radius:10px" /><span id="dropTxt">แตะเพื่อแนบสลิปการโอนเงิน</span></div>
     <input type="file" id="slipFile" accept="image/*" style="display:none" /><p class="error-text" id="slipErr"></p>
-    <button class="btn-marquee" id="sendSlip" type="button" disabled style="width:100%">ส่งสลิปให้แอดมินตรวจสอบ</button>
+    <button class="btn-marquee" id="sendSlip" type="button" disabled style="width:100%">เสร็จสิ้น</button>
     <button class="icon-btn ghost" id="later" type="button" style="width:100%;margin-top:8px">ชำระภายหลัง (ดูได้ที่ "คำสั่งซื้อของฉัน")</button>`);
   $("later").onclick = closeLayer;
   if (s?.promptpay_id) {
     const [{ default: pp }, { default: QR }] = await Promise.all([import("https://cdn.jsdelivr.net/npm/promptpay-qr@0.5.0/+esm"), import("https://esm.sh/qrcode@1.5.3")]);
-    $("qrImg").src = await QR.toDataURL(pp(s.promptpay_id, { amount: Number(o.total) }), { width: 280, margin: 1 });
+    const payload = pp(s.promptpay_id, { amount: Number(o.total) });
+    $("qrImg").src = await QR.toDataURL(payload, { width: 280, margin: 1 });
+    bindSaveQr(payload, o, s, QR);
   }
   let file = null;
   $("drop").onclick = () => $("slipFile").click();
@@ -218,16 +241,154 @@ async function showPayment(orderId) {
     file = f; $("slipPrev").src = URL.createObjectURL(f); $("slipPrev").style.display = "block"; $("dropTxt").textContent = "แตะเพื่อเปลี่ยนรูป"; $("sendSlip").disabled = false;
   };
   $("sendSlip").onclick = async () => {
-    $("sendSlip").disabled = true; $("sendSlip").textContent = "กำลังส่ง...";
-    const path = `${session.user.id}/${orderId}-${Date.now()}.${(file.name.split(".").pop() || "jpg").toLowerCase()}`;
-    const up = await supabase.storage.from("card-slips").upload(path, file, { upsert: false });
-    const rpc = up.error ? { error: up.error } : await supabase.rpc("card_submit_slip", { p_order: orderId, p_path: path });
-    if (rpc.error) { $("slipErr").textContent = "ส่งสลิปไม่สำเร็จ กรุณาลองใหม่"; $("sendSlip").disabled = false; $("sendSlip").textContent = "ส่งสลิปให้แอดมินตรวจสอบ"; return; }
-    openLayer(`<div style="text-align:center;padding:30px 0">${ICON.check}<h2 class="display">ส่งสลิปเรียบร้อย</h2>
-      <p class="muted">แอดมินกำลังตรวจสอบการชำระเงิน คุณติดตามสถานะได้ที่ "คำสั่งซื้อของฉัน"</p>
-      <button class="btn-marquee" id="seeOrders" type="button">ดูคำสั่งซื้อของฉัน</button></div>`, true);
-    $("seeOrders").onclick = showOrders;
+    if (!file) return;
+    showVerifyChecking();
+    $("sendSlip").disabled = true;
+    try {
+      const path = `${session.user.id}/${orderId}-${Date.now()}.${(file.name.split(".").pop() || "jpg").toLowerCase()}`;
+      const up = await supabase.storage.from("card-slips").upload(path, file, { upsert: false });
+      if (up.error) { showVerifyFail("อัปโหลดสลิปไม่สำเร็จ กรุณาลองใหม่"); return; }
+
+      const { data: sd } = await supabase.auth.getSession();
+      const accessToken = sd.session?.access_token;
+      const { data: result, error: fnError } = await supabase.functions.invoke("verify-slip", {
+        body: { kind: "card", orderId, storagePath: path },
+        headers: accessToken ? { Authorization: `Bearer ${accessToken}` } : {},
+      });
+      if (fnError) { showVerifyFail("ตรวจสอบสลิปไม่สำเร็จ กรุณาลองใหม่อีกครั้ง"); return; }
+      if (!result?.success) { showVerifyFail(result?.reason || "ตรวจสอบสลิปไม่สำเร็จ กรุณาลองใหม่อีกครั้ง"); return; }
+
+      verifyOverlay.style.display = "none";
+      await loadAll();
+      openLayer(`<div style="text-align:center;padding:30px 0">${ICON.check}<h2 class="display">ชำระเงินสำเร็จ</h2>
+        <p class="muted">เลขที่คำสั่งซื้อ ${esc(result.order_number || o.order_number)}<br>ยอดชำระ ${baht(o.total)}<br>แอดมินจะจัดส่งการ์ดให้เร็ว ๆ นี้ ติดตามสถานะได้ที่ "คำสั่งซื้อของฉัน"</p>
+        <button class="btn-marquee" id="seeOrders" type="button">ดูคำสั่งซื้อของฉัน</button></div>`, true);
+      $("seeOrders").onclick = showOrders;
+    } catch {
+      showVerifyFail("เกิดข้อผิดพลาด กรุณาลองใหม่อีกครั้ง");
+    } finally {
+      if ($("sendSlip")) $("sendSlip").disabled = false;
+    }
   };
+}
+
+// ============================================================
+// บันทึกรูป QR (เหมือนร้านไลฟ์: พื้นหลังเว็บ + ชื่อร้าน/ยอดชำระสีเหลือง + โลโก้พร้อมเพย์กลาง QR)
+// เฉพาะรูปที่ดาวน์โหลดเท่านั้น — QR ที่แสดงบนหน้าไม่เปลี่ยนแปลง
+// ============================================================
+function bindSaveQr(payload, order, settings, QR) {
+  const btn = $("saveQrBtn");
+  if (!btn) return;
+  btn.onclick = async () => {
+    btn.disabled = true;
+    const originalText = btn.textContent;
+    btn.textContent = "กำลังสร้างรูป...";
+    try {
+      const blob = await buildQrDownloadImage(payload, order, settings, QR);
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = `promptpay-${order.order_number || "qr"}.png`;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      setTimeout(() => URL.revokeObjectURL(url), 2000);
+    } catch {
+      if ($("slipErr")) $("slipErr").textContent = "สร้างรูป QR ไม่สำเร็จ กรุณาลองใหม่อีกครั้ง";
+    } finally {
+      btn.disabled = false;
+      btn.textContent = originalText;
+    }
+  };
+}
+
+function loadImage(src) {
+  return new Promise((resolve, reject) => {
+    const img = new Image();
+    img.crossOrigin = "anonymous";
+    img.onload = () => resolve(img);
+    img.onerror = reject;
+    img.src = src;
+  });
+}
+
+function drawRoundedRect(ctx, x, y, w, h, r) {
+  ctx.beginPath();
+  ctx.moveTo(x + r, y);
+  ctx.arcTo(x + w, y, x + w, y + h, r);
+  ctx.arcTo(x + w, y + h, x, y + h, r);
+  ctx.arcTo(x, y + h, x, y, r);
+  ctx.arcTo(x, y, x + w, y, r);
+  ctx.closePath();
+}
+
+async function buildQrDownloadImage(payload, order, settings, QR) {
+  await document.fonts.ready; // กัน canvas วาดตัวอักษรก่อน web font โหลดเสร็จ
+
+  const BG = "#08070d";
+  const AMBER = "#f2b705";
+  const MUTED = "#9791ab";
+
+  const width = 480;
+  const height = 640;
+  const canvas = document.createElement("canvas");
+  canvas.width = width;
+  canvas.height = height;
+  const ctx = canvas.getContext("2d");
+
+  // พื้นหลัง
+  ctx.fillStyle = BG;
+  ctx.fillRect(0, 0, width, height);
+
+  // ชื่อร้าน (บนสุด)
+  const shopName = settings?.shop_name || settings?.promptpay_name || "STAR LIVE OFFICIAL";
+  ctx.fillStyle = AMBER;
+  ctx.textAlign = "center";
+  ctx.font = "700 26px 'Prompt', sans-serif";
+  ctx.fillText(shopName, width / 2, 56);
+
+  // ยอดชำระ
+  ctx.font = "800 44px 'Prompt', sans-serif";
+  ctx.fillText(`${Number(order.total).toLocaleString("th-TH")}฿`, width / 2, 112);
+
+  // ชื่อบัญชีพร้อมเพย์ (ถ้ามี)
+  if (settings?.promptpay_name) {
+    ctx.fillStyle = MUTED;
+    ctx.font = "500 15px 'Sarabun', sans-serif";
+    ctx.fillText(settings.promptpay_name, width / 2, 140);
+  }
+
+  // สร้าง QR ระดับแก้ไขข้อผิดพลาดสูง (H) แยกต่างหาก เพื่อให้สแกนได้แม้มีโลโก้บัง
+  const qrSize = 340;
+  const qrDataUrl = await QR.toDataURL(payload, { width: qrSize, margin: 1, errorCorrectionLevel: "H" });
+  const qrImg = await loadImage(qrDataUrl);
+
+  const qrX = (width - qrSize) / 2;
+  const qrY = 168;
+
+  // กรอบขาวรองใต้ QR
+  ctx.fillStyle = "#ffffff";
+  drawRoundedRect(ctx, qrX - 14, qrY - 14, qrSize + 28, qrSize + 28, 16);
+  ctx.fill();
+  ctx.drawImage(qrImg, qrX, qrY, qrSize, qrSize);
+
+  // โลโก้พร้อมเพย์ตรงกลาง QR (ถ้าแอดมินอัปโหลดไว้)
+  if (settings?.promptpay_logo_url) {
+    try {
+      const logoImg = await loadImage(settings.promptpay_logo_url);
+      const logoBoxSize = 76;
+      ctx.drawImage(logoImg, width / 2 - logoBoxSize / 2, qrY + qrSize / 2 - logoBoxSize / 2, logoBoxSize, logoBoxSize);
+    } catch {
+      // โหลดโลโก้ไม่สำเร็จ (เช่น CORS) ก็ให้ได้ QR เปล่าไปก่อน
+    }
+  }
+
+  // ข้อความท้ายภาพ
+  ctx.fillStyle = MUTED;
+  ctx.font = "400 13px 'Sarabun', sans-serif";
+  ctx.fillText("สแกนเพื่อชำระเงินผ่านแอปธนาคาร", width / 2, qrY + qrSize + 46);
+
+  return new Promise((resolve) => canvas.toBlob(resolve, "image/png"));
 }
 
 // ---------- คำสั่งซื้อของฉัน ----------
