@@ -1,0 +1,40 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>CARD SHOP — Admin | STARLIVE OFFICIAL</title>
+<link href="https://fonts.googleapis.com/css2?family=Prompt:wght@500;600;700;800&family=Sarabun:wght@400;500;600&display=swap" rel="stylesheet" />
+<link rel="stylesheet" href="./style.css" />
+<style>
+.ca{max-width:1100px;margin:0 auto;padding:20px 16px 80px}.ca-top{display:flex;align-items:center;gap:12px;flex-wrap:wrap;margin-bottom:18px}
+.ca-menu{display:flex;gap:6px;flex-wrap:wrap;margin-bottom:18px;border-bottom:1px solid var(--line);padding-bottom:10px}
+.ca-menu button{padding:9px 14px;border-radius:10px;border:0;background:none;color:var(--text);font:600 13px Prompt;cursor:pointer}.ca-menu button.on{background:var(--amber);color:#1a1400}
+.ca-card{background:var(--surface);border:1px solid var(--line);border-radius:14px;padding:14px;margin-bottom:12px}
+.ca-stats{display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:12px}.ca-stat b{display:block;font:800 26px Prompt;color:var(--amber)}
+.ca-grid{display:grid;grid-template-columns:1fr 1fr;gap:10px}.ca-grid .full{grid-column:1/-1}
+.ca-row{display:flex;gap:12px;align-items:center;flex-wrap:wrap}.ca-row img{width:48px;height:64px;object-fit:cover;border-radius:8px;background:var(--surface-2)}
+.ca-st{display:inline-block;padding:2px 10px;border-radius:8px;font:600 12px Prompt;background:var(--surface-2)}
+.ca-detail{margin-top:10px;padding-top:10px;border-top:1px dashed var(--line);font-size:13px}
+.ca-detail img.slip{max-width:260px;border-radius:10px;display:block;margin:8px 0}
+</style>
+</head>
+<body>
+<div class="stage-bg"></div>
+<div class="ca">
+  <div class="ca-top">
+    <div class="marquee-brand"><span class="bulb"></span> STARLIVE OFFICIAL — ADMIN</div>
+    <select id="systemSwitch" class="field-input" style="width:auto;margin-left:auto" aria-label="สลับระบบ">
+      <option value="live">LIVE &amp; REPLAY</option>
+      <option value="card" selected>CARD SHOP</option>
+    </select>
+  </div>
+  <p id="gate" class="muted" style="display:none">กรุณาเข้าสู่ระบบแอดมินที่หน้า <a href="./admin.html" style="color:var(--amber)">/admin</a> ก่อน แล้วกลับมาที่หน้านี้</p>
+  <div id="app" style="display:none">
+    <nav class="ca-menu" id="menu"></nav>
+    <div id="view"></div>
+  </div>
+</div>
+<script type="module" src="./js/cardshop-admin.js"></script>
+</body>
+</html>
