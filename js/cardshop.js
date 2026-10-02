@@ -9,8 +9,17 @@ const baht = (n) => `${Number(n || 0).toLocaleString("th-TH")}฿`;
 const PAY = { pending_payment: "รอชำระเงิน", verifying: "รอตรวจสอบสลิป", paid: "ชำระเงินสำเร็จ", cancelled: "ยกเลิก" };
 const SHIP = { pending: "รอดำเนินการ", preparing: "เตรียมจัดส่ง", shipped: "จัดส่งแล้ว", completed: "สำเร็จ" };
 
+const ICON = {
+  cart: `<svg class="cs-ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="9" cy="21" r="1"/><circle cx="20" cy="21" r="1"/><path d="M1 1h4l2.7 13.4a2 2 0 0 0 2 1.6h9.7a2 2 0 0 0 2-1.6L23 6H6"/></svg>`,
+  sparkle: `<svg class="cs-ic" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M12 0C12 6.627 6.627 12 0 12C6.627 12 12 17.373 12 24C12 17.373 17.373 12 24 12C17.373 12 12 6.627 12 0Z"/></svg>`,
+  flame: `<svg class="cs-ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M8.5 14.5A2.5 2.5 0 0 0 11 12c0-1.4-.5-2-1-3-1.1-2.1-.2-4 2-6 .5 2.5 2 4.9 4 6.5 2 1.6 3 3.5 3 5.5a7 7 0 1 1-14 0c0-1.2.4-2.4 1-3 0 2.2 1.1 3.5 2.5 3.5z"/></svg>`,
+  tag: `<svg class="cs-ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20.6 13.4 13.4 20.6a2 2 0 0 1-2.8 0L2 12V2h10l8.6 8.6a2 2 0 0 1 0 2.8z"/><circle cx="7" cy="7" r="1.5"/></svg>`,
+  truck: `<svg class="cs-ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="1" y="3" width="15" height="13"/><polygon points="16 8 20 8 23 11 23 16 16 16 16 8"/><circle cx="5.5" cy="18.5" r="2.5"/><circle cx="18.5" cy="18.5" r="2.5"/></svg>`,
+  check: `<svg class="cs-big-ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="10"/><polyline points="8 12.5 11 15.5 16 9"/></svg>`,
+};
+
 let session = await getSession();
-let products = [], categories = [], settings = { shipping_fee: 0, free_shipping_min: null };
+let products = [], categories = [], promos = [], settings = { shipping_fee: 0, free_shipping_min: null };
 let cart = new Map(); // product_id -> qty
 let filter = "all", search = "";
 
@@ -27,7 +36,21 @@ function errText(e) {
   return "เกิดข้อผิดพลาด กรุณาลองใหม่อีกครั้ง";
 }
 const remaining = (p) => p.stock_total - p.stock_sold;
-const unitPrice = (p) => (p.sale_price != null ? Number(p.sale_price) : Number(p.price));
+function promoInfo(p) {
+  const now = Date.now(); let best = { price: Number(p.price), label: null };
+  if (p.sale_price != null && Number(p.sale_price) < best.price) best = { price: Number(p.sale_price), label: p.promo_label || "โปรโมชั่น" };
+  for (const pr of promos) {
+    if (pr.starts_at && new Date(pr.starts_at) > now) continue;
+    if (pr.ends_at && new Date(pr.ends_at) < now) continue;
+    const hit = (!pr.product_id && !pr.category_id) || pr.product_id === p.id || (pr.category_id && pr.category_id === p.category_id);
+    if (!hit) continue;
+    const v = Number(pr.discount_value);
+    const price = Math.max(0, Math.round((pr.discount_type === "percent" ? p.price - (p.price * v) / 100 : p.price - v) * 100) / 100);
+    if (price < best.price) best = { price, label: pr.name };
+  }
+  return best;
+}
+const unitPrice = (p) => promoInfo(p).price;
 
 // ---------- Layer (ตะกร้า / ฟอร์ม / ออเดอร์) ----------
 function openLayer(html, center = false) {
@@ -41,11 +64,13 @@ $("layer").addEventListener("click", (e) => { if (e.target === $("layer")) close
 
 // ---------- โหลดข้อมูล ----------
 async function loadAll() {
-  const [c, p, s] = await Promise.all([
+  const [c, p, s, pm] = await Promise.all([
     supabase.from("card_categories").select("*").order("sort_order").order("name"),
     supabase.from("card_products").select("*").eq("is_active", true).order("created_at", { ascending: false }),
     supabase.from("card_settings").select("*").eq("id", 1).maybeSingle(),
+    supabase.from("card_promotions").select("*").eq("is_active", true),
   ]);
+  promos = pm.data || [];
   categories = c.data || []; products = p.data || []; if (s.data) settings = s.data;
   await loadCart();
   renderChips(); renderGrid();
@@ -65,8 +90,8 @@ function updateBadge() {
 
 // ---------- หน้าร้าน ----------
 function renderChips() {
-  const chips = [["all", "ทั้งหมด"], ["new", "✨ สินค้าใหม่"], ["best", "🔥 ขายดี"], ["promo", "🏷️ โปรโมชั่น"], ...categories.map((c) => [c.id, c.name])];
-  $("chips").innerHTML = chips.map(([k, l]) => `<button class="cs-chip ${filter === k ? "on" : ""}" data-k="${esc(k)}" type="button">${esc(l)}</button>`).join("");
+  const chips = [["all", "ทั้งหมด", ""], ["new", "สินค้าใหม่", ICON.sparkle], ["best", "ขายดี", ICON.flame], ["promo", "โปรโมชั่น", ICON.tag], ...categories.map((c) => [c.id, c.name, ""])];
+  $("chips").innerHTML = chips.map(([k, l, ic]) => `<button class="cs-chip ${filter === k ? "on" : ""}" data-k="${esc(k)}" type="button">${ic}${esc(l)}</button>`).join("");
   $("chips").querySelectorAll(".cs-chip").forEach((b) => (b.onclick = () => { filter = b.dataset.k; renderChips(); renderGrid(); }));
 }
 function renderGrid() {
@@ -75,19 +100,19 @@ function renderGrid() {
     if (q && !`${p.name} ${p.serial_no || ""}`.toLowerCase().includes(q)) return false;
     if (filter === "new") return p.is_new;
     if (filter === "best") return p.is_bestseller;
-    if (filter === "promo") return p.sale_price != null;
+    if (filter === "promo") return promoInfo(p).price < Number(p.price);
     if (filter !== "all") return p.category_id === filter;
     return true;
   });
   $("empty").style.display = list.length ? "none" : "block";
   $("grid").innerHTML = list.map((p) => {
-    const left = remaining(p), out = left <= 0;
+    const left = remaining(p), out = left <= 0, info = promoInfo(p), onSale = info.price < Number(p.price);
     const stockTxt = out ? "สินค้าหมด" : p.product_type === "unique" ? `การ์ดเฉพาะใบ${p.serial_no ? " · " + esc(p.serial_no) : ""}` : `คงเหลือ ${left} ชิ้น`;
     return `<article class="cs-card">
       <div class="cs-img">${p.image_url ? `<img src="${esc(p.image_url)}" alt="${esc(p.name)}" loading="lazy" />` : ""}
-        <div class="cs-tags">${p.is_new ? `<span class="cs-tag">ใหม่</span>` : ""}${p.is_bestseller ? `<span class="cs-tag hot">ขายดี</span>` : ""}${p.sale_price != null ? `<span class="cs-tag hot">${esc(p.promo_label || "โปรโมชั่น")}</span>` : ""}</div></div>
+        <div class="cs-tags">${p.is_new ? `<span class="cs-tag">${ICON.sparkle}ใหม่</span>` : ""}${p.is_bestseller ? `<span class="cs-tag hot">${ICON.flame}ขายดี</span>` : ""}${onSale ? `<span class="cs-tag hot">${ICON.tag}${esc(info.label || "โปรโมชั่น")}</span>` : ""}</div></div>
       <div class="cs-body"><div class="cs-name">${esc(p.name)}</div>
-        <div class="cs-price">${baht(unitPrice(p))}${p.sale_price != null ? `<s>${baht(p.price)}</s>` : ""}</div>
+        <div class="cs-price">${baht(info.price)}${onSale ? `<s>${baht(p.price)}</s>` : ""}</div>
         <div class="cs-stock ${!out && left <= 3 ? "low" : ""}">${stockTxt}</div>
         <button class="cs-add" data-id="${p.id}" type="button" ${out ? "disabled" : ""}>${out ? "สินค้าหมด" : "เพิ่มลงตะกร้า"}</button></div></article>`;
   }).join("");
@@ -120,7 +145,7 @@ function totals() {
 function showCart() {
   const items = [...cart].map(([id, q]) => [products.find((x) => x.id === id), q]).filter(([p]) => p);
   const t = totals();
-  openLayer(`<h2 class="display" style="margin:0 0 6px">🛒 ตะกร้าสินค้า</h2>
+  openLayer(`<h2 class="display" style="margin:0 0 6px">${ICON.cart} ตะกร้าสินค้า</h2>
     ${items.length ? items.map(([p, q]) => `<div class="cs-row">${p.image_url ? `<img src="${esc(p.image_url)}" alt="" />` : "<img alt='' />"}
       <div style="flex:1"><div style="font:600 14px Prompt">${esc(p.name)}</div><div class="muted" style="font-size:12px">${baht(unitPrice(p))} · เหลือ ${remaining(p)}</div></div>
       <div class="cs-qty"><button data-d="-1" data-id="${p.id}" type="button">−</button><b>${q}</b><button data-d="1" data-id="${p.id}" type="button">+</button></div>
@@ -198,7 +223,7 @@ async function showPayment(orderId) {
     const up = await supabase.storage.from("card-slips").upload(path, file, { upsert: false });
     const rpc = up.error ? { error: up.error } : await supabase.rpc("card_submit_slip", { p_order: orderId, p_path: path });
     if (rpc.error) { $("slipErr").textContent = "ส่งสลิปไม่สำเร็จ กรุณาลองใหม่"; $("sendSlip").disabled = false; $("sendSlip").textContent = "ส่งสลิปให้แอดมินตรวจสอบ"; return; }
-    openLayer(`<div style="text-align:center;padding:30px 0"><div style="font-size:48px">✅</div><h2 class="display">ส่งสลิปเรียบร้อย</h2>
+    openLayer(`<div style="text-align:center;padding:30px 0">${ICON.check}<h2 class="display">ส่งสลิปเรียบร้อย</h2>
       <p class="muted">แอดมินกำลังตรวจสอบการชำระเงิน คุณติดตามสถานะได้ที่ "คำสั่งซื้อของฉัน"</p>
       <button class="btn-marquee" id="seeOrders" type="button">ดูคำสั่งซื้อของฉัน</button></div>`, true);
     $("seeOrders").onclick = showOrders;
@@ -216,9 +241,8 @@ async function showOrders() {
       <div style="margin:6px 0"><span class="cs-st">${PAY[o.status]}</span> ${o.status === "paid" ? `<span class="cs-st">${SHIP[o.shipping_status]}</span>` : ""}</div>
       <div class="muted" style="font-size:13px">${o.card_order_items.map((i) => `${esc(i.product_name)} × ${i.qty}`).join("<br>")}</div>
       <div class="cs-sum total" style="font-size:15px"><span>ยอดรวม</span><span>${baht(o.total)}</span></div>
-      ${sh?.tracking_no ? `<div style="font-size:13px">🚚 ${esc(sh.carrier || "")} · เลข Tracking: <b>${esc(sh.tracking_no)}</b></div>` : ""}
-      ${["pending_payment", "verifying"].includes(o.status) ? `<div style="margin-top:8px;display:flex;gap:8px"><button class="icon-btn" data-pay="${o.id}" type="button">${o.status === "verifying" ? "ส่งสลิปใหม่" : "ชำระเงิน / แนบสลิป"}</button>${o.status === "pending_payment" ? `<button class="icon-btn ghost" data-cancel="${o.id}" type="button">ยกเลิก</button>` : ""}</div>` : ""}</div>`; }).join("") || `<p class="muted" style="text-align:center;padding:40px 0">ยังไม่มีคำสั่งซื้อ</p>`}
-    <p class="muted" style="font-size:12px"><a href="./orders.html" style="color:var(--amber)">ดูประวัติการซื้อบัตร LIVE &amp; REPLAY →</a></p>`);
+      ${sh?.tracking_no ? `<div style="font-size:13px">${ICON.truck} ${esc(sh.carrier || "")} · เลข Tracking: <b>${esc(sh.tracking_no)}</b></div>` : ""}
+      ${["pending_payment", "verifying"].includes(o.status) ? `<div style="margin-top:8px;display:flex;gap:8px"><button class="icon-btn" data-pay="${o.id}" type="button">${o.status === "verifying" ? "ส่งสลิปใหม่" : "ชำระเงิน / แนบสลิป"}</button>${o.status === "pending_payment" ? `<button class="icon-btn ghost" data-cancel="${o.id}" type="button">ยกเลิก</button>` : ""}</div>` : ""}</div>`; }).join("") || `<p class="muted" style="text-align:center;padding:40px 0">ยังไม่มีคำสั่งซื้อ</p>`}`);
   $("panel").querySelectorAll("[data-pay]").forEach((b) => (b.onclick = () => showPayment(b.dataset.pay)));
   $("panel").querySelectorAll("[data-cancel]").forEach((b) => (b.onclick = async () => {
     if (!confirm("ยืนยันการยกเลิกคำสั่งซื้อนี้?")) return;
