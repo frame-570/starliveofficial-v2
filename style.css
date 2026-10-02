@@ -1262,7 +1262,7 @@ html, body {
   flex-shrink: 0;
   width: 46px;
   height: 46px;
-  border-radius: 50%;
+  border-radius: 12px;
   display: inline-flex;
   align-items: center;
   justify-content: center;
