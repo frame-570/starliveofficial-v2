@@ -4,52 +4,23 @@
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
 <title>CARD SHOP — STARLIVE OFFICIAL</title>
+<link rel="icon" type="image/svg+xml" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'><defs><radialGradient id='g' cx='50%25' cy='50%25' r='50%25'><stop offset='0%25' stop-color='%23FFF275'/><stop offset='60%25' stop-color='%23FFD700'/><stop offset='100%25' stop-color='%23FFA500'/></radialGradient></defs><path d='M12 0C12 6.627 6.627 12 0 12C6.627 12 12 17.373 12 24C12 17.373 17.373 12 24 12C17.373 12 12 6.627 12 0Z' fill='url(%23g)'/></svg>">
 <link href="https://fonts.googleapis.com/css2?family=Prompt:wght@500;600;700;800&family=Sarabun:wght@400;500;600&display=swap" rel="stylesheet" />
 <link rel="stylesheet" href="./style.css" />
-<style>
-.cs-header{position:sticky;top:0;z-index:30;display:flex;align-items:center;gap:14px;flex-wrap:wrap;padding:12px 20px;background:rgba(8,7,13,.92);backdrop-filter:blur(10px);border-bottom:1px solid var(--line)}
-.cs-nav{display:flex;gap:6px}.cs-nav a,.cs-nav button{color:var(--text);text-decoration:none;font:600 13px Prompt,sans-serif;padding:8px 12px;border-radius:10px;background:none;border:0;cursor:pointer}
-.cs-nav a:hover,.cs-nav button:hover,.cs-nav .on{background:var(--surface-2);color:var(--amber)}
-.cs-search{flex:1;min-width:160px;max-width:380px}.cs-right{margin-left:auto;display:flex;align-items:center;gap:12px}
-.cs-cart-btn{position:relative;width:44px;height:44px;border-radius:12px;border:1.5px solid rgba(255,210,60,.5);background:rgba(255,210,60,.1);color:#ffd23c;font-size:20px;cursor:pointer}
-.cs-badge{position:absolute;top:-6px;right:-6px;min-width:20px;height:20px;border-radius:10px;background:var(--crimson);color:#fff;font:700 11px Prompt;display:flex;align-items:center;justify-content:center;padding:0 5px}
-.cs-shell{max-width:1180px;margin:0 auto;padding:28px 20px 80px}.cs-hero{text-align:center;padding:30px 0 22px}
-.cs-chips{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:22px}.cs-chip{padding:8px 16px;border-radius:999px;border:1px solid var(--line);background:var(--surface);color:var(--text);font:600 13px Prompt;cursor:pointer}
-.cs-chip.on{background:var(--amber);color:#1a1400;border-color:var(--amber)}
-.cs-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(210px,1fr));gap:18px}
-.cs-card{background:var(--surface);border:1px solid var(--line);border-radius:var(--radius);overflow:hidden;display:flex;flex-direction:column;transition:transform .2s,border-color .2s}
-.cs-card:hover{transform:translateY(-4px);border-color:var(--amber-dim)}
-.cs-img{position:relative;aspect-ratio:3/4;background:var(--surface-2)}.cs-img img{width:100%;height:100%;object-fit:cover}
-.cs-tags{position:absolute;top:8px;left:8px;display:flex;flex-direction:column;gap:4px}.cs-tag{font:700 11px Prompt;padding:3px 9px;border-radius:8px;background:var(--amber);color:#1a1400;width:fit-content}
-.cs-tag.hot{background:var(--crimson);color:#fff}.cs-body{padding:12px 14px 14px;display:flex;flex-direction:column;gap:6px;flex:1}
-.cs-name{font:600 14px Prompt;line-height:1.35}.cs-price{font:700 18px Prompt;color:var(--amber)}.cs-price s{font:400 12px Sarabun;color:var(--muted);margin-left:6px}
-.cs-stock{font-size:12px;color:var(--muted)}.cs-stock.low{color:var(--crimson)}
-.cs-add{margin-top:auto;padding:10px;border-radius:12px;border:0;background:var(--amber);color:#1a1400;font:700 13px Prompt;cursor:pointer}.cs-add:disabled{background:var(--surface-2);color:var(--muted);cursor:not-allowed}
-.cs-layer{position:fixed;inset:0;z-index:50;background:rgba(0,0,0,.65);display:none;justify-content:flex-end}.cs-layer.center{justify-content:center;align-items:center}
-.cs-panel{background:var(--surface);width:min(440px,100%);height:100%;overflow:auto;padding:20px;border-left:1px solid var(--line)}
-.cs-layer.center .cs-panel{height:auto;max-height:92vh;border-radius:var(--radius);border:1px solid var(--line)}
-.cs-row{display:flex;gap:12px;align-items:center;padding:12px 0;border-bottom:1px solid var(--line)}.cs-row img{width:52px;height:70px;object-fit:cover;border-radius:8px;background:var(--surface-2)}
-.cs-qty{display:flex;align-items:center;gap:8px}.cs-qty button{width:28px;height:28px;border-radius:8px;border:1px solid var(--line);background:var(--surface-2);color:var(--text);cursor:pointer}
-.cs-sum{display:flex;justify-content:space-between;padding:6px 0;font-size:14px}.cs-sum.total{font:700 18px Prompt;color:var(--amber)}
-.cs-form{display:grid;grid-template-columns:1fr 1fr;gap:10px}.cs-form .full{grid-column:1/-1}
-.cs-toast{position:fixed;bottom:24px;left:50%;transform:translateX(-50%);background:var(--surface-2);border:1px solid var(--amber-dim);padding:10px 18px;border-radius:12px;z-index:90;display:none;font-size:14px}
-.cs-st{display:inline-block;padding:2px 10px;border-radius:8px;font:600 12px Prompt;background:var(--surface-2)}
-.cs-x{float:right;background:none;border:0;color:var(--muted);font-size:20px;cursor:pointer}
-</style>
+<link rel="stylesheet" href="./cardshop.css" />
 </head>
 <body>
 <div class="stage-bg"></div>
 <header class="cs-header">
   <a href="./cardshop.html" class="marquee-brand" style="text-decoration:none"><span class="bulb"></span> STARLIVE OFFICIAL</a>
   <nav class="cs-nav">
-    <button class="on" id="navShop" type="button">🃏 CARD SHOP</button>
+    <button class="on" id="navShop" type="button">CARD SHOP</button>
     <button id="navOrders" type="button">คำสั่งซื้อของฉัน</button>
-    <a href="./index.html">LIVE &amp; REPLAY</a>
   </nav>
   <input id="searchInput" class="field-input cs-search" placeholder="ค้นหาสินค้า..." />
   <div class="cs-right">
     <div id="headerAuthArea"></div>
-    <button id="cartBtn" class="cs-cart-btn" type="button" aria-label="ตะกร้าสินค้า">🛒<span id="cartBadge" class="cs-badge" style="display:none">0</span></button>
+    <button id="cartBtn" class="cs-cart-btn" type="button" aria-label="ตะกร้าสินค้า"><svg class="cs-ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="9" cy="21" r="1"/><circle cx="20" cy="21" r="1"/><path d="M1 1h4l2.7 13.4a2 2 0 0 0 2 1.6h9.7a2 2 0 0 0 2-1.6L23 6H6"/></svg><span id="cartBadge" class="cs-badge" style="display:none">0</span></button>
   </div>
 </header>
 
