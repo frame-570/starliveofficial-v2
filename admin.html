@@ -94,6 +94,7 @@
     <button type="button" class="admin-tab-btn" data-tab="summary">สรุปยอด</button>
     <button type="button" class="admin-tab-btn" data-tab="discount">โค้ดส่วนลด</button>
     <button type="button" class="admin-tab-btn" data-tab="members">สมาชิก</button>
+    <button type="button" class="admin-tab-btn" data-tab="slipcheck">ตรวจสลิป</button>
   </div>
 
   <!-- ============ Tab: งาน (Events) ============ -->
@@ -341,6 +342,33 @@
     </div>
     <div id="memberListWrap" style="display:flex; flex-direction:column; gap:12px;"></div>
     <p id="memberEmptyState" class="muted" style="display:none; text-align:center; padding:40px 0;">ยังไม่มีสมาชิกสมัครเข้ามา</p>
+  </div>
+
+  <!-- ============ Tab: ตรวจสลิป (Slip quota) ============ -->
+  <div id="slipcheckTab" class="admin-tab-panel" style="display:none;">
+    <div class="admin-card" style="padding:18px;">
+      <div style="display:flex; justify-content:space-between; align-items:center; gap:10px; flex-wrap:wrap;">
+        <h3 class="display" style="margin:0;">โควต้าตรวจสลิป (Thunder)</h3>
+        <button type="button" class="icon-btn ghost" id="slipQuotaRefresh">รีเฟรช</button>
+      </div>
+      <div id="slipQuotaMain" style="margin:14px 0 6px; font:800 34px Prompt; color:var(--amber);">-</div>
+      <div id="slipQuotaSub" class="muted" style="font-size:13px;">กำลังโหลด...</div>
+      <div style="height:10px; background:var(--line); border-radius:99px; overflow:hidden; margin-top:12px;">
+        <div id="slipQuotaBar" style="height:100%; width:0%; background:var(--amber); transition:width .3s;"></div>
+      </div>
+      <p id="slipQuotaErr" class="error-text"></p>
+    </div>
+
+    <div class="admin-card" style="padding:18px; margin-top:14px;">
+      <h3 class="display" style="margin:0 0 8px;">สลิปที่ตรวจไม่ผ่านล่าสุด</h3>
+      <p class="muted" style="font-size:12.5px; margin:0 0 10px;">ดูเหตุผลที่ระบบตรวจสลิปปฏิเสธ (ร้านไลฟ์ + ร้านการ์ด)</p>
+      <div id="slipFailList"></div>
+    </div>
+
+    <details style="margin-top:14px;">
+      <summary class="muted" style="cursor:pointer; font-size:12.5px;">ข้อมูลดิบจาก Thunder (ไว้ตรวจสอบ)</summary>
+      <pre id="slipQuotaRaw" style="white-space:pre-wrap; font-size:12px; margin-top:8px;"></pre>
+    </details>
   </div>
 </div>
 
