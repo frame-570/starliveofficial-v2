@@ -294,6 +294,7 @@ document.querySelectorAll(".admin-tab-btn").forEach((btn) => {
     document.getElementById("summaryTab").style.display = btn.dataset.tab === "summary" ? "block" : "none";
     document.getElementById("discountTab").style.display = btn.dataset.tab === "discount" ? "block" : "none";
     document.getElementById("membersTab").style.display = btn.dataset.tab === "members" ? "block" : "none";
+    document.getElementById("slipcheckTab").style.display = btn.dataset.tab === "slipcheck" ? "block" : "none";
 
     if (btn.dataset.tab === "orders") {
       loadOrders();
@@ -323,6 +324,10 @@ document.querySelectorAll(".admin-tab-btn").forEach((btn) => {
 
     if (btn.dataset.tab === "members") {
       loadMembers();
+    }
+
+    if (btn.dataset.tab === "slipcheck") {
+      loadSlipQuota();
     }
   });
 });
@@ -2352,3 +2357,65 @@ settingsForm.addEventListener("submit", async (e) => {
     saveSettingsBtn.textContent = "บันทึกการตั้งค่า";
   }
 });
+
+
+// ============================================================
+// แท็บ "ตรวจสลิป" — ดูโควต้า Thunder (เช่น 10/400) + สลิปที่ตรวจไม่ผ่านล่าสุด
+// ============================================================
+async function loadSlipQuota() {
+  const mainEl = document.getElementById("slipQuotaMain");
+  const subEl = document.getElementById("slipQuotaSub");
+  const barEl = document.getElementById("slipQuotaBar");
+  const errEl = document.getElementById("slipQuotaErr");
+  const rawEl = document.getElementById("slipQuotaRaw");
+  const failEl = document.getElementById("slipFailList");
+
+  mainEl.textContent = "-";
+  subEl.textContent = "กำลังโหลด...";
+  barEl.style.width = "0%";
+  errEl.textContent = "";
+  failEl.innerHTML = "";
+
+  try {
+    const { data: sd } = await supabase.auth.getSession();
+    const token = sd.session?.access_token;
+    const res = await fetch(`${FUNCTIONS_URL}/slip-quota`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json", apikey: SUPABASE_ANON_KEY, Authorization: `Bearer ${token}` },
+      body: "{}",
+    });
+    const body = await res.json();
+    if (!res.ok || !body.success) throw new Error(body.error || "โหลดไม่สำเร็จ");
+
+    const q = body.quota || {};
+    rawEl.textContent = JSON.stringify(body.raw ?? null, null, 2);
+
+    if (q.used != null && q.total != null) {
+      mainEl.textContent = `${q.used.toLocaleString("th-TH")} / ${q.total.toLocaleString("th-TH")}`;
+      const left = q.remaining != null ? q.remaining : q.total - q.used;
+      subEl.textContent = `ใช้ไปแล้ว ${q.used.toLocaleString("th-TH")} ครั้ง · เหลือ ${left.toLocaleString("th-TH")} ครั้ง`;
+      barEl.style.width = `${Math.min(100, Math.round((q.used / Math.max(1, q.total)) * 100))}%`;
+      if (left <= Math.ceil(q.total * 0.1)) barEl.style.background = "var(--crimson)";
+    } else {
+      mainEl.textContent = "อ่านค่าโควต้าไม่ได้";
+      subEl.textContent = "ดูข้อมูลดิบจาก Thunder ด้านล่าง แล้วแจ้งชื่อฟิลด์มาเพื่อปรับให้ตรง";
+    }
+    if (body.quotaError) errEl.textContent = "ดึงโควต้าจาก Thunder ไม่สำเร็จ: " + body.quotaError;
+
+    const fails = body.recentFailures || [];
+    failEl.innerHTML = fails.length
+      ? fails
+          .map(
+            (f) => `<div style="display:flex; gap:10px; justify-content:space-between; padding:8px 0; border-bottom:1px solid var(--line); font-size:13px;">
+              <span>${escapeHtml(f.reason || "-")}</span>
+              <span class="muted" style="white-space:nowrap;">${escapeHtml(f.shop)} · ${f.created_at ? new Date(f.created_at).toLocaleString("th-TH") : ""}</span></div>`
+          )
+          .join("")
+      : `<p class="muted">ยังไม่มีสลิปที่ตรวจไม่ผ่าน</p>`;
+  } catch (err) {
+    mainEl.textContent = "-";
+    subEl.textContent = "";
+    errEl.textContent = "โหลดข้อมูลไม่สำเร็จ: " + (err.message || err);
+  }
+}
+document.getElementById("slipQuotaRefresh")?.addEventListener("click", loadSlipQuota);
