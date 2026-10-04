@@ -358,7 +358,6 @@ const evBannerFile = document.getElementById("evBannerFile");
 const evBannerPreview = document.getElementById("evBannerPreview");
 const evStatus = document.getElementById("evStatus");
 const evRerunMonths = document.getElementById("evRerunMonths");
-const evVideoAspect = document.getElementById("evVideoAspect");
 const dayRows = document.getElementById("dayRows");
 const packageRows = document.getElementById("packageRows");
 const eventFormError = document.getElementById("eventFormError");
@@ -556,7 +555,6 @@ function openEventForm(event = null) {
     evDescription.value = event.description || "";
     evStatus.value = event.status;
     if (evRerunMonths) evRerunMonths.value = event.rerun_duration_months || 6;
-    if (evVideoAspect) evVideoAspect.value = event.video_aspect === "16:10" ? "16:10" : "16:9";
     currentBannerUrl = event.banner_url || "";
     if (currentBannerUrl) {
       evBannerPreview.src = currentBannerUrl;
@@ -580,7 +578,6 @@ function openEventForm(event = null) {
     eventIdInput.value = "";
     evStatus.value = "upcoming";
     if (evRerunMonths) evRerunMonths.value = 6;
-    if (evVideoAspect) evVideoAspect.value = "16:9";
     addDayRow();
   }
 
@@ -663,7 +660,6 @@ eventForm.addEventListener("submit", async (e) => {
       status: evStatus.value,
       viewing_duration_months: rerunMonthsVal,
       rerun_duration_months: rerunMonthsVal,
-      video_aspect: evVideoAspect?.value === "16:10" ? "16:10" : "16:9",
     };
 
     const eventId = eventIdInput.value;
