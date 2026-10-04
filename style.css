@@ -381,17 +381,6 @@ html, body {
   border: 0;
 }
 
-/* 16:10 (เช่น สตรีมจาก Tab A9+): ซูมเข้าเพื่อครอปขอบดำและแถบหน้าต่างด้านบนออก
-   - กรอบ (.aspect) ยังเป็น 16:9 และ overflow: hidden ตัดส่วนที่ล้น
-   - ซูมจากกึ่งกลาง ปรับ 1.18 ได้ตามต้องการ */
-.player-frame.crop-16-10 .aspect {
-  overflow: hidden;
-}
-.player-frame.crop-16-10 iframe {
-  transform: scale(1.18);
-  transform-origin: center center;
-}
-
 /* Admin panel & Settings */
 .admin-shell {
   max-width: 880px;
