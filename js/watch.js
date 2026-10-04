@@ -175,7 +175,6 @@ if (codeForm) {
     currentSessionToken = body.session_token || null;
     currentOrderId = body.orderId || null;
     activeEventData = body;
-    applyVideoAspect(body.video_aspect);
 
     startHeartbeat();
 
@@ -534,13 +533,6 @@ async function handleExitSession() {
 }
 
 // รีเซ็ตการทำงาน เคลียร์ค่า State และเปลี่ยนกลับไปหน้ากรอกรหัส
-// ใช้คลาสครอปภาพตามรูปแบบวิดีโอของงาน: "16:10" = ครอปขอบดำ, อย่างอื่น = 16:9 มาตรฐาน (ไม่ครอป)
-function applyVideoAspect(aspect) {
-  const frame = document.querySelector("#playerScreen .player-frame");
-  if (!frame) return;
-  frame.classList.toggle("crop-16-10", aspect === "16:10");
-}
-
 function resetToCodeScreen() {
   if (heartbeatInterval) clearInterval(heartbeatInterval);
   
@@ -548,7 +540,6 @@ function resetToCodeScreen() {
   currentAccessCode = null;
   currentOrderId = null;
   activeEventData = null;
-  applyVideoAspect("16:9");
   currentSelectedDay = null;
 
   if (ephotoModal) ephotoModal.style.display = "none";
