@@ -359,36 +359,192 @@ function iconReplay(ctx, cx, cy) {
   ctx.restore();
 }
 
-function iconTicket(ctx, cx, cy) {
-  ctx.save();
-  ctx.strokeStyle = C.text;
-  ctx.lineWidth = 4;
-  rr(ctx, cx - 78, cy - 32, 156, 64, 12);
-  ctx.stroke();
-  ctx.setLineDash([5, 6]);
+// ตั๋วสีทอง มีรอยเว้าสองข้างและเส้นปรุ
+function ticketPath(ctx, x, y, w, h, r, n) {
+  const my = y + h / 2;
   ctx.beginPath();
-  ctx.moveTo(cx + 46, cy - 24);
-  ctx.lineTo(cx + 46, cy + 24);
+  ctx.moveTo(x + r, y);
+  ctx.lineTo(x + w - r, y);
+  ctx.arcTo(x + w, y, x + w, y + r, r);
+  ctx.lineTo(x + w, my - n);
+  ctx.arc(x + w, my, n, -Math.PI / 2, Math.PI / 2, true);
+  ctx.lineTo(x + w, y + h - r);
+  ctx.arcTo(x + w, y + h, x + w - r, y + h, r);
+  ctx.lineTo(x + r, y + h);
+  ctx.arcTo(x, y + h, x, y + h - r, r);
+  ctx.lineTo(x, my + n);
+  ctx.arc(x, my, n, Math.PI / 2, -Math.PI / 2, true);
+  ctx.lineTo(x, y + r);
+  ctx.arcTo(x, y, x + r, y, r);
+  ctx.closePath();
+}
+
+function iconTicket(ctx, cx, cy) {
+  const w = 150;
+  const h = 54;
+  const x = cx - w / 2;
+  const y = cy - h / 2;
+  ctx.save();
+  ctx.shadowColor = "rgba(242,183,5,0.5)";
+  ctx.shadowBlur = 16;
+  ticketPath(ctx, x, y, w, h, 9, 8);
+  const g = ctx.createLinearGradient(x, y, x + w, y + h);
+  g.addColorStop(0, "#ffe27a");
+  g.addColorStop(0.5, "#f2b705");
+  g.addColorStop(1, "#c98f00");
+  ctx.fillStyle = g;
+  ctx.fill();
+  ctx.restore();
+
+  // เส้นปรุ
+  const dx = x + w * 0.74;
+  ctx.save();
+  ctx.strokeStyle = "rgba(60,40,0,0.55)";
+  ctx.lineWidth = 2.5;
+  ctx.setLineDash([3, 5]);
+  ctx.beginPath();
+  ctx.moveTo(dx, y + 6);
+  ctx.lineTo(dx, y + h - 6);
   ctx.stroke();
-  ctx.setLineDash([]);
-  ctx.fillStyle = C.text;
+  ctx.restore();
+
+  ctx.fillStyle = "#2b1d00";
   ctx.textAlign = "center";
   ctx.textBaseline = "middle";
-  setFont(ctx, 600, 26);
-  ctx.fillText("TICKET", cx - 14, cy + 2);
+  setFont(ctx, 800, 22);
+  if ("letterSpacing" in ctx) ctx.letterSpacing = "2px";
+  ctx.fillText("TICKET", x + (dx - x) / 2 - 1, cy + 1);
+  if ("letterSpacing" in ctx) ctx.letterSpacing = "0px";
+  sparkle(ctx, dx + (x + w - dx) / 2, cy, 9, "#2b1d00");
+  ctx.textBaseline = "alphabetic";
+}
+
+// ตัวอักษรเรียงตามส่วนโค้งด้านบนของวงกลม
+function arcText(ctx, text, cx, cy, radius, px, spacing, color) {
+  ctx.save();
+  setFont(ctx, 700, px);
+  ctx.fillStyle = color;
+  ctx.textAlign = "center";
+  ctx.textBaseline = "middle";
+  const chars = Array.from(text);
+  const ws = chars.map((c) => ctx.measureText(c).width);
+  const total = ws.reduce((a, b) => a + b, 0) + spacing * (chars.length - 1);
+  let ang = -Math.PI / 2 - total / radius / 2;
+  chars.forEach((ch, i) => {
+    const a = ang + ws[i] / 2 / radius;
+    ctx.save();
+    ctx.translate(cx + radius * Math.cos(a), cy + radius * Math.sin(a));
+    ctx.rotate(a + Math.PI / 2);
+    ctx.fillText(ch, 0, 0);
+    ctx.restore();
+    ang += (ws[i] + spacing) / radius;
+  });
   ctx.restore();
 }
 
+// ป้ายวงกลม "รับจำนวนจำกัด / เต็มปิดรับทันที": ตราทอง วงแหวนซ้อน ขอบประจุด ตั๋วทอง
+function drawLimitedBadge(ctx, cx, cy, R) {
+  // แสงฟุ้งรอบวง
+  const glow = ctx.createRadialGradient(cx, cy, R * 0.85, cx, cy, R * 1.3);
+  glow.addColorStop(0, "rgba(242,183,5,0.30)");
+  glow.addColorStop(1, "rgba(242,183,5,0)");
+  ctx.fillStyle = glow;
+  ctx.beginPath();
+  ctx.arc(cx, cy, R * 1.3, 0, Math.PI * 2);
+  ctx.fill();
+
+  // พื้นวง
+  const disc = ctx.createRadialGradient(cx, cy - R * 0.25, 10, cx, cy, R);
+  disc.addColorStop(0, "rgba(58,42,86,0.97)");
+  disc.addColorStop(0.7, "rgba(24,19,44,0.97)");
+  disc.addColorStop(1, "rgba(12,10,26,0.98)");
+  ctx.beginPath();
+  ctx.arc(cx, cy, R, 0, Math.PI * 2);
+  ctx.fillStyle = disc;
+  ctx.fill();
+
+  // วงแหวนทองด้านนอก
+  ctx.save();
+  const ring = ctx.createLinearGradient(cx - R, cy - R, cx + R, cy + R);
+  ring.addColorStop(0, "#fff0b0");
+  ring.addColorStop(0.28, "#f2b705");
+  ring.addColorStop(0.55, "#a67d05");
+  ring.addColorStop(0.8, "#f2b705");
+  ring.addColorStop(1, "#ffe27a");
+  ctx.shadowColor = "rgba(242,183,5,0.6)";
+  ctx.shadowBlur = 20;
+  ctx.lineWidth = 9;
+  ctx.strokeStyle = ring;
+  ctx.beginPath();
+  ctx.arc(cx, cy, R - 4, 0, Math.PI * 2);
+  ctx.stroke();
+  ctx.restore();
+
+  // เส้นทองบางด้านใน
+  ctx.lineWidth = 2;
+  ctx.strokeStyle = "rgba(255,226,122,0.85)";
+  ctx.beginPath();
+  ctx.arc(cx, cy, R - 17, 0, Math.PI * 2);
+  ctx.stroke();
+
+  // วงจุดไข่ปลา
+  ctx.save();
+  ctx.lineCap = "round";
+  ctx.lineWidth = 3.5;
+  ctx.strokeStyle = "rgba(245,242,234,0.5)";
+  ctx.setLineDash([0.1, 10]);
+  ctx.beginPath();
+  ctx.arc(cx, cy, R - 29, 0, Math.PI * 2);
+  ctx.stroke();
+  ctx.restore();
+
+  // ตัวอักษรโค้งด้านบน + ดาวคู่
+  arcText(ctx, "LIMITED SEATS", cx, cy, R - 54, 20, 5, C.amberLight);
+
+  // ข้อความหลัก
+  ctx.textAlign = "center";
+  ctx.textBaseline = "alphabetic";
+  const maxW = 248;
+  const size = fitSize(ctx, "เต็มปิดรับทันที", maxW, 44, 26, 800);
+  ctx.save();
+  ctx.fillStyle = C.text;
+  setFont(ctx, 700, Math.min(size, 42));
+  ctx.fillText("รับจำนวนจำกัด", cx, cy - 26);
+  ctx.shadowColor = "rgba(242,183,5,0.55)";
+  ctx.shadowBlur = 14;
+  ctx.fillStyle = C.amberLight;
+  setFont(ctx, 800, size);
+  ctx.fillText("เต็มปิดรับทันที", cx, cy + 24);
+  ctx.restore();
+
+  iconTicket(ctx, cx, cy + 82);
+
+  // ดาวบนวงแหวนซ้าย-ขวา
+  sparkle(ctx, cx - R, cy, 13, C.amberLight, 14);
+  sparkle(ctx, cx + R, cy, 13, C.amberLight, 14);
+}
+
+// ไอคอนไลน์: สี่เหลี่ยมมุมมนสีเขียวไลน์ + ฟองคำพูดสีขาวที่มีคำว่า LINE (ช่องว่างตัวอักษรเป็นสีเขียว)
+const LINE_BUBBLE_PATH = new Path2D(
+  "M19.365 9.863c.349 0 .63.285.63.631 0 .345-.281.63-.63.63H17.61v1.125h1.755c.349 0 .63.283.63.63 0 .344-.281.629-.63.629h-2.386c-.345 0-.627-.285-.627-.629V8.108c0-.345.282-.63.63-.63h2.386c.346 0 .627.285.627.63 0 .349-.281.63-.63.63H17.61v1.125h1.755zm-3.855 3.016c0 .27-.174.51-.432.596-.064.021-.133.031-.199.031-.211 0-.391-.09-.51-.25l-2.443-3.317v2.94c0 .344-.279.629-.631.629-.346 0-.626-.285-.626-.629V8.108c0-.27.173-.51.43-.595.06-.023.136-.033.194-.033.195 0 .375.104.495.254l2.462 3.33V8.108c0-.345.282-.63.63-.63.345 0 .63.285.63.63v4.771zm-5.741 0c0 .344-.282.629-.631.629-.345 0-.627-.285-.627-.629V8.108c0-.345.282-.63.63-.63.346 0 .628.285.628.63v4.771zm-2.466.629H4.917c-.345 0-.63-.285-.63-.629V8.108c0-.345.285-.63.63-.63.348 0 .63.285.63.63v4.141h1.756c.348 0 .629.283.629.63 0 .344-.282.629-.629.629M24 10.314C24 4.943 18.615.572 12 .572S0 4.943 0 10.314c0 4.811 4.27 8.842 10.035 9.608.391.082.923.258 1.058.59.12.301.079.766.038 1.08l-.164 1.02c-.045.301-.24 1.186 1.049.645 1.291-.539 6.916-4.078 9.436-6.975C23.176 14.393 24 12.458 24 10.314"
+);
+
 function iconLine(ctx, x, y, s) {
   ctx.save();
-  ctx.fillStyle = "#06c755";
-  rr(ctx, x, y, s, s, s * 0.26);
+  // เงาเบาๆ ให้ไอคอนลอยขึ้นจากพื้นหลังมืด
+  ctx.shadowColor = "rgba(6,199,85,0.35)";
+  ctx.shadowBlur = 14;
+  rr(ctx, x, y, s, s, s * 0.225);
+  ctx.fillStyle = "#06C755";
   ctx.fill();
-  ctx.fillStyle = "#fff";
-  ctx.textAlign = "center";
-  ctx.textBaseline = "middle";
-  setFont(ctx, 800, s * 0.3);
-  ctx.fillText("LINE", x + s / 2, y + s / 2 + 1);
+  ctx.restore();
+
+  ctx.save();
+  const k = (s * 0.66) / 24;
+  ctx.translate(x + s / 2 - 12 * k, y + s / 2 - 11.3 * k);
+  ctx.scale(k, k);
+  ctx.fillStyle = "#ffffff";
+  ctx.fill(LINE_BUBBLE_PATH, "evenodd");
   ctx.restore();
 }
 
@@ -582,33 +738,16 @@ function drawPoster(canvas, st, images) {
   }
 
   // วงกลมรับจำนวนจำกัด
-  const ccx = 745;
-  const ccy = cyTop + 165;
-  ctx.save();
-  ctx.beginPath();
-  ctx.arc(ccx, ccy, 158, 0, Math.PI * 2);
-  ctx.fillStyle = "rgba(19,17,32,0.5)";
-  ctx.fill();
-  ctx.lineWidth = 6;
-  ctx.strokeStyle = "rgba(245,242,234,0.38)";
-  ctx.stroke();
-  ctx.restore();
-  ctx.fillStyle = C.text;
-  ctx.textAlign = "center";
-  fitSize(ctx, "เต็มปิดรับทันที", 270, 40, 26, 600);
-  const t2size = parseInt(ctx.font.match(/(\d+)px/)[1], 10);
-  ctx.fillText("รับจำนวนจำกัด", ccx, ccy - 52);
-  ctx.fillText("เต็มปิดรับทันที", ccx, ccy - 52 + t2size * 1.3);
-  iconTicket(ctx, ccx, ccy + 76);
+  drawLimitedBadge(ctx, 745, cyTop + 166, 162);
 
   // ไอดีไลน์
   if (st.lineId) {
     const ly = cyTop + boxHt - 34;
-    const iconS = 58;
-    iconLine(ctx, 462, ly - iconS / 2, iconS);
+    const iconS = 66;
+    iconLine(ctx, 456, ly - iconS / 2, iconS);
     ctx.textAlign = "left";
     ctx.textBaseline = "middle";
-    const maxW = W - 60 - 534;
+    const maxW = W - 60 - 540;
     const noteW = st.lineNote ? 10 : 0;
     // ลดขนาดให้ทั้งไอดี + หมายเหตุพอดีบรรทัด
     let ls = 40;
@@ -622,12 +761,12 @@ function drawPoster(canvas, st, images) {
     while (ls > 22 && total() > maxW) ls -= 2;
     setFont(ctx, 700, ls);
     ctx.fillStyle = C.amberLight;
-    ctx.fillText(st.lineId, 534, ly);
+    ctx.fillText(st.lineId, 540, ly);
     const idW = ctx.measureText(st.lineId).width;
     if (st.lineNote) {
       setFont(ctx, 500, Math.round(ls * 0.8), "Sarabun");
       ctx.fillStyle = C.text;
-      ctx.fillText(st.lineNote, 534 + idW + noteW, ly);
+      ctx.fillText(st.lineNote, 540 + idW + noteW, ly);
     }
     ctx.textBaseline = "alphabetic";
   }
