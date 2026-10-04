@@ -1,5 +1,6 @@
 import { adminSupabase as supabase } from "./supabaseClient.js";
 import { SUPABASE_ANON_KEY, FUNCTIONS_URL } from "./config.js";
+import { openPosterMaker } from "./poster.js";
 
 // ============================================================
 // Styled confirm/alert modal
@@ -783,6 +784,7 @@ function renderEventRow(ev) {
       <select class="field-input status-select" style="padding:8px 10px; width:auto;">
         ${Object.entries(STATUS_LABELS).map(([v, l]) => `<option value="${v}" ${ev.status === v ? "selected" : ""}>${l}</option>`).join("")}
       </select>
+      <button class="icon-btn ghost" data-action="poster">สร้างโปสเตอร์</button>
       <button class="icon-btn ghost" data-action="edit">แก้ไข</button>
       <button class="icon-btn" data-action="delete">ลบ</button>
     </div>
@@ -805,6 +807,7 @@ function renderEventRow(ev) {
     }
   });
 
+  row.querySelector('[data-action="poster"]').addEventListener("click", () => openPosterMaker(ev));
   row.querySelector('[data-action="edit"]').addEventListener("click", () => openEventForm(ev));
 
   row.querySelector('[data-action="delete"]').addEventListener("click", async () => {
