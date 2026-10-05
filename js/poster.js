@@ -2,6 +2,7 @@
 // ระบบสร้างโปสเตอร์โปรโมทงาน (วาดด้วย canvas แล้วดาวน์โหลดเป็น PNG)
 // ใช้: openPosterMaker(ev)  — ev = แถวงานจากตาราง events (มี event_days, ticket_packages)
 // สีและพื้นหลังใช้ชุดเดียวกับเว็บ (stage / amber / crimson) ตัวหนังสือสีเหลืองและขาว
+// ไม่มี QR และไอดีไลน์บนโปสเตอร์ (กันแพลตฟอร์มลบคลิป) ช่องทางติดต่อให้ใส่ในแคปชั่นแทน
 // ============================================================
 
 const W = 1080;
@@ -76,10 +77,15 @@ function defaultsFromEvent(ev) {
     timeText: saved.timeText || "14:00 น.",
     priceLabel: manyPrices ? "ราคาเริ่มต้น" : "ราคาเพียง",
     price: minPrice === "" ? "" : String(minPrice),
-    priceCaption: `ชมสด+รีรัน(นาน${months}เดือน)`,
+    priceCaption: `ชมสด+รีรัน(นาน${months}เดือน)+E-Photo`,
     months,
-    lineId: saved.lineId || "",
-    lineNote: saved.lineNote === undefined ? "(มี@ด้านหน้า)" : saved.lineNote,
+    detailsTitle: saved.detailsTitle || "สิ่งที่ลูกค้าจะได้รับ",
+    details: [
+      "ชมสดครบทุกรอบการแสดง",
+      `รีรันย้อนหลังนาน ${months} เดือน`,
+      "แถม E-Photo",
+      "ภาพคมชัด 1080p",
+    ].join("\n"),
   };
 }
 
@@ -524,30 +530,6 @@ function drawLimitedBadge(ctx, cx, cy, R) {
   sparkle(ctx, cx + R, cy, 13, C.amberLight, 14);
 }
 
-// ไอคอนไลน์: สี่เหลี่ยมมุมมนสีเขียวไลน์ + ฟองคำพูดสีขาวที่มีคำว่า LINE (ช่องว่างตัวอักษรเป็นสีเขียว)
-const LINE_BUBBLE_PATH = new Path2D(
-  "M19.365 9.863c.349 0 .63.285.63.631 0 .345-.281.63-.63.63H17.61v1.125h1.755c.349 0 .63.283.63.63 0 .344-.281.629-.63.629h-2.386c-.345 0-.627-.285-.627-.629V8.108c0-.345.282-.63.63-.63h2.386c.346 0 .627.285.627.63 0 .349-.281.63-.63.63H17.61v1.125h1.755zm-3.855 3.016c0 .27-.174.51-.432.596-.064.021-.133.031-.199.031-.211 0-.391-.09-.51-.25l-2.443-3.317v2.94c0 .344-.279.629-.631.629-.346 0-.626-.285-.626-.629V8.108c0-.27.173-.51.43-.595.06-.023.136-.033.194-.033.195 0 .375.104.495.254l2.462 3.33V8.108c0-.345.282-.63.63-.63.345 0 .63.285.63.63v4.771zm-5.741 0c0 .344-.282.629-.631.629-.345 0-.627-.285-.627-.629V8.108c0-.345.282-.63.63-.63.346 0 .628.285.628.63v4.771zm-2.466.629H4.917c-.345 0-.63-.285-.63-.629V8.108c0-.345.285-.63.63-.63.348 0 .63.285.63.63v4.141h1.756c.348 0 .629.283.629.63 0 .344-.282.629-.629.629M24 10.314C24 4.943 18.615.572 12 .572S0 4.943 0 10.314c0 4.811 4.27 8.842 10.035 9.608.391.082.923.258 1.058.59.12.301.079.766.038 1.08l-.164 1.02c-.045.301-.24 1.186 1.049.645 1.291-.539 6.916-4.078 9.436-6.975C23.176 14.393 24 12.458 24 10.314"
-);
-
-function iconLine(ctx, x, y, s) {
-  ctx.save();
-  // เงาเบาๆ ให้ไอคอนลอยขึ้นจากพื้นหลังมืด
-  ctx.shadowColor = "rgba(6,199,85,0.35)";
-  ctx.shadowBlur = 14;
-  rr(ctx, x, y, s, s, s * 0.225);
-  ctx.fillStyle = "#06C755";
-  ctx.fill();
-  ctx.restore();
-
-  ctx.save();
-  const k = (s * 0.66) / 24;
-  ctx.translate(x + s / 2 - 12 * k, y + s / 2 - 11.3 * k);
-  ctx.scale(k, k);
-  ctx.fillStyle = "#ffffff";
-  ctx.fill(LINE_BUBBLE_PATH, "evenodd");
-  ctx.restore();
-}
-
 // ---------- วาดโปสเตอร์ทั้งใบ ----------
 function drawPoster(canvas, st, images) {
   canvas.width = W;
@@ -708,68 +690,74 @@ function drawPoster(canvas, st, images) {
     ctx.fillText(f.label, fx + fw / 2, fy + fh - 28);
   });
 
-  // ----- ติดต่อ: QR + วงกลมจำนวนจำกัด + ไอดีไลน์ -----
+  // ----- รายละเอียดที่ลูกค้าจะได้รับ + วงกลมจำนวนจำกัด -----
   const cyTop = fy + fh + 56;
   const boxW = 380;
   const boxHt = 410;
   panel(ctx, 60, cyTop, boxW, boxHt, 28, "rgba(245,242,234,0.3)", 3);
   ctx.fillStyle = C.text;
   ctx.textAlign = "center";
-  setFont(ctx, 600, 36);
-  ctx.fillText("สนใจติดต่อ", 60 + boxW / 2, cyTop + 56);
-  const qs = 300;
-  const qx = 60 + (boxW - qs) / 2;
-  const qy = cyTop + 82;
-  rr(ctx, qx, qy, qs, qs, 16);
-  ctx.fillStyle = "#ffffff";
-  ctx.fill();
-  if (images.qr) {
-    const pad = 14;
-    const s = Math.min((qs - pad * 2) / images.qr.width, (qs - pad * 2) / images.qr.height);
-    const dw = images.qr.width * s;
-    const dh = images.qr.height * s;
-    ctx.drawImage(images.qr, qx + (qs - dw) / 2, qy + (qs - dh) / 2, dw, dh);
-  } else {
-    ctx.fillStyle = "#6b6785";
-    ctx.textBaseline = "middle";
-    setFont(ctx, 600, 26, "Sarabun");
-    ctx.fillText("อัปโหลด QR ไลน์", qx + qs / 2, qy + qs / 2);
-    ctx.textBaseline = "alphabetic";
+  fitSize(ctx, st.detailsTitle, boxW - 40, 36, 24, 600);
+  ctx.fillText(st.detailsTitle, 60 + boxW / 2, cyTop + 56);
+
+  const d_items = String(st.details || "")
+    .split("\n")
+    .map((t) => t.trim())
+    .filter(Boolean)
+    .slice(0, 7);
+  const d_markX = 60 + 30;
+  const d_textX = d_markX + 34 + 12;
+  const d_textW = 60 + boxW - 24 - d_textX;
+  const d_areaTop = cyTop + 92;
+  const d_areaH = boxHt - 92 - 26;
+  let d_fs = 30;
+  let d_rows = [];
+  let d_lh = 0;
+  let d_gap = 0;
+  let d_total = 0;
+  for (; ; d_fs -= 2) {
+    setFont(ctx, 500, d_fs, "Sarabun");
+    d_rows = d_items.map((t) => wrapLines(ctx, t, d_textW));
+    d_lh = Math.round(d_fs * 1.3);
+    d_gap = Math.round(d_fs * 0.55);
+    d_total = d_rows.reduce((a, r) => a + r.length * d_lh, 0) + d_gap * Math.max(0, d_rows.length - 1);
+    if (d_total <= d_areaH || d_fs <= 18) break;
   }
+  let d_cy0 = d_areaTop + Math.max(0, (d_areaH - d_total) / 2);
+  ctx.textAlign = "left";
+  ctx.textBaseline = "alphabetic";
+  d_rows.forEach((d_lns) => {
+    // เครื่องหมายถูกสีทอง
+    const mx = d_markX + 17;
+    const my = d_cy0 + d_fs * 0.55;
+    ctx.save();
+    ctx.shadowColor = "rgba(242,183,5,0.5)";
+    ctx.shadowBlur = 10;
+    ctx.fillStyle = C.amber;
+    ctx.beginPath();
+    ctx.arc(mx, my, 15, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.restore();
+    ctx.save();
+    ctx.strokeStyle = "#2b1d00";
+    ctx.lineWidth = 3.5;
+    ctx.lineCap = "round";
+    ctx.lineJoin = "round";
+    ctx.beginPath();
+    ctx.moveTo(mx - 6.5, my + 0.5);
+    ctx.lineTo(mx - 1.5, my + 5.5);
+    ctx.lineTo(mx + 7, my - 5);
+    ctx.stroke();
+    ctx.restore();
+
+    setFont(ctx, 500, d_fs, "Sarabun");
+    ctx.fillStyle = C.text;
+    d_lns.forEach((ln, i) => ctx.fillText(ln, d_textX, d_cy0 + d_fs + i * d_lh));
+    d_cy0 += d_lns.length * d_lh + d_gap;
+  });
 
   // วงกลมรับจำนวนจำกัด
-  drawLimitedBadge(ctx, 745, cyTop + 166, 162);
-
-  // ไอดีไลน์
-  if (st.lineId) {
-    const ly = cyTop + boxHt - 34;
-    const iconS = 66;
-    iconLine(ctx, 456, ly - iconS / 2, iconS);
-    ctx.textAlign = "left";
-    ctx.textBaseline = "middle";
-    const maxW = W - 60 - 540;
-    const noteW = st.lineNote ? 10 : 0;
-    // ลดขนาดให้ทั้งไอดี + หมายเหตุพอดีบรรทัด
-    let ls = 40;
-    const total = () => {
-      setFont(ctx, 700, ls);
-      const a = ctx.measureText(st.lineId).width;
-      setFont(ctx, 500, Math.round(ls * 0.8), "Sarabun");
-      const b = st.lineNote ? ctx.measureText(st.lineNote).width + noteW : 0;
-      return a + b;
-    };
-    while (ls > 22 && total() > maxW) ls -= 2;
-    setFont(ctx, 700, ls);
-    ctx.fillStyle = C.amberLight;
-    ctx.fillText(st.lineId, 540, ly);
-    const idW = ctx.measureText(st.lineId).width;
-    if (st.lineNote) {
-      setFont(ctx, 500, Math.round(ls * 0.8), "Sarabun");
-      ctx.fillStyle = C.text;
-      ctx.fillText(st.lineNote, 540 + idW + noteW, ly);
-    }
-    ctx.textBaseline = "alphabetic";
-  }
+  drawLimitedBadge(ctx, 740, cyTop + boxHt / 2, 162);
 
   // ท้าย: ชื่อร้าน
   drawBrand(ctx, H - 62, 48);
@@ -830,7 +818,9 @@ async function ensureFonts() {
 // ---------- หน้าต่างสร้างโปสเตอร์ ----------
 export async function openPosterMaker(ev) {
   const st = defaultsFromEvent(ev);
-  const images = { poster: null, qr: null };
+  // ล้างค่า QR / ไอดีไลน์ที่เคยเก็บไว้ในเครื่องนี้
+  saveSettings({ qrDataUrl: undefined, lineId: undefined, lineNote: undefined });
+  const images = { poster: null };
 
   const overlay = document.createElement("div");
   overlay.style.cssText =
@@ -849,17 +839,11 @@ export async function openPosterMaker(ev) {
             <div><label class="field-label">ราคา (บาท)</label><input id="pmPrice" type="number" min="0" class="field-input" /></div>
           </div>
           <div><label class="field-label">ข้อความใต้ราคา</label><input id="pmPriceCaption" class="field-input" /></div>
-          <div style="display:grid; grid-template-columns:1fr 1fr; gap:10px;">
-            <div><label class="field-label">ไอดีไลน์</label><input id="pmLine" class="field-input" placeholder="@xxxxxxx" /></div>
-            <div><label class="field-label">หมายเหตุหลังไอดี</label><input id="pmLineNote" class="field-input" /></div>
-          </div>
+          <div><label class="field-label">หัวข้อกล่องรายละเอียด</label><input id="pmDetailsTitle" class="field-input" /></div>
+          <div><label class="field-label">รายละเอียด <span class="muted" style="font-size:11px;">(1 บรรทัด = 1 ข้อ สูงสุด 7 ข้อ)</span></label><textarea id="pmDetails" class="field-input" rows="6"></textarea></div>
           <div>
             <label class="field-label">รูปโปสเตอร์งาน <span class="muted" style="font-size:11px;">(ใช้รูปของงานให้อัตโนมัติ เลือกไฟล์เพื่อเปลี่ยน)</span></label>
             <input id="pmPosterFile" type="file" accept="image/*" class="field-input" />
-          </div>
-          <div>
-            <label class="field-label">QR ไลน์ <span class="muted" style="font-size:11px;">(อัปโหลดครั้งเดียว ระบบจำไว้ในเครื่องนี้)</span></label>
-            <input id="pmQrFile" type="file" accept="image/*" class="field-input" />
           </div>
           <p id="pmMsg" class="muted" style="font-size:12.5px; margin:0; min-height:18px;"></p>
         </div>
@@ -886,8 +870,8 @@ export async function openPosterMaker(ev) {
   $("pmPriceLabel").value = st.priceLabel;
   $("pmPrice").value = st.price;
   $("pmPriceCaption").value = st.priceCaption;
-  $("pmLine").value = st.lineId;
-  $("pmLineNote").value = st.lineNote;
+  $("pmDetailsTitle").value = st.detailsTitle;
+  $("pmDetails").value = st.details;
 
   let raf = 0;
   const render = () => {
@@ -909,8 +893,8 @@ export async function openPosterMaker(ev) {
   bind("pmPriceLabel", "priceLabel");
   bind("pmPrice", "price");
   bind("pmPriceCaption", "priceCaption");
-  bind("pmLine", "lineId", "lineId");
-  bind("pmLineNote", "lineNote", "lineNote");
+  bind("pmDetailsTitle", "detailsTitle", "detailsTitle");
+  bind("pmDetails", "details");
 
   const close = () => {
     cancelAnimationFrame(raf);
@@ -931,19 +915,6 @@ export async function openPosterMaker(ev) {
       render();
     } catch {
       msg.textContent = "อ่านไฟล์รูปไม่สำเร็จ";
-    }
-  });
-
-  $("pmQrFile").addEventListener("change", async (e) => {
-    const f = e.target.files?.[0];
-    if (!f) return;
-    try {
-      const { img, dataUrl } = await readFileAsImage(f, 600);
-      images.qr = img;
-      saveSettings({ qrDataUrl: dataUrl });
-      render();
-    } catch {
-      msg.textContent = "อ่านไฟล์ QR ไม่สำเร็จ";
     }
   });
 
@@ -971,17 +942,6 @@ export async function openPosterMaker(ev) {
   // วาดครั้งแรก (ไม่มีรูป) แล้วค่อยโหลดฟอนต์/รูปมาวาดทับ
   await ensureFonts();
   render();
-
-  // QR ที่เคยอัปโหลดไว้
-  const saved = loadSettings();
-  if (saved.qrDataUrl) {
-    try {
-      images.qr = await loadImage(saved.qrDataUrl, false);
-      render();
-    } catch {
-      /* ข้าม */
-    }
-  }
 
   // รูปโปสเตอร์ของงาน (เติม query กันเบราว์เซอร์ใช้แคชเก่าที่ไม่มี CORS)
   if (ev.banner_url) {
