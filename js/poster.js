@@ -81,7 +81,8 @@ function defaultsFromEvent(ev) {
     months,
     detailsTitle: saved.detailsTitle || "สิ่งที่ลูกค้าจะได้รับ",
     details: [
-      "ชมสดครบทุกรอบการแสดง",
+      "ชมสดตามวันที่เลือก",
+      "รับชมผ่านลิงก์",
       `รีรันย้อนหลังนาน ${months} เดือน`,
       "แถม E-Photo",
       "ภาพคมชัด 1080p",
