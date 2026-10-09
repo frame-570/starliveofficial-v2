@@ -524,14 +524,16 @@ function drawPoster(canvas, st, images) {
 
   // ----- โลโก้ร้าน (มุมบน) -----
   if (images.logo) {
-    const bw = 116;
+    // ชิดเส้นกรอบนอกของรูปงาน (ซ้าย x=46) หรือกรอบกล่องราคา (ขวา x=1022)
+    const bw = 98;
     const bh = 124;
-    const bx = st.logoCorner === "right" ? W - 22 - bw : 22;
     const by = 22;
     const k = Math.min(bw / images.logo.width, bh / images.logo.height);
     const lw = images.logo.width * k;
     const lh2 = images.logo.height * k;
-    ctx.drawImage(images.logo, bx + (bw - lw) / 2, by + (bh - lh2) / 2, lw, lh2);
+    const lx = st.logoCorner === "right" ? 566 + 456 - lw : 60 - 14;
+    const ly = by + (bh - lh2) / 2;
+    ctx.drawImage(images.logo, lx, ly, lw, lh2);
   }
 }
 
