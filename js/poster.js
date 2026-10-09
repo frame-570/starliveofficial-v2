@@ -6,7 +6,7 @@
 // ============================================================
 
 const W = 1080;
-const H = 1780;
+const H = 1200;
 
 const C = {
   stage: "#08070d",
@@ -79,14 +79,7 @@ function defaultsFromEvent(ev) {
     price: minPrice === "" ? "" : String(minPrice),
     priceCaption: `ชมสด+รีรัน(นาน${months}เดือน)+E-Photo`,
     months,
-    detailsTitle: saved.detailsTitle || "สิ่งที่ลูกค้าจะได้รับ",
-    details: [
-      "ชมสดตามวันที่เลือก",
-      "รับชมผ่านลิงก์",
-      "แถม E-Photo",
-      "ภาพคมชัด 1080p",
-      `รีรันย้อนหลังนาน ${months} เดือน`,
-    ].join("\n"),
+    logoCorner: saved.logoCorner || "left",
   };
 }
 
@@ -367,171 +360,6 @@ function iconReplay(ctx, cx, cy) {
 }
 
 // ตั๋วสีทอง มีรอยเว้าสองข้างและเส้นปรุ
-function ticketPath(ctx, x, y, w, h, r, n) {
-  const my = y + h / 2;
-  ctx.beginPath();
-  ctx.moveTo(x + r, y);
-  ctx.lineTo(x + w - r, y);
-  ctx.arcTo(x + w, y, x + w, y + r, r);
-  ctx.lineTo(x + w, my - n);
-  ctx.arc(x + w, my, n, -Math.PI / 2, Math.PI / 2, true);
-  ctx.lineTo(x + w, y + h - r);
-  ctx.arcTo(x + w, y + h, x + w - r, y + h, r);
-  ctx.lineTo(x + r, y + h);
-  ctx.arcTo(x, y + h, x, y + h - r, r);
-  ctx.lineTo(x, my + n);
-  ctx.arc(x, my, n, Math.PI / 2, -Math.PI / 2, true);
-  ctx.lineTo(x, y + r);
-  ctx.arcTo(x, y, x + r, y, r);
-  ctx.closePath();
-}
-
-function iconTicket(ctx, cx, cy) {
-  const w = 150;
-  const h = 54;
-  const x = cx - w / 2;
-  const y = cy - h / 2;
-  ctx.save();
-  ctx.shadowColor = "rgba(242,183,5,0.5)";
-  ctx.shadowBlur = 16;
-  ticketPath(ctx, x, y, w, h, 9, 8);
-  const g = ctx.createLinearGradient(x, y, x + w, y + h);
-  g.addColorStop(0, "#ffe27a");
-  g.addColorStop(0.5, "#f2b705");
-  g.addColorStop(1, "#c98f00");
-  ctx.fillStyle = g;
-  ctx.fill();
-  ctx.restore();
-
-  // เส้นปรุ
-  const dx = x + w * 0.74;
-  ctx.save();
-  ctx.strokeStyle = "rgba(60,40,0,0.55)";
-  ctx.lineWidth = 2.5;
-  ctx.setLineDash([3, 5]);
-  ctx.beginPath();
-  ctx.moveTo(dx, y + 6);
-  ctx.lineTo(dx, y + h - 6);
-  ctx.stroke();
-  ctx.restore();
-
-  ctx.fillStyle = "#2b1d00";
-  ctx.textAlign = "center";
-  ctx.textBaseline = "middle";
-  setFont(ctx, 800, 22);
-  if ("letterSpacing" in ctx) ctx.letterSpacing = "2px";
-  ctx.fillText("TICKET", x + (dx - x) / 2 - 1, cy + 1);
-  if ("letterSpacing" in ctx) ctx.letterSpacing = "0px";
-  sparkle(ctx, dx + (x + w - dx) / 2, cy, 9, "#2b1d00");
-  ctx.textBaseline = "alphabetic";
-}
-
-// ตัวอักษรเรียงตามส่วนโค้งด้านบนของวงกลม
-function arcText(ctx, text, cx, cy, radius, px, spacing, color) {
-  ctx.save();
-  setFont(ctx, 700, px);
-  ctx.fillStyle = color;
-  ctx.textAlign = "center";
-  ctx.textBaseline = "middle";
-  const chars = Array.from(text);
-  const ws = chars.map((c) => ctx.measureText(c).width);
-  const total = ws.reduce((a, b) => a + b, 0) + spacing * (chars.length - 1);
-  let ang = -Math.PI / 2 - total / radius / 2;
-  chars.forEach((ch, i) => {
-    const a = ang + ws[i] / 2 / radius;
-    ctx.save();
-    ctx.translate(cx + radius * Math.cos(a), cy + radius * Math.sin(a));
-    ctx.rotate(a + Math.PI / 2);
-    ctx.fillText(ch, 0, 0);
-    ctx.restore();
-    ang += (ws[i] + spacing) / radius;
-  });
-  ctx.restore();
-}
-
-// ป้ายวงกลม "รับจำนวนจำกัด / เต็มปิดรับทันที": ตราทอง วงแหวนซ้อน ขอบประจุด ตั๋วทอง
-function drawLimitedBadge(ctx, cx, cy, R) {
-  // แสงฟุ้งรอบวง
-  const glow = ctx.createRadialGradient(cx, cy, R * 0.85, cx, cy, R * 1.3);
-  glow.addColorStop(0, "rgba(242,183,5,0.30)");
-  glow.addColorStop(1, "rgba(242,183,5,0)");
-  ctx.fillStyle = glow;
-  ctx.beginPath();
-  ctx.arc(cx, cy, R * 1.3, 0, Math.PI * 2);
-  ctx.fill();
-
-  // พื้นวง
-  const disc = ctx.createRadialGradient(cx, cy - R * 0.25, 10, cx, cy, R);
-  disc.addColorStop(0, "rgba(58,42,86,0.97)");
-  disc.addColorStop(0.7, "rgba(24,19,44,0.97)");
-  disc.addColorStop(1, "rgba(12,10,26,0.98)");
-  ctx.beginPath();
-  ctx.arc(cx, cy, R, 0, Math.PI * 2);
-  ctx.fillStyle = disc;
-  ctx.fill();
-
-  // วงแหวนทองด้านนอก
-  ctx.save();
-  const ring = ctx.createLinearGradient(cx - R, cy - R, cx + R, cy + R);
-  ring.addColorStop(0, "#fff0b0");
-  ring.addColorStop(0.28, "#f2b705");
-  ring.addColorStop(0.55, "#a67d05");
-  ring.addColorStop(0.8, "#f2b705");
-  ring.addColorStop(1, "#ffe27a");
-  ctx.shadowColor = "rgba(242,183,5,0.6)";
-  ctx.shadowBlur = 20;
-  ctx.lineWidth = 9;
-  ctx.strokeStyle = ring;
-  ctx.beginPath();
-  ctx.arc(cx, cy, R - 4, 0, Math.PI * 2);
-  ctx.stroke();
-  ctx.restore();
-
-  // เส้นทองบางด้านใน
-  ctx.lineWidth = 2;
-  ctx.strokeStyle = "rgba(255,226,122,0.85)";
-  ctx.beginPath();
-  ctx.arc(cx, cy, R - 17, 0, Math.PI * 2);
-  ctx.stroke();
-
-  // วงจุดไข่ปลา
-  ctx.save();
-  ctx.lineCap = "round";
-  ctx.lineWidth = 3.5;
-  ctx.strokeStyle = "rgba(245,242,234,0.5)";
-  ctx.setLineDash([0.1, 10]);
-  ctx.beginPath();
-  ctx.arc(cx, cy, R - 29, 0, Math.PI * 2);
-  ctx.stroke();
-  ctx.restore();
-
-  // ตัวอักษรโค้งด้านบน + ดาวคู่
-  arcText(ctx, "LIMITED SEATS", cx, cy, R - 54, 20, 5, C.amberLight);
-
-  // ข้อความหลัก
-  ctx.textAlign = "center";
-  ctx.textBaseline = "alphabetic";
-  const maxW = 248;
-  const size = fitSize(ctx, "เต็มปิดรับทันที", maxW, 44, 26, 800);
-  ctx.save();
-  ctx.fillStyle = C.text;
-  setFont(ctx, 700, Math.min(size, 42));
-  ctx.fillText("รับจำนวนจำกัด", cx, cy - 26);
-  ctx.shadowColor = "rgba(242,183,5,0.55)";
-  ctx.shadowBlur = 14;
-  ctx.fillStyle = C.amberLight;
-  setFont(ctx, 800, size);
-  ctx.fillText("เต็มปิดรับทันที", cx, cy + 24);
-  ctx.restore();
-
-  iconTicket(ctx, cx, cy + 82);
-
-  // ดาวบนวงแหวนซ้าย-ขวา
-  sparkle(ctx, cx - R, cy, 13, C.amberLight, 14);
-  sparkle(ctx, cx + R, cy, 13, C.amberLight, 14);
-}
-
-// ---------- วาดโปสเตอร์ทั้งใบ ----------
 function drawPoster(canvas, st, images) {
   canvas.width = W;
   canvas.height = H;
@@ -638,34 +466,23 @@ function drawPoster(canvas, st, images) {
   ctx.fillStyle = C.text;
   setFont(ctx, 500, 30, "Sarabun");
   ctx.fillText(st.priceLabel || "ราคาเพียง", rx + 28, y + 44);
-  const priceTxt = st.price ? Number(st.price).toLocaleString("th-TH") : "-";
-  const unit = " บาท";
-  let ps = 96;
+  // แสดงราคาแบบ 139.- (ไม่ใช้คำว่า "บาท")
+  const priceTxt = st.price ? Number(st.price).toLocaleString("th-TH") + ".-" : "-";
+  let ps = 104;
   setFont(ctx, 800, ps);
-  const unitSize = () => Math.round(ps * 0.55);
-  const measure = () => {
+  while (ps > 48 && ctx.measureText(priceTxt).width > rw - 40) {
+    ps -= 4;
     setFont(ctx, 800, ps);
-    const a = ctx.measureText(priceTxt).width;
-    setFont(ctx, 600, unitSize());
-    return a + ctx.measureText(unit).width;
-  };
-  while (ps > 48 && measure() > rw - 40) ps -= 4;
-  setFont(ctx, 800, ps);
+  }
   const numW = ctx.measureText(priceTxt).width;
-  setFont(ctx, 600, unitSize());
-  const unitW = ctx.measureText(unit).width;
-  const startX = rx + (rw - (numW + unitW)) / 2;
+  const startX = rx + (rw - numW) / 2;
   const baseY = y + 152;
   ctx.save();
   ctx.shadowColor = "rgba(242,183,5,0.45)";
   ctx.shadowBlur = 16;
   ctx.fillStyle = C.amberLight;
-  setFont(ctx, 800, ps);
   ctx.fillText(priceTxt, startX, baseY);
   ctx.restore();
-  ctx.fillStyle = C.text;
-  setFont(ctx, 600, unitSize());
-  ctx.fillText(unit, startX + numW, baseY);
   ctx.textAlign = "center";
   ctx.fillStyle = C.text;
   fitSize(ctx, st.priceCaption || "", rw - 50, 30, 20, 600);
@@ -673,7 +490,7 @@ function drawPoster(canvas, st, images) {
   y += boxH;
 
   // ----- แถวไอคอนจุดเด่น 3 กล่อง -----
-  const fy = Math.max(y + 56, imgY + imgH + 120);
+  const fy = Math.max(y + 56, 949);
   const fw = 300;
   const fh = 200;
   const feats = [
@@ -691,80 +508,49 @@ function drawPoster(canvas, st, images) {
     ctx.fillText(f.label, fx + fw / 2, fy + fh - 28);
   });
 
-  // ----- รายละเอียดที่ลูกค้าจะได้รับ + วงกลมจำนวนจำกัด -----
-  const cyTop = fy + fh + 56;
-  const boxW = 380;
-  const boxHt = 410;
-  panel(ctx, 60, cyTop, boxW, boxHt, 28, "rgba(245,242,234,0.3)", 3);
-  ctx.fillStyle = C.text;
-  ctx.textAlign = "center";
-  fitSize(ctx, st.detailsTitle, boxW - 40, 36, 24, 600);
-  ctx.fillText(st.detailsTitle, 60 + boxW / 2, cyTop + 56);
-
-  const d_items = String(st.details || "")
-    .split("\n")
-    .map((t) => t.trim())
-    .filter(Boolean)
-    .slice(0, 7);
-  const d_markX = 60 + 30;
-  const d_textX = d_markX + 34 + 12;
-  const d_textW = 60 + boxW - 24 - d_textX;
-  const d_areaTop = cyTop + 92;
-  const d_areaH = boxHt - 92 - 26;
-  let d_fs = 30;
-  let d_rows = [];
-  let d_lh = 0;
-  let d_gap = 0;
-  let d_total = 0;
-  for (; ; d_fs -= 2) {
-    setFont(ctx, 500, d_fs, "Sarabun");
-    d_rows = d_items.map((t) => wrapLines(ctx, t, d_textW));
-    d_lh = Math.round(d_fs * 1.3);
-    d_gap = Math.round(d_fs * 0.55);
-    d_total = d_rows.reduce((a, r) => a + r.length * d_lh, 0) + d_gap * Math.max(0, d_rows.length - 1);
-    if (d_total <= d_areaH || d_fs <= 18) break;
+  // ----- โลโก้ร้าน (มุมบน) -----
+  if (images.logo) {
+    const bw = 116;
+    const bh = 124;
+    const bx = st.logoCorner === "right" ? W - 22 - bw : 22;
+    const by = 22;
+    const k = Math.min(bw / images.logo.width, bh / images.logo.height);
+    const lw = images.logo.width * k;
+    const lh2 = images.logo.height * k;
+    ctx.drawImage(images.logo, bx + (bw - lw) / 2, by + (bh - lh2) / 2, lw, lh2);
   }
-  let d_cy0 = d_areaTop + Math.max(0, (d_areaH - d_total) / 2);
-  ctx.textAlign = "left";
-  ctx.textBaseline = "alphabetic";
-  d_rows.forEach((d_lns) => {
-    // เครื่องหมายถูกสีทอง
-    const mx = d_markX + 17;
-    const my = d_cy0 + d_fs * 0.55;
-    ctx.save();
-    ctx.shadowColor = "rgba(242,183,5,0.5)";
-    ctx.shadowBlur = 10;
-    ctx.fillStyle = C.amber;
-    ctx.beginPath();
-    ctx.arc(mx, my, 15, 0, Math.PI * 2);
-    ctx.fill();
-    ctx.restore();
-    ctx.save();
-    ctx.strokeStyle = "#2b1d00";
-    ctx.lineWidth = 3.5;
-    ctx.lineCap = "round";
-    ctx.lineJoin = "round";
-    ctx.beginPath();
-    ctx.moveTo(mx - 6.5, my + 0.5);
-    ctx.lineTo(mx - 1.5, my + 5.5);
-    ctx.lineTo(mx + 7, my - 5);
-    ctx.stroke();
-    ctx.restore();
-
-    setFont(ctx, 500, d_fs, "Sarabun");
-    ctx.fillStyle = C.text;
-    d_lns.forEach((ln, i) => ctx.fillText(ln, d_textX, d_cy0 + d_fs + i * d_lh));
-    d_cy0 += d_lns.length * d_lh + d_gap;
-  });
-
-  // วงกลมรับจำนวนจำกัด
-  drawLimitedBadge(ctx, 740, cyTop + boxHt / 2, 162);
-
-  // ท้าย: ชื่อร้าน
-  drawBrand(ctx, H - 62, 48);
 }
 
 // ---------- โหลดรูป ----------
+// ตัดขอบโปร่งใสรอบโลโก้ออก ให้โลโก้ใหญ่เต็มช่องมุมโปสเตอร์ คืนค่าเป็น dataURL (PNG)
+function trimTransparent(img) {
+  const c = document.createElement("canvas");
+  c.width = img.width;
+  c.height = img.height;
+  const cx = c.getContext("2d");
+  cx.drawImage(img, 0, 0);
+  const { data } = cx.getImageData(0, 0, c.width, c.height);
+  let minX = c.width, minY = c.height, maxX = -1, maxY = -1;
+  for (let y = 0; y < c.height; y++) {
+    for (let x = 0; x < c.width; x++) {
+      if (data[(y * c.width + x) * 4 + 3] > 12) {
+        if (x < minX) minX = x;
+        if (x > maxX) maxX = x;
+        if (y < minY) minY = y;
+        if (y > maxY) maxY = y;
+      }
+    }
+  }
+  if (maxX < 0) return c.toDataURL("image/png");
+  const w = maxX - minX + 1;
+  const h = maxY - minY + 1;
+  const o = document.createElement("canvas");
+  o.width = w;
+  o.height = h;
+  o.getContext("2d").drawImage(c, minX, minY, w, h, 0, 0, w, h);
+  return o.toDataURL("image/png");
+}
+
 function loadImage(src, cors = true) {
   return new Promise((resolve, reject) => {
     const img = new Image();
@@ -820,8 +606,8 @@ async function ensureFonts() {
 export async function openPosterMaker(ev) {
   const st = defaultsFromEvent(ev);
   // ล้างค่า QR / ไอดีไลน์ที่เคยเก็บไว้ในเครื่องนี้
-  saveSettings({ qrDataUrl: undefined, lineId: undefined, lineNote: undefined });
-  const images = { poster: null };
+  saveSettings({ qrDataUrl: undefined, lineId: undefined, lineNote: undefined, detailsTitle: undefined });
+  const images = { poster: null, logo: null };
 
   const overlay = document.createElement("div");
   overlay.style.cssText =
@@ -840,8 +626,17 @@ export async function openPosterMaker(ev) {
             <div><label class="field-label">ราคา (บาท)</label><input id="pmPrice" type="number" min="0" class="field-input" /></div>
           </div>
           <div><label class="field-label">ข้อความใต้ราคา</label><input id="pmPriceCaption" class="field-input" /></div>
-          <div><label class="field-label">หัวข้อกล่องรายละเอียด</label><input id="pmDetailsTitle" class="field-input" /></div>
-          <div><label class="field-label">รายละเอียด <span class="muted" style="font-size:11px;">(1 บรรทัด = 1 ข้อ สูงสุด 7 ข้อ)</span></label><textarea id="pmDetails" class="field-input" rows="6"></textarea></div>
+          <div>
+            <label class="field-label">โลโก้ร้าน <span class="muted" style="font-size:11px;">(PNG พื้นโปร่งใส เลือกครั้งเดียว ระบบจำไว้ให้)</span></label>
+            <input id="pmLogoFile" type="file" accept="image/png,image/*" class="field-input" />
+            <div style="display:flex; gap:10px; margin-top:6px; align-items:center;">
+              <select id="pmLogoCorner" class="field-input" style="max-width:150px;">
+                <option value="left">มุมบนซ้าย</option>
+                <option value="right">มุมบนขวา</option>
+              </select>
+              <button type="button" id="pmLogoClear" class="icon-btn ghost" style="padding:8px 14px;">ลบโลโก้</button>
+            </div>
+          </div>
           <div>
             <label class="field-label">รูปโปสเตอร์งาน <span class="muted" style="font-size:11px;">(ใช้รูปของงานให้อัตโนมัติ เลือกไฟล์เพื่อเปลี่ยน)</span></label>
             <input id="pmPosterFile" type="file" accept="image/*" class="field-input" />
@@ -871,8 +666,7 @@ export async function openPosterMaker(ev) {
   $("pmPriceLabel").value = st.priceLabel;
   $("pmPrice").value = st.price;
   $("pmPriceCaption").value = st.priceCaption;
-  $("pmDetailsTitle").value = st.detailsTitle;
-  $("pmDetails").value = st.details;
+  $("pmLogoCorner").value = st.logoCorner;
 
   let raf = 0;
   const render = () => {
@@ -881,7 +675,7 @@ export async function openPosterMaker(ev) {
   };
 
   const bind = (id, key, persistKey) => {
-    $(id).addEventListener("input", (e) => {
+    $(id).addEventListener(id === "pmLogoCorner" ? "change" : "input", (e) => {
       st[key] = e.target.value;
       if (persistKey) saveSettings({ [persistKey]: e.target.value });
       render();
@@ -894,8 +688,7 @@ export async function openPosterMaker(ev) {
   bind("pmPriceLabel", "priceLabel");
   bind("pmPrice", "price");
   bind("pmPriceCaption", "priceCaption");
-  bind("pmDetailsTitle", "detailsTitle", "detailsTitle");
-  bind("pmDetails", "details");
+  bind("pmLogoCorner", "logoCorner", "logoCorner");
 
   const close = () => {
     cancelAnimationFrame(raf);
@@ -917,6 +710,39 @@ export async function openPosterMaker(ev) {
     } catch {
       msg.textContent = "อ่านไฟล์รูปไม่สำเร็จ";
     }
+  });
+
+  // โลโก้ร้าน: ตัดขอบโปร่งใสออก แล้วจำไว้ในเครื่อง
+  const setLogo = async (dataUrl) => {
+    images.logo = await loadImage(dataUrl, false);
+  };
+  const saved = loadSettings();
+  if (saved.logoDataUrl) {
+    try {
+      await setLogo(saved.logoDataUrl);
+    } catch {
+      saveSettings({ logoDataUrl: undefined });
+    }
+  }
+  $("pmLogoFile").addEventListener("change", async (e) => {
+    const f = e.target.files?.[0];
+    if (!f) return;
+    try {
+      const { img } = await readFileAsImage(f, 800);
+      const trimmed = trimTransparent(img);
+      await setLogo(trimmed);
+      saveSettings({ logoDataUrl: trimmed });
+      msg.textContent = "";
+      render();
+    } catch {
+      msg.textContent = "อ่านไฟล์โลโก้ไม่สำเร็จ";
+    }
+  });
+  $("pmLogoClear").addEventListener("click", () => {
+    images.logo = null;
+    saveSettings({ logoDataUrl: undefined });
+    $("pmLogoFile").value = "";
+    render();
   });
 
   $("pmDownload").addEventListener("click", () => {
