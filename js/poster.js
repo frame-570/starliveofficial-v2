@@ -80,6 +80,7 @@ function defaultsFromEvent(ev) {
     priceCaption: `ชมสด+รีรัน(นาน${months}เดือน)+E-Photo`,
     months,
     logoCorner: saved.logoCorner || "left",
+    showBrand: saved.showBrand !== false,
   };
 }
 
@@ -303,6 +304,19 @@ function iconFHD(ctx, cx, cy) {
   ctx.restore();
 }
 
+function iconLink(ctx, cx, cy) {
+  ctx.save();
+  ctx.translate(cx, cy);
+  ctx.rotate(-Math.PI / 4);
+  ctx.strokeStyle = C.text;
+  ctx.lineWidth = 9;
+  ctx.lineCap = "round";
+  rr(ctx, -58, -17, 66, 34, 17);
+  ctx.stroke();
+  rr(ctx, -8, -17, 66, 34, 17);
+  ctx.stroke();
+  ctx.restore();
+}
 function iconDevices(ctx, cx, cy) {
   ctx.save();
   ctx.strokeStyle = C.text;
@@ -371,7 +385,7 @@ function drawPoster(canvas, st, images) {
   drawBackground(ctx);
 
   // หัว: ชื่อร้านสีเหลือง + ดาว
-  drawBrand(ctx, 95, 56);
+  if (st.showBrand) drawBrand(ctx, 95, 56);
 
   // ----- ซ้าย: รูปโปสเตอร์งาน -----
   const imgX = 60;
@@ -496,7 +510,7 @@ function drawPoster(canvas, st, images) {
   const feats = [
     { icon: iconFHD, label: "ความชัด 1080p" },
     { icon: iconDevices, label: "ดูได้ทุกอุปกรณ์" },
-    { icon: iconReplay, label: `รีรันนาน ${st.months} เดือน` },
+    { icon: iconLink, label: "รับชมผ่านลิงก์" },
   ];
   feats.forEach((f, i) => {
     const fx = 60 + i * (fw + 30);
@@ -626,6 +640,9 @@ export async function openPosterMaker(ev) {
             <div><label class="field-label">ราคา (บาท)</label><input id="pmPrice" type="number" min="0" class="field-input" /></div>
           </div>
           <div><label class="field-label">ข้อความใต้ราคา</label><input id="pmPriceCaption" class="field-input" /></div>
+          <label style="display:flex; align-items:center; gap:8px; font-size:14px; cursor:pointer;">
+            <input type="checkbox" id="pmShowBrand" /> แสดงชื่อร้านด้านบน (รวมดาวซ้าย-ขวา)
+          </label>
           <div>
             <label class="field-label">โลโก้ร้าน <span class="muted" style="font-size:11px;">(PNG พื้นโปร่งใส เลือกครั้งเดียว ระบบจำไว้ให้)</span></label>
             <input id="pmLogoFile" type="file" accept="image/png,image/*" class="field-input" />
@@ -667,6 +684,7 @@ export async function openPosterMaker(ev) {
   $("pmPrice").value = st.price;
   $("pmPriceCaption").value = st.priceCaption;
   $("pmLogoCorner").value = st.logoCorner;
+  $("pmShowBrand").checked = st.showBrand;
 
   let raf = 0;
   const render = () => {
@@ -689,6 +707,12 @@ export async function openPosterMaker(ev) {
   bind("pmPrice", "price");
   bind("pmPriceCaption", "priceCaption");
   bind("pmLogoCorner", "logoCorner", "logoCorner");
+
+  $("pmShowBrand").addEventListener("change", (e) => {
+    st.showBrand = e.target.checked;
+    saveSettings({ showBrand: st.showBrand });
+    render();
+  });
 
   const close = () => {
     cancelAnimationFrame(raf);
