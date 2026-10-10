@@ -1975,7 +1975,7 @@ function renderMemberList(members) {
 }
 
 // ============================================================
-// Settings Modal (ปุ่มตั้งค่าระบบ ⚙️)
+// Settings Modal (ปุ่มตั้งค่าระบบ)
 // ============================================================
 const settingsBtn = document.getElementById("settingsBtn");
 const settingsOverlay = document.getElementById("settingsOverlay");
@@ -2018,13 +2018,32 @@ const settingsBackBtn = document.getElementById("settingsBackBtn");
 const settingsFooterButtons = document.getElementById("settingsFooterButtons");
 const settingsCategoryPanels = document.querySelectorAll(".settings-category");
 
+// ไอคอน SVG ของหน้าตั้งค่าระบบ (แทนอิโมจิ) — สีตาม currentColor
+const SETTINGS_ICON_PATHS = {
+  gear: '<circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 00.3 1.8l.1.1a2 2 0 11-2.8 2.8l-.1-.1a1.7 1.7 0 00-1.8-.3 1.7 1.7 0 00-1 1.5V21a2 2 0 11-4 0v-.1a1.7 1.7 0 00-1.1-1.5 1.7 1.7 0 00-1.8.3l-.1.1a2 2 0 11-2.8-2.8l.1-.1a1.7 1.7 0 00.3-1.8 1.7 1.7 0 00-1.5-1H3a2 2 0 110-4h.1a1.7 1.7 0 001.5-1.1 1.7 1.7 0 00-.3-1.8l-.1-.1a2 2 0 112.8-2.8l.1.1a1.7 1.7 0 001.8.3H9a1.7 1.7 0 001-1.5V3a2 2 0 114 0v.1a1.7 1.7 0 001 1.5 1.7 1.7 0 001.8-.3l.1-.1a2 2 0 112.8 2.8l-.1.1a1.7 1.7 0 00-.3 1.8V9a1.7 1.7 0 001.5 1H21a2 2 0 110 4h-.1a1.7 1.7 0 00-1.5 1z"/>',
+  shop: '<path d="M3 9l1.5-5h15L21 9"/><path d="M4 9v11h16V9"/><path d="M3 9a3 3 0 006 0 3 3 0 006 0 3 3 0 006 0"/><path d="M10 20v-5h4v5"/>',
+  payment: '<rect x="2" y="5" width="20" height="14" rx="2"/><path d="M2 10h20M6 15h4"/>',
+  contact: '<path d="M21 12a8 8 0 01-11.6 7.1L4 20l1-4.4A8 8 0 1121 12z"/>',
+  rules: '<rect x="5" y="4" width="14" height="17" rx="2"/><rect x="9" y="2" width="6" height="4" rx="1"/><path d="M9 11h6M9 15h6"/>',
+  special: '<path d="M12 21s-6-5.6-6-10a6 6 0 1112 0c0 4.4-6 10-6 10z"/><circle cx="12" cy="11" r="2.2"/>',
+  ephoto: '<path d="M4 8h3l1.5-2h7L17 8h3a1 1 0 011 1v9a1 1 0 01-1 1H4a1 1 0 01-1-1V9a1 1 0 011-1z"/><circle cx="12" cy="13" r="3.5"/>'
+};
+
+function settingsIcon(name, size = 18) {
+  return `<svg class="ico" viewBox="0 0 24 24" width="${size}" height="${size}" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${SETTINGS_ICON_PATHS[name] || ""}</svg>`;
+}
+
+function setSettingsTitle(icon, text) {
+  settingsTitle.innerHTML = `${settingsIcon(icon)}<span>${text}</span>`;
+}
+
 const SETTINGS_CATEGORY_LABELS = {
-  shop: "🏪 ข้อมูลร้าน",
-  payment: "💳 การชำระเงิน",
-  contact: "💬 ช่องทางติดต่อ & โซเชียล",
-  rules: "📋 กฎการรับชม",
-  special: "📌 รายละเอียดพิเศษ",
-  ephoto: "📸 E-Photo",
+  shop: { icon: "shop", text: "ข้อมูลร้าน" },
+  payment: { icon: "payment", text: "การชำระเงิน" },
+  contact: { icon: "contact", text: "ช่องทางติดต่อ & โซเชียล" },
+  rules: { icon: "rules", text: "กฎการรับชม" },
+  special: { icon: "special", text: "รายละเอียดพิเศษ" },
+  ephoto: { icon: "ephoto", text: "E-Photo" },
 };
 
 function showSettingsMenu() {
@@ -2032,7 +2051,7 @@ function showSettingsMenu() {
   settingsCategoryPanels.forEach((panel) => (panel.style.display = "none"));
   settingsBackBtn.style.display = "none";
   settingsFooterButtons.style.display = "none";
-  settingsTitle.textContent = "⚙️ ตั้งค่าระบบ";
+  setSettingsTitle("gear", "ตั้งค่าระบบ");
 }
 
 function showSettingsCategory(category) {
@@ -2043,7 +2062,9 @@ function showSettingsCategory(category) {
   settingsBackBtn.style.display = "inline-flex";
   // หมวด "รายละเอียดพิเศษ" มีปุ่มบันทึกของตัวเองแยกต่างหาก (บันทึกต่องาน ไม่ใช่ค่าตายตัวแบบหมวดอื่น)
   settingsFooterButtons.style.display = category === "special" || category === "ephoto" ? "none" : "flex";
-  settingsTitle.textContent = SETTINGS_CATEGORY_LABELS[category] || "⚙️ ตั้งค่าระบบ";
+  const label = SETTINGS_CATEGORY_LABELS[category];
+  if (label) setSettingsTitle(label.icon, label.text);
+  else setSettingsTitle("gear", "ตั้งค่าระบบ");
 
   if (category === "special") loadSpecialNotesEventOptions();
   if (category === "ephoto") loadEphotoEventOptions();
