@@ -1159,10 +1159,29 @@ html, body {
   transform: translateY(-1px);
 }
 .settings-menu-icon {
-  font-size: 22px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
   flex-shrink: 0;
-  width: 36px;
-  text-align: center;
+  width: 40px;
+  height: 40px;
+  border-radius: 10px;
+  color: var(--amber);
+  background: rgba(242, 183, 5, 0.1);
+}
+.settings-menu-icon .ico {
+  display: block;
+}
+#settingsTitle .ico,
+#settingsBackBtn .ico,
+#closeSettingsBtn .ico {
+  display: block;
+  flex-shrink: 0;
+}
+#settingsBackBtn,
+#closeSettingsBtn {
+  align-items: center;
+  justify-content: center;
 }
 .settings-menu-text {
   flex: 1;
@@ -1182,7 +1201,8 @@ html, body {
   color: var(--muted);
 }
 .settings-menu-arrow {
-  font-size: 20px;
+  display: flex;
+  align-items: center;
   color: var(--muted);
   flex-shrink: 0;
 }
