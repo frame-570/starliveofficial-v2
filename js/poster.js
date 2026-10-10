@@ -172,7 +172,7 @@ function ellipseGlow(ctx, cx, cy, rx, ry, rgba) {
 }
 
 // ---------- พื้นหลัง: สไตล์เดียวกับเว็บ (เวทีมืด + แสงสปอตไลต์สีเหลือง + แสงแดงด้านล่าง) ----------
-function drawBackground(ctx) {
+function drawBackground(ctx, H) {
   ctx.fillStyle = C.stage;
   ctx.fillRect(0, 0, W, H);
 
@@ -374,18 +374,67 @@ function iconReplay(ctx, cx, cy) {
 }
 
 // ตั๋วสีทอง มีรอยเว้าสองข้างและเส้นปรุ
+// กล่องโลโก้มุมบน: ชิดเส้นกรอบนอกของรูปงาน (ซ้าย x=46) หรือกรอบกล่องราคา (ขวา x=1022)
+function logoRect(st, images) {
+  if (!images.logo) return null;
+  const bw = 150;
+  const bh = 130;
+  const k = Math.min(bw / images.logo.width, bh / images.logo.height);
+  const w = images.logo.width * k;
+  const h = images.logo.height * k;
+  const x = st.logoCorner === "right" ? 566 + 456 - w : 60 - 14;
+  const y = Math.max(18, 92 - h / 2);
+  return { x, y, w, h };
+}
+
+// คำนวณความสูงโปสเตอร์ตามจำนวนบรรทัดของชื่องาน (ชื่อ 3 บรรทัดจะได้ไม่ดันกล่องล่างล้นขอบ)
+function neededHeight(st) {
+  const m = document.createElement("canvas").getContext("2d");
+  const rw = 456;
+  let size = 64;
+  let n = 1;
+  let lines = [];
+  for (; size >= 36; size -= 2) {
+    setFont(m, 800, size);
+    lines = wrapLines(m, st.title || "", rw);
+    if (lines.length <= 3) break;
+  }
+  n = Math.min(3, Math.max(1, lines.length));
+  const lh = Math.round(size * 1.22);
+  let y = 190 + 80 + 28 + n * lh + 26;
+  if (st.dateText) y += 92;
+  if (st.timeText) y += 92;
+  y += 6 + 224;
+  const fy = Math.max(y + 56, 949);
+  return Math.max(H, fy + 200 + 51);
+}
+
 function drawPoster(canvas, st, images) {
+  const Hc = neededHeight(st);
   canvas.width = W;
-  canvas.height = H;
+  canvas.height = Hc;
   const ctx = canvas.getContext("2d");
-  ctx.clearRect(0, 0, W, H);
+  ctx.clearRect(0, 0, W, Hc);
   ctx.textBaseline = "alphabetic";
   ctx.textAlign = "left";
 
-  drawBackground(ctx);
+  drawBackground(ctx, Hc);
 
-  // หัว: ชื่อร้านสีเหลือง + ดาว
-  if (st.showBrand) drawBrand(ctx, 95, 56);
+  // หัว: ชื่อร้านสีเหลือง + ดาว (ย่อขนาดอัตโนมัติถ้าโลโก้ใหญ่จนชิด)
+  const lr = logoRect(st, images);
+  if (st.showBrand) {
+    let bsize = 56;
+    if (lr) {
+      if ("letterSpacing" in ctx) ctx.letterSpacing = "3px";
+      setFont(ctx, 800, 56);
+      const tw56 = ctx.measureText("STARLIVE OFFICIAL").width;
+      if ("letterSpacing" in ctx) ctx.letterSpacing = "0px";
+      const edge = st.logoCorner === "right" ? W / 2 - (lr.x - 14 - W / 2) : lr.x + lr.w + 14;
+      const half = W / 2 - edge;
+      bsize = Math.max(34, Math.min(56, Math.floor(half / (tw56 / 112 + 1.8))));
+    }
+    drawBrand(ctx, 95, bsize);
+  }
 
   // ----- ซ้าย: รูปโปสเตอร์งาน -----
   const imgX = 60;
@@ -523,18 +572,7 @@ function drawPoster(canvas, st, images) {
   });
 
   // ----- โลโก้ร้าน (มุมบน) -----
-  if (images.logo) {
-    // ชิดเส้นกรอบนอกของรูปงาน (ซ้าย x=46) หรือกรอบกล่องราคา (ขวา x=1022)
-    const bw = 98;
-    const bh = 124;
-    const by = 22;
-    const k = Math.min(bw / images.logo.width, bh / images.logo.height);
-    const lw = images.logo.width * k;
-    const lh2 = images.logo.height * k;
-    const lx = st.logoCorner === "right" ? 566 + 456 - lw : 60 - 14;
-    const ly = by + (bh - lh2) / 2;
-    ctx.drawImage(images.logo, lx, ly, lw, lh2);
-  }
+  if (lr) ctx.drawImage(images.logo, lr.x, lr.y, lr.w, lr.h);
 }
 
 // ---------- โหลดรูป ----------
