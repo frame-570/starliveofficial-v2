@@ -1301,3 +1301,43 @@ html, body {
 .ico { flex-shrink: 0; }
 .verify-icon .ico { display: block; }
 .ephoto-close { display: flex; align-items: center; justify-content: center; }
+
+/* ปุ่มเข้าร่วมกลุ่ม LINE */
+.btn-line {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  width: 100%;
+  box-sizing: border-box;
+  padding: 12px 16px;
+  border-radius: 12px;
+  background: #06c755;
+  color: #fff;
+  font-weight: 700;
+  font-size: 15px;
+  text-decoration: none;
+  box-shadow: 0 6px 18px rgba(6, 199, 85, 0.25);
+}
+.btn-line:hover { filter: brightness(1.06); }
+.btn-line .ico { border-radius: 7px; box-shadow: 0 0 0 2px #fff; }
+
+/* กล่องบอกวิธีเข้าประวัติการสั่งซื้อ (หน้ารหัสเข้าชม) */
+.tip-box {
+  text-align: left;
+  border: 1px dashed var(--line, #2c2745);
+  border-radius: 12px;
+  padding: 12px 14px;
+  font-size: 13px;
+  line-height: 1.7;
+}
+.tip-steps { display: flex; align-items: center; flex-wrap: wrap; gap: 8px; margin-top: 8px; }
+.tip-avatar {
+  width: 28px; height: 28px; border-radius: 50%;
+  background: var(--amber, #f2b705); color: #1a1200;
+  display: inline-flex; align-items: center; justify-content: center;
+}
+.tip-chip {
+  border: 1px solid var(--line, #2c2745);
+  border-radius: 8px; padding: 4px 10px; font-size: 12.5px;
+}
