@@ -1296,3 +1296,8 @@ html, body {
 .order-refresh-btn:disabled { cursor: default; opacity: 0.8; }
 .order-refresh-btn.is-spinning svg { animation: order-refresh-spin 0.8s linear infinite; }
 @keyframes order-refresh-spin { to { transform: rotate(360deg); } }
+
+/* ไอคอน SVG ทั่วไป (แทนอิโมจิ) */
+.ico { flex-shrink: 0; }
+.verify-icon .ico { display: block; }
+.ephoto-close { display: flex; align-items: center; justify-content: center; }
