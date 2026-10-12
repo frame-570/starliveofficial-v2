@@ -30,9 +30,10 @@
     <p class="muted" style="font-size:13px; margin:14px 0 4px;">รหัสเข้าชมของคุณ</p>
     <div class="access-code-display" id="alreadyPaidCode"></div>
     <div style="display:flex; gap:10px; margin-top:20px;">
-      <a href="./watch.html" class="btn-marquee" style="margin:0; text-decoration:none; text-align:center;">เข้าชมไลฟ์สด/รีรัน</a>
+      <a id="alreadyPaidWatchLink" href="./watch.html" class="btn-marquee" style="margin:0; text-decoration:none; text-align:center;">เข้าชมไลฟ์สด/รีรัน</a>
     </div>
     <a href="./orders.html" class="link-btn" style="display:inline-block; margin-top:16px;">ไปที่ประวัติการสั่งซื้อ</a>
+    <div id="alreadyPaidJoin" style="display:none; margin-top:16px;"></div>
   </div>
 
   <!-- หน้าชำระเงินปกติ -->
@@ -74,14 +75,30 @@
 
     <div style="text-align:left; font-size:13.5px; line-height:2;" id="successOrderDetails"></div>
 
+    <div style="height:1px; background:var(--line,#2c2745); margin:16px 0 0;"></div>
+
     <p class="muted" style="font-size:12.5px; margin:18px 0 6px;">รหัสเข้าชม (เก็บไว้ให้ดี)</p>
     <div class="access-code-display" id="successAccessCode"></div>
     <button type="button" id="copyCodeBtn" class="icon-btn ghost" style="margin-top:10px;">คัดลอกรหัส</button>
 
     <div style="display:flex; gap:10px; margin-top:22px;">
-      <a href="./orders.html" class="icon-btn" style="flex:1; text-decoration:none; text-align:center;">ประวัติการสั่งซื้อ</a>
-      <a href="./watch.html" class="btn-marquee" style="flex:1; margin:0; text-decoration:none;">เข้าชมทันที</a>
+      <a href="./orders.html" class="icon-btn" style="flex:1; text-decoration:none; display:flex; align-items:center; justify-content:center;">ประวัติการสั่งซื้อ</a>
+      <a id="watchNowBtn" href="./watch.html" class="btn-marquee" style="flex:1; margin:0; text-decoration:none;">เข้าชมทันที</a>
     </div>
+    <p class="muted" style="font-size:12px; margin:8px 0 0;">กดเข้าชมทันทีได้เลย ระบบกรอกรหัสให้อัตโนมัติ</p>
+
+    <div class="tip-box" style="margin-top:18px;">
+      <span>หากต้องการดูรหัสหรือรายละเอียดคำสั่งซื้อนี้ภายหลัง เข้าได้ที่ประวัติการสั่งซื้อ:</span>
+      <div class="tip-steps">
+        <span class="tip-avatar"><svg class="ico" viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="8" r="4"/><path d="M4 21c0-4.4 3.6-7 8-7s8 2.6 8 7"/></svg></span>
+        <span class="muted">กดรูปโปรไฟล์มุมขวาบน</span>
+        <svg class="ico" viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 18l6-6-6-6"/></svg>
+        <span class="tip-chip">ประวัติการสั่งซื้อ</span>
+      </div>
+    </div>
+
+    <!-- ปุ่มเข้ากลุ่ม LINE (เฉพาะงานไลฟ์สด) อยู่ล่างสุด -->
+    <div id="successJoinGroup" style="display:none; margin-top:18px;"></div>
   </div>
 </main>
 
