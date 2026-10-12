@@ -3,6 +3,7 @@ import { renderHeaderAuth, getSession } from "./auth.js";
 // แก้ไขการ import promptpay-qr ชนิด ES Module ให้สมบูรณ์
 import promptpayQr from "https://cdn.jsdelivr.net/npm/promptpay-qr@0.5.0/+esm";
 import QRCode from "https://esm.sh/qrcode@1.5.3";
+import { svgIcon } from "./icons.js";
 
 renderHeaderAuth();
 
@@ -228,7 +229,7 @@ function maybeShowOpenchatPopup() {
     if (!notes) return; // ไม่มีรายละเอียดพิเศษ ก็ไม่ต้องเด้งป๊อปอัพอะไรเลย
 
     icon.style.background = "linear-gradient(135deg,#f2b705,#a67d05)";
-    icon.textContent = "📌";
+    icon.innerHTML = svgIcon("pin", 28, 2);
     title.textContent = "รายละเอียด";
     messageText.textContent = notes;
     joinLink.style.display = "none";
@@ -254,7 +255,7 @@ function maybeShowOpenchatPopup() {
   if (!url) return; // แอดมินยังไม่ได้ตั้งค่าลิงก์ ไม่ต้องแสดงป๊อปอัพ
 
   icon.style.background = "linear-gradient(135deg,#06c755,#04a648)";
-  icon.textContent = "📢";
+  icon.innerHTML = svgIcon("megaphone", 28, 2);
   title.textContent = "อย่าพลาดข่าวสารและอัปเดต";
   messageText.textContent =
     openchatSettings?.line_openchat_message ||
