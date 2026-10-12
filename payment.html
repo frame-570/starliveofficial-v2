@@ -69,7 +69,7 @@
 
   <!-- หน้าแจ้งรหัสเข้าชม (หลังตรวจสลิปสำเร็จ) — หน้าปกติ ไม่ใช่ป๊อปอัพ -->
   <div id="successCard" class="pass-card" style="display:none; width:100%; margin-top:10px; text-align:center;">
-    <div class="verify-icon verify-icon-success" style="margin:0 auto;">✓</div>
+    <div class="verify-icon verify-icon-success" style="margin:0 auto;"><svg class="ico" viewBox="0 0 24 24" width="30" height="30" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12.5l4.5 4.5L19 7.5"/></svg></div>
     <h2 class="display" style="font-size:17px; margin:14px 0 18px;">ชำระเงินสำเร็จ</h2>
 
     <div style="text-align:left; font-size:13.5px; line-height:2;" id="successOrderDetails"></div>
@@ -96,7 +96,7 @@
     </div>
 
     <div id="verifyStepFailed" style="display:none;">
-      <div class="verify-icon verify-icon-failed">✕</div>
+      <div class="verify-icon verify-icon-failed"><svg class="ico" viewBox="0 0 24 24" width="30" height="30" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18"/></svg></div>
       <h2 class="display" style="font-size:17px; margin:14px 0 8px;">ตรวจสอบไม่สำเร็จ</h2>
       <p class="muted" id="failReasonText" style="font-size:13.5px; margin:0 0 20px;"></p>
 
@@ -112,7 +112,7 @@
 <!-- Popup ชวนเข้า LINE OpenChat (แสดงหลังตรวจสลิปสำเร็จ) หรือรายละเอียดพิเศษสำหรับรีรัน -->
 <div id="openchatOverlay" class="modal-overlay" style="display:none; z-index:100001;">
   <div class="admin-card modal-card" style="text-align:center;">
-    <div class="verify-icon" id="openchatIcon" style="background:linear-gradient(135deg,#06c755,#04a648); color:#fff; font-size:22px;">📢</div>
+    <div class="verify-icon" id="openchatIcon" style="background:linear-gradient(135deg,#06c755,#04a648); color:#fff;"><svg class="ico" viewBox="0 0 24 24" width="28" height="28" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 10v4a1 1 0 001 1h3l8 4V5L7 9H4a1 1 0 00-1 1z"/><path d="M19 9a4 4 0 010 6"/></svg></div>
     <h2 class="display" id="openchatTitle" style="font-size:17px; margin:14px 0 10px;">อย่าพลาดข่าวสารและอัปเดต</h2>
     <p class="muted" id="openchatMessageText" style="font-size:13.5px; line-height:1.7; margin:0 0 22px; white-space:pre-line; text-align:left;"></p>
 
