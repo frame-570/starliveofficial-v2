@@ -81,6 +81,7 @@ function defaultsFromEvent(ev) {
     months,
     logoCorner: saved.logoCorner || "left",
     showBrand: saved.showBrand !== false,
+    theme: POSTER_THEMES.some((t) => t.id === saved.theme) ? saved.theme : "st",
   };
 }
 
@@ -172,7 +173,377 @@ function ellipseGlow(ctx, cx, cy, rx, ry, rgba) {
 }
 
 // ---------- พื้นหลัง: สไตล์เดียวกับเว็บ (เวทีมืด + แสงสปอตไลต์สีเหลือง + แสงแดงด้านล่าง) ----------
-function drawBackground(ctx, H) {
+// ---------- ธีมพื้นหลัง (เทศกาล) ----------
+const POSTER_THEMES = [
+  { id: "st", label: "ST THEMES" },
+  { id: "halloween", label: "HALLOWEEN THEMES" },
+  { id: "christmas", label: "CHRISTMAS THEMES" },
+];
+// ธีมเทศกาลเพิ่มพื้นที่ด้านล่างไว้ให้ลวดลาย (ฟักทอง / ต้นสน) โดยไม่ทับกล่องเนื้อหา
+function themeExtra(theme) {
+  return theme === "halloween" || theme === "christmas" ? 80 : 0;
+}
+
+function drawBat(ctx, x, y, s, rot, color) {
+  ctx.save();
+  ctx.translate(x, y);
+  ctx.rotate(rot);
+  ctx.scale(s, s);
+  ctx.fillStyle = color;
+  ctx.beginPath();
+  ctx.moveTo(0, -6);
+  ctx.bezierCurveTo(10, -22, 34, -20, 50, -6);
+  ctx.bezierCurveTo(44, -6, 40, 2, 36, 6);
+  ctx.bezierCurveTo(32, 2, 26, 2, 22, 8);
+  ctx.bezierCurveTo(18, 2, 10, 2, 0, 12);
+  ctx.bezierCurveTo(-10, 2, -18, 2, -22, 8);
+  ctx.bezierCurveTo(-26, 2, -32, 2, -36, 6);
+  ctx.bezierCurveTo(-40, 2, -44, -6, -50, -6);
+  ctx.bezierCurveTo(-34, -20, -10, -22, 0, -6);
+  ctx.closePath();
+  ctx.fill();
+  ctx.beginPath();
+  ctx.moveTo(-5, -6);
+  ctx.lineTo(-4, -15);
+  ctx.lineTo(0, -8);
+  ctx.lineTo(4, -15);
+  ctx.lineTo(5, -6);
+  ctx.closePath();
+  ctx.fill();
+  ctx.restore();
+}
+
+// ใยแมงมุมมุมโปสเตอร์: (cx,cy) = มุม, a0..a1 = ช่วงมุม (เรเดียน)
+function drawCobweb(ctx, cx, cy, radius, a0, a1, alpha) {
+  const rays = 6;
+  const rings = 5;
+  ctx.save();
+  ctx.strokeStyle = `rgba(235,225,255,${alpha})`;
+  ctx.lineWidth = 1.6;
+  const ang = (i) => a0 + ((a1 - a0) * i) / (rays - 1);
+  for (let i = 0; i < rays; i++) {
+    ctx.beginPath();
+    ctx.moveTo(cx, cy);
+    ctx.lineTo(cx + Math.cos(ang(i)) * radius, cy + Math.sin(ang(i)) * radius);
+    ctx.stroke();
+  }
+  for (let k = 1; k <= rings; k++) {
+    const r = (radius * k) / rings;
+    for (let i = 0; i < rays - 1; i++) {
+      const p1 = [cx + Math.cos(ang(i)) * r, cy + Math.sin(ang(i)) * r];
+      const p2 = [cx + Math.cos(ang(i + 1)) * r, cy + Math.sin(ang(i + 1)) * r];
+      const mid = (ang(i) + ang(i + 1)) / 2;
+      const cr = r * 0.82;
+      ctx.beginPath();
+      ctx.moveTo(p1[0], p1[1]);
+      ctx.quadraticCurveTo(cx + Math.cos(mid) * cr, cy + Math.sin(mid) * cr, p2[0], p2[1]);
+      ctx.stroke();
+    }
+  }
+  ctx.restore();
+}
+
+function drawPumpkin(ctx, x, y, r) {
+  ctx.save();
+  ctx.translate(x, y);
+  const g = ctx.createRadialGradient(0, -r * 0.1, r * 0.2, 0, -r * 0.1, r * 1.7);
+  g.addColorStop(0, "rgba(255,140,20,0.38)");
+  g.addColorStop(1, "rgba(255,140,20,0)");
+  ctx.fillStyle = g;
+  ctx.fillRect(-r * 2, -r * 2, r * 4, r * 4);
+
+  const body = ctx.createLinearGradient(0, -r, 0, r * 0.9);
+  body.addColorStop(0, "#ffa23a");
+  body.addColorStop(1, "#d2520a");
+  ctx.fillStyle = body;
+  [[-r * 0.55, 0.62], [r * 0.55, 0.62], [0, 0.8]].forEach(([dx, k]) => {
+    ctx.beginPath();
+    ctx.ellipse(dx, 0, r * k, r * 0.82, 0, 0, Math.PI * 2);
+    ctx.fill();
+  });
+  ctx.fillStyle = "#3f5f1f";
+  ctx.beginPath();
+  ctx.moveTo(-r * 0.12, -r * 0.76);
+  ctx.lineTo(r * 0.1, -r * 1.06);
+  ctx.lineTo(r * 0.24, -r * 0.76);
+  ctx.closePath();
+  ctx.fill();
+
+  ctx.save();
+  ctx.shadowColor = "rgba(255,226,122,0.9)";
+  ctx.shadowBlur = r * 0.35;
+  ctx.fillStyle = "#ffe27a";
+  for (const sx of [-1, 1]) {
+    ctx.beginPath();
+    ctx.moveTo(sx * r * 0.18, -r * 0.1);
+    ctx.lineTo(sx * r * 0.5, -r * 0.1);
+    ctx.lineTo(sx * r * 0.34, -r * 0.4);
+    ctx.closePath();
+    ctx.fill();
+  }
+  ctx.beginPath();
+  ctx.moveTo(-r * 0.5, r * 0.18);
+  ctx.lineTo(-r * 0.3, r * 0.4);
+  ctx.lineTo(-r * 0.15, r * 0.22);
+  ctx.lineTo(0, r * 0.42);
+  ctx.lineTo(r * 0.15, r * 0.22);
+  ctx.lineTo(r * 0.3, r * 0.4);
+  ctx.lineTo(r * 0.5, r * 0.18);
+  ctx.lineTo(r * 0.35, r * 0.5);
+  ctx.lineTo(-r * 0.35, r * 0.5);
+  ctx.closePath();
+  ctx.fill();
+  ctx.restore();
+  ctx.restore();
+}
+
+function drawBgHalloween(ctx, H) {
+  const bg = ctx.createLinearGradient(0, 0, 0, H);
+  bg.addColorStop(0, "#1c0a2c");
+  bg.addColorStop(0.55, "#0d0514");
+  bg.addColorStop(1, "#1d0b04");
+  ctx.fillStyle = bg;
+  ctx.fillRect(0, 0, W, H);
+
+  ellipseGlow(ctx, W * 0.84, 150, 460, 420, "rgba(255,130,30,0.20)");
+  ellipseGlow(ctx, W * 0.1, H * 0.55, 520, 520, "rgba(130,60,200,0.16)");
+  ellipseGlow(ctx, W / 2, H + 40, 820, 420, "rgba(255,110,10,0.20)");
+
+  // พระจันทร์เต็มดวง (จางๆ อยู่หลังเนื้อหา)
+  ctx.save();
+  ctx.globalAlpha = 0.34;
+  const moon = ctx.createRadialGradient(W * 0.84 - 20, 140, 10, W * 0.84, 150, 100);
+  moon.addColorStop(0, "#fff0c8");
+  moon.addColorStop(1, "#ff9d3d");
+  ctx.fillStyle = moon;
+  ctx.beginPath();
+  ctx.arc(W * 0.84, 150, 100, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.fillStyle = "rgba(160,70,0,0.35)";
+  [[-30, -10, 14], [24, 26, 18], [30, -34, 9]].forEach(([dx, dy, r]) => {
+    ctx.beginPath();
+    ctx.arc(W * 0.84 + dx, 150 + dy, r, 0, Math.PI * 2);
+    ctx.fill();
+  });
+  ctx.restore();
+
+  // แท่งแสงสีม่วง-ส้ม
+  for (const side of [-1, 1]) {
+    ctx.save();
+    const cx = side < 0 ? W * 0.28 : W * 0.72;
+    ctx.translate(cx, 0);
+    ctx.transform(1, 0, side * 0.14, 1, 0, 0);
+    const g = ctx.createLinearGradient(0, -H * 0.1, 0, H * 0.75);
+    g.addColorStop(0, side < 0 ? "rgba(160,90,255,0.12)" : "rgba(255,140,40,0.12)");
+    g.addColorStop(1, "rgba(0,0,0,0)");
+    ctx.fillStyle = g;
+    ctx.fillRect(-W * 0.2, -H * 0.1, W * 0.4, H * 1.2);
+    ctx.restore();
+  }
+
+  // ประกายส้ม/ม่วง
+  const rnd = mulberry32(1031);
+  for (let i = 0; i < 80; i++) {
+    const x = rnd() * W;
+    const y = rnd() * H;
+    const r = 1 + rnd() * 2.2;
+    const orange = rnd() > 0.5;
+    ctx.fillStyle = orange ? `rgba(255,150,40,${0.25 + rnd() * 0.5})` : `rgba(190,140,255,${0.2 + rnd() * 0.45})`;
+    ctx.beginPath();
+    ctx.arc(x, y, r, 0, Math.PI * 2);
+    ctx.fill();
+  }
+
+  // ใยแมงมุมมุมขวาบนและมุมซ้ายล่าง
+  drawCobweb(ctx, W, 0, 230, Math.PI * 0.5, Math.PI, 0.22);
+  drawCobweb(ctx, 0, H - 80, 190, -Math.PI * 0.5, 0, 0.16);
+
+  // ค้างคาว
+  const batColor = "rgba(92,42,130,0.95)";
+  [
+    [880, 330, 0.7, -0.25], [996, 120, 0.55, 0.3], [520, 62, 0.6, 0.1], [40, 880, 0.6, -0.2],
+    [980, 905, 0.75, 0.2], [300, 880, 0.5, 0.35], [650, 920, 0.45, -0.3],
+  ].forEach(([x, y, s, rot]) => {
+    ctx.save();
+    ctx.shadowColor = "rgba(190,110,255,0.55)";
+    ctx.shadowBlur = 14;
+    drawBat(ctx, x, y, s, rot, batColor);
+    ctx.restore();
+  });
+
+  // พื้นหมอก + แถวฟักทองด้านล่าง
+  const fog = ctx.createLinearGradient(0, H - 130, 0, H);
+  fog.addColorStop(0, "rgba(255,120,20,0)");
+  fog.addColorStop(1, "rgba(255,120,20,0.18)");
+  ctx.fillStyle = fog;
+  ctx.fillRect(0, H - 130, W, 130);
+  [[90, 30, 36], [250, 26, 26], [430, 32, 30], [620, 28, 24], [790, 30, 34], [960, 24, 38]].forEach(([x, dy, r]) => {
+    drawPumpkin(ctx, x, H - dy - r * 0.55, r);
+  });
+}
+
+function drawSnowflake(ctx, x, y, r) {
+  ctx.save();
+  ctx.translate(x, y);
+  ctx.beginPath();
+  for (let i = 0; i < 6; i++) {
+    ctx.save();
+    ctx.rotate((Math.PI / 3) * i);
+    ctx.moveTo(0, 0);
+    ctx.lineTo(0, -r);
+    ctx.moveTo(0, -r * 0.55);
+    ctx.lineTo(-r * 0.28, -r * 0.8);
+    ctx.moveTo(0, -r * 0.55);
+    ctx.lineTo(r * 0.28, -r * 0.8);
+    ctx.restore();
+  }
+  ctx.stroke();
+  ctx.restore();
+}
+
+function drawFir(ctx, x, baseY, w, h, color, rnd, lights) {
+  ctx.fillStyle = "#3b2414";
+  ctx.fillRect(x - w * 0.06, baseY - h * 0.1, w * 0.12, h * 0.12);
+  ctx.fillStyle = color;
+  for (let i = 0; i < 3; i++) {
+    const top = baseY - h + i * h * 0.22;
+    const bottom = baseY - h * 0.1 - (2 - i) * h * 0.2;
+    const half = w * (0.3 + i * 0.2);
+    ctx.beginPath();
+    ctx.moveTo(x, top);
+    ctx.lineTo(x + half, bottom);
+    ctx.lineTo(x - half, bottom);
+    ctx.closePath();
+    ctx.fill();
+  }
+  if (lights) {
+    const cols = ["#ff4a5a", "#ffd24a", "#7fe0a0", "#7fc8ff"];
+    for (let i = 0; i < 9; i++) {
+      const ty = baseY - h * (0.2 + rnd() * 0.7);
+      const span = (w * 0.5 * (ty - (baseY - h))) / h + 4;
+      const tx = x + (rnd() * 2 - 1) * span * 0.8;
+      ctx.save();
+      ctx.shadowColor = cols[i % 4];
+      ctx.shadowBlur = 8;
+      ctx.fillStyle = cols[i % 4];
+      ctx.beginPath();
+      ctx.arc(tx, ty, 2.6, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.restore();
+    }
+  }
+  // ดาวบนยอด
+  ctx.save();
+  ctx.shadowColor = "#ffd24a";
+  ctx.shadowBlur = 10;
+  sparkle(ctx, x, baseY - h - 2, w * 0.14, "#ffd24a", 10);
+  ctx.restore();
+}
+
+function drawGift(ctx, x, y, s, body, ribbon) {
+  ctx.fillStyle = body;
+  ctx.fillRect(x - s / 2, y - s, s, s);
+  ctx.fillStyle = ribbon;
+  ctx.fillRect(x - s * 0.08, y - s, s * 0.16, s);
+  ctx.fillRect(x - s / 2, y - s * 0.58, s, s * 0.16);
+  ctx.beginPath();
+  ctx.ellipse(x - s * 0.17, y - s * 1.07, s * 0.2, s * 0.12, -0.5, 0, Math.PI * 2);
+  ctx.ellipse(x + s * 0.17, y - s * 1.07, s * 0.2, s * 0.12, 0.5, 0, Math.PI * 2);
+  ctx.fill();
+}
+
+function drawBgChristmas(ctx, H) {
+  const bg = ctx.createLinearGradient(0, 0, 0, H);
+  bg.addColorStop(0, "#0b2217");
+  bg.addColorStop(0.6, "#07140e");
+  bg.addColorStop(1, "#0b1c13");
+  ctx.fillStyle = bg;
+  ctx.fillRect(0, 0, W, H);
+
+  ellipseGlow(ctx, W / 2, 0, 760, 520, "rgba(255,210,74,0.16)");
+  ellipseGlow(ctx, W * 0.08, H * 0.5, 460, 460, "rgba(220,50,60,0.14)");
+  ellipseGlow(ctx, W * 0.95, H * 0.7, 480, 480, "rgba(60,190,110,0.12)");
+
+  // แท่งแสงสีทอง-แดง
+  for (const side of [-1, 1]) {
+    ctx.save();
+    const cx = side < 0 ? W * 0.28 : W * 0.72;
+    ctx.translate(cx, 0);
+    ctx.transform(1, 0, side * 0.14, 1, 0, 0);
+    const g = ctx.createLinearGradient(0, -H * 0.1, 0, H * 0.75);
+    g.addColorStop(0, side < 0 ? "rgba(255,90,90,0.11)" : "rgba(255,210,74,0.11)");
+    g.addColorStop(1, "rgba(0,0,0,0)");
+    ctx.fillStyle = g;
+    ctx.fillRect(-W * 0.2, -H * 0.1, W * 0.4, H * 1.2);
+    ctx.restore();
+  }
+
+  const rnd = mulberry32(1225);
+  // โบเก้ไฟวงกลมใหญ่จางๆ
+  const bokeh = ["rgba(255,90,100,0.10)", "rgba(255,210,74,0.10)", "rgba(110,230,160,0.09)"];
+  for (let i = 0; i < 16; i++) {
+    ctx.fillStyle = bokeh[i % 3];
+    ctx.beginPath();
+    ctx.arc(rnd() * W, rnd() * H, 18 + rnd() * 44, 0, Math.PI * 2);
+    ctx.fill();
+  }
+
+  // หิมะตก
+  for (let i = 0; i < 140; i++) {
+    ctx.fillStyle = `rgba(255,255,255,${0.25 + rnd() * 0.6})`;
+    ctx.beginPath();
+    ctx.arc(rnd() * W, rnd() * H, 1 + rnd() * 3, 0, Math.PI * 2);
+    ctx.fill();
+  }
+  ctx.lineCap = "round";
+  for (let i = 0; i < 16; i++) {
+    ctx.strokeStyle = `rgba(235,245,255,${0.14 + rnd() * 0.16})`;
+    ctx.lineWidth = 1.8;
+    drawSnowflake(ctx, rnd() * W, rnd() * (H - 120), 12 + rnd() * 16);
+  }
+
+  // สายไฟประดับด้านบน
+  const wireY = (x) => 16 + 12 * Math.sin((x / W) * Math.PI * 6);
+  ctx.strokeStyle = "rgba(20,70,40,0.95)";
+  ctx.lineWidth = 3;
+  ctx.beginPath();
+  for (let x = 0; x <= W; x += 10) (x === 0 ? ctx.moveTo(x, wireY(x)) : ctx.lineTo(x, wireY(x)));
+  ctx.stroke();
+  const bulbs = ["#ff4a5a", "#ffd24a", "#58d68d", "#6ec6ff"];
+  for (let i = 0, x = 24; x < W; i++, x += 60) {
+    const y = wireY(x) + 8;
+    ctx.save();
+    ctx.shadowColor = bulbs[i % 4];
+    ctx.shadowBlur = 16;
+    ctx.fillStyle = bulbs[i % 4];
+    ctx.beginPath();
+    ctx.ellipse(x, y + 5, 6, 9, 0, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.restore();
+    ctx.fillStyle = "#1c4a2c";
+    ctx.fillRect(x - 3, y - 5, 6, 5);
+  }
+
+  // พื้นหิมะ + ต้นสน + กล่องของขวัญด้านล่าง
+  const snow = ctx.createLinearGradient(0, H - 70, 0, H);
+  snow.addColorStop(0, "rgba(240,248,255,0.0)");
+  snow.addColorStop(1, "rgba(240,248,255,0.55)");
+  ctx.fillStyle = snow;
+  ctx.fillRect(0, H - 70, W, 70);
+  const trees = [[70, 74, 110], [210, 56, 80], [880, 56, 84], [1010, 74, 112]];
+  trees.forEach(([x, w, h], i) => drawFir(ctx, x, H - 18, w, h, i % 2 ? "#0f4a2a" : "#0c3b22", rnd, true));
+  drawGift(ctx, 330, H - 18, 34, "#d8334a", "#ffd24a");
+  drawGift(ctx, 372, H - 18, 26, "#2f9e5e", "#ffffff");
+  drawGift(ctx, 700, H - 18, 28, "#ffd24a", "#d8334a");
+  drawGift(ctx, 742, H - 18, 36, "#d8334a", "#ffffff");
+  ctx.fillStyle = "#f4f9ff";
+  ctx.beginPath();
+  ctx.ellipse(W / 2, H + 6, W * 0.56, 26, 0, 0, Math.PI * 2);
+  ctx.fill();
+}
+
+// ธีมเดิม = "ST THEMES"
+function drawBgSt(ctx, H) {
   ctx.fillStyle = C.stage;
   ctx.fillRect(0, 0, W, H);
 
@@ -210,6 +581,12 @@ function drawBackground(ctx, H) {
     [520, 1330, 12], [1040, 1560, 15], [26, 440, 11],
   ];
   spots.forEach(([x, y, r]) => sparkle(ctx, x, y, r, C.amberLight, 14));
+}
+
+function drawBackground(ctx, H, theme) {
+  if (theme === "halloween") return drawBgHalloween(ctx, H);
+  if (theme === "christmas") return drawBgChristmas(ctx, H);
+  return drawBgSt(ctx, H);
 }
 
 function drawBrand(ctx, cy, size) {
@@ -406,7 +783,7 @@ function neededHeight(st) {
   if (st.timeText) y += 92;
   y += 6 + 224;
   const fy = Math.max(y + 56, 949);
-  return Math.max(H, fy + 200 + 51);
+  return Math.max(H, fy + 200 + 51) + themeExtra(st.theme);
 }
 
 function drawPoster(canvas, st, images) {
@@ -418,7 +795,7 @@ function drawPoster(canvas, st, images) {
   ctx.textBaseline = "alphabetic";
   ctx.textAlign = "left";
 
-  drawBackground(ctx, Hc);
+  drawBackground(ctx, Hc, st.theme);
 
   // หัว: ชื่อร้านสีเหลือง + ดาว (ย่อขนาดอัตโนมัติถ้าโลโก้ใหญ่จนชิด)
   const lr = logoRect(st, images);
@@ -680,6 +1057,12 @@ export async function openPosterMaker(ev) {
             <div><label class="field-label">ราคา (บาท)</label><input id="pmPrice" type="number" min="0" class="field-input" /></div>
           </div>
           <div><label class="field-label">ข้อความใต้ราคา</label><input id="pmPriceCaption" class="field-input" /></div>
+          <div>
+            <label class="field-label">ธีมพื้นหลัง</label>
+            <select id="pmTheme" class="field-input">
+              ${POSTER_THEMES.map((t) => `<option value="${t.id}">${t.label}</option>`).join("")}
+            </select>
+          </div>
           <label style="display:flex; align-items:center; gap:8px; font-size:14px; cursor:pointer;">
             <input type="checkbox" id="pmShowBrand" /> แสดงชื่อร้านด้านบน (รวมดาวซ้าย-ขวา)
           </label>
@@ -725,6 +1108,7 @@ export async function openPosterMaker(ev) {
   $("pmPriceCaption").value = st.priceCaption;
   $("pmLogoCorner").value = st.logoCorner;
   $("pmShowBrand").checked = st.showBrand;
+  $("pmTheme").value = st.theme;
 
   let raf = 0;
   const render = () => {
@@ -748,6 +1132,11 @@ export async function openPosterMaker(ev) {
   bind("pmPriceCaption", "priceCaption");
   bind("pmLogoCorner", "logoCorner", "logoCorner");
 
+  $("pmTheme").addEventListener("change", (e) => {
+    st.theme = e.target.value;
+    saveSettings({ theme: st.theme });
+    render();
+  });
   $("pmShowBrand").addEventListener("change", (e) => {
     st.showBrand = e.target.checked;
     saveSettings({ showBrand: st.showBrand });
