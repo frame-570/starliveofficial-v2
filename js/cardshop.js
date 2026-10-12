@@ -1,5 +1,6 @@
 import { supabase } from "./supabaseClient.js";
 import { renderHeaderAuth, getSession } from "./auth.js";
+import { svgIcon } from "./icons.js";
 
 renderHeaderAuth();
 
@@ -56,7 +57,7 @@ const unitPrice = (p) => promoInfo(p).price;
 function openLayer(html, center = false) {
   $("layer").className = "cs-layer" + (center ? " center" : "");
   $("layer").style.display = "flex";
-  $("panel").innerHTML = `<button class="cs-x" id="xBtn" type="button" aria-label="ปิด">✕</button>${html}`;
+  $("panel").innerHTML = `<button class="cs-x" id="xBtn" type="button" aria-label="ปิด">${svgIcon("x", 18)}</button>${html}`;
   $("xBtn").onclick = closeLayer;
 }
 function closeLayer() { $("layer").style.display = "none"; }
@@ -176,7 +177,7 @@ async function showCheckout() {
     <div class="cs-sum total"><span>ยอดชำระ</span><span>${baht(t.total)}</span></div></div>
     <p class="error-text" id="coErr"></p>
     <button class="btn-marquee" id="placeBtn" type="button" style="width:100%">ยืนยันและไปชำระเงิน</button>
-    <button class="icon-btn ghost" id="backCart" type="button" style="width:100%;margin-top:8px">← กลับไปตะกร้า</button>`);
+    <button class="icon-btn ghost" id="backCart" type="button" style="width:100%;margin-top:8px; display:inline-flex; align-items:center; justify-content:center; gap:6px;">${svgIcon("arrowLeft", 15)}กลับไปตะกร้า</button>`);
   $("layer").dataset.view = "checkout";
   $("backCart").onclick = showCart;
   $("placeBtn").onclick = async () => {
