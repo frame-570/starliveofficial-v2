@@ -1,6 +1,7 @@
 import { adminSupabase as supabase } from "./supabaseClient.js";
 import { SUPABASE_ANON_KEY, FUNCTIONS_URL } from "./config.js";
 import { openPosterMaker } from "./poster.js";
+import { svgIcon, svgDot } from "./icons.js";
 
 // ============================================================
 // Styled confirm/alert modal
@@ -62,11 +63,11 @@ function appAlert(message, { type = "info" } = {}) {
   if (type === "success") {
     icon.style.display = "flex";
     icon.className = "verify-icon verify-icon-success";
-    icon.textContent = "✓";
+    icon.innerHTML = svgIcon("check", 30, 3);
   } else if (type === "error") {
     icon.style.display = "flex";
     icon.className = "verify-icon verify-icon-failed";
-    icon.textContent = "✕";
+    icon.innerHTML = svgIcon("x", 30, 3);
   } else {
     icon.style.display = "none";
   }
@@ -104,7 +105,7 @@ function ensureSlipModalOverlay() {
     <div class="admin-card modal-card" style="width:min(480px, 92vw); text-align:center; padding:16px;">
       <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:12px;">
         <span style="font-family:'Prompt',sans-serif; font-weight:600; font-size:14.5px;">สลิปการโอนเงิน</span>
-        <button type="button" id="slipModalClose" class="icon-btn ghost" style="padding:4px 10px;">✕</button>
+        <button type="button" id="slipModalClose" class="icon-btn ghost" style="padding:4px 10px; display:inline-flex; align-items:center;">${svgIcon("x", 14)}</button>
       </div>
       <img id="slipModalImage" src="" alt="สลิปการโอนเงิน" style="width:100%; max-height:70vh; object-fit:contain; border-radius:10px; background:#0d0d10;" />
       <a id="slipModalOpenNewTab" href="" target="_blank" rel="noopener" class="icon-btn ghost" style="display:inline-block; margin-top:14px; text-decoration:none;">เปิดในแท็บใหม่</a>
@@ -731,7 +732,7 @@ eventForm.addEventListener("submit", async (e) => {
     closeEventForm();
     await loadEvents();
     
-    // ✅ แสดง Pop-up สำเร็จ
+    // แสดง Pop-up สำเร็จ
     await appAlert(eventId ? "แก้ไขงานสำเร็จเรียบร้อยแล้ว!" : "สร้างงานใหม่สำเร็จเรียบร้อยแล้ว!", { type: "success" });
 
   } catch (err) {
@@ -978,7 +979,7 @@ function renderOrderRow(order, discountCodeById = new Map(), profileById = new M
   const discountAmountNum = Number(order.discount_amount || 0);
   const hasDiscount = !!order.discount_code_id || discountAmountNum > 0;
   const discountText = hasDiscount
-    ? ` · <span style="color:var(--amber);">🏷️ ใช้โค้ดส่วนลด <strong style="letter-spacing:0.05em;">${escapeHtml(usedDiscountCode || "(โค้ดถูกลบแล้ว)")}</strong>${discountAmountNum > 0 ? ` · ลด ${discountAmountNum.toLocaleString("th-TH")}฿` : ""}</span>`
+    ? ` · <span style="color:var(--amber);">${svgIcon("tag", 13, 2, "vertical-align:-2px; margin-right:4px")}ใช้โค้ดส่วนลด <strong style="letter-spacing:0.05em;">${escapeHtml(usedDiscountCode || "(โค้ดถูกลบแล้ว)")}</strong>${discountAmountNum > 0 ? ` · ลด ${discountAmountNum.toLocaleString("th-TH")}฿` : ""}</span>`
     : "";
   const discountLine = `<div style="margin-top:6px; font-size:12.5px;" class="muted">${buyerText}${discountText}</div>`;
 
@@ -992,7 +993,7 @@ function renderOrderRow(order, discountCodeById = new Map(), profileById = new M
         <span>${Number(order.amount).toLocaleString("th-TH")}฿</span>
         <span>${created}</span>
         ${order.access_code ? `<span class="pin-chip">${escapeHtml(order.access_code)}</span>` : ""}
-        ${order.customer_note ? `<span>👤 ${escapeHtml(order.customer_note)}</span>` : ""}
+        ${order.customer_note ? `<span>${svgIcon("user", 13, 2, "vertical-align:-2px; margin-right:4px")}${escapeHtml(order.customer_note)}</span>` : ""}
       </div>
       ${discountLine}
       ${order.status === "failed" && order.verification_reason ? `<p class="error-text" style="margin:6px 0 0;">${escapeHtml(order.verification_reason)}</p>` : ""}
@@ -1097,7 +1098,7 @@ function renderOrderRow(order, discountCodeById = new Map(), profileById = new M
 
     const warning =
       order.status === "paid"
-        ? `⚠️ ออเดอร์นี้จ่ายเงินแล้วและมีรหัสเข้าชม ${order.access_code} อยู่\nลบแล้วลูกค้าจะดูไม่ได้อีกเลย\nยืนยันลบ ${order.order_number} ใช่หรือไม่?`
+        ? `คำเตือน: ออเดอร์นี้จ่ายเงินแล้วและมีรหัสเข้าชม ${order.access_code} อยู่\nลบแล้วลูกค้าจะดูไม่ได้อีกเลย\nยืนยันลบ ${order.order_number} ใช่หรือไม่?`
         : `ยืนยันลบออเดอร์ ${order.order_number} ใช่หรือไม่?\n(ลบแล้วกู้คืนไม่ได้)`;
     const ok = await appConfirm(warning, { danger: true, confirmText: "ลบออเดอร์นี้" });
     if (!ok) return;
@@ -1584,7 +1585,7 @@ async function loadLiveViewers({ silent = false } = {}) {
           <span class="muted" data-last-seen="${lastSeenMs}">${formatLastSeenLabel(lastSeenMs)}</span>
         </div>
       </div>
-      <span class="status-pill" style="color:#46c882; font-size:12.5px; flex-shrink:0;">🟢 กำลังดู</span>
+      <span class="status-pill" style="color:#46c882; font-size:12.5px; flex-shrink:0;">${svgDot(9)}กำลังดู</span>
     `;
     listEl.appendChild(row);
   });
