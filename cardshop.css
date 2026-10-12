@@ -38,7 +38,7 @@
 .cs-form{display:grid;grid-template-columns:1fr 1fr;gap:10px}.cs-form .full{grid-column:1/-1}
 .cs-toast{position:fixed;bottom:24px;left:50%;transform:translateX(-50%);background:var(--surface-2);border:1px solid var(--amber-dim);padding:10px 18px;border-radius:12px;z-index:90;display:none;font-size:14px}
 .cs-st{display:inline-block;padding:2px 10px;border-radius:8px;font:600 12px Prompt;background:var(--surface-2)}
-.cs-x{float:right;background:none;border:0;color:var(--muted);font-size:20px;cursor:pointer}
+.cs-x{float:right;background:none;border:0;color:var(--muted);font-size:20px;cursor:pointer;display:inline-flex;align-items:center}
 .ca{max-width:1100px;margin:0 auto;padding:20px 16px 80px}.ca-top{display:flex;align-items:center;gap:12px;flex-wrap:wrap;margin-bottom:18px}
 .ca-menu{display:flex;gap:6px;flex-wrap:wrap;margin-bottom:18px;border-bottom:1px solid var(--line);padding-bottom:10px}
 .ca-menu button{padding:9px 14px;border-radius:10px;border:0;background:none;color:var(--text);font:600 13px Prompt;cursor:pointer}.ca-menu button.on{background:var(--amber);color:#1a1400}
