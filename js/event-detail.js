@@ -1,6 +1,7 @@
 import { supabase } from "./supabaseClient.js";
 import { renderHeaderAuth, getSession } from "./auth.js";
 import { SUPABASE_ANON_KEY, FUNCTIONS_URL } from "./config.js";
+import { svgIcon } from "./icons.js";
 
 renderHeaderAuth();
 
@@ -210,7 +211,7 @@ function renderDayOptionCards(options, container) {
           justify-content:center; 
           font-size:11px; 
           font-weight:bold;
-          flex-shrink:0;">✓</span>
+          flex-shrink:0;">${svgIcon("check", 12, 3.2)}</span>
       </button>`
     )
     .join("");
@@ -318,7 +319,11 @@ document.getElementById("applyDiscountBtn").addEventListener("click", async () =
     discountAmount: Math.round((body.originalAmount - body.discountedAmount) * 100) / 100,
     discountLabel: body.discountLabel,
   };
-  resultText.textContent = `✓ ใช้โค้ด ${body.code} สำเร็จ — ${body.discountLabel}`;
+  {
+    const ic = document.createElement("span");
+    ic.innerHTML = svgIcon("check", 14, 2.6, "vertical-align:-2px; margin-right:5px");
+    resultText.replaceChildren(ic, document.createTextNode(`ใช้โค้ด ${body.code} สำเร็จ — ${body.discountLabel}`));
+  }
   updateTotal();
 });
 
