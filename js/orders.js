@@ -1,5 +1,6 @@
 import { supabase } from "./supabaseClient.js";
 import { renderHeaderAuth, getSession } from "./auth.js";
+import { lineLogo } from "./icons.js";
 
 renderHeaderAuth();
 
@@ -9,6 +10,8 @@ if (!session) {
 } else {
   loadOrders(session.user);
 }
+
+let openchatUrl = "";
 
 const STATUS_LABEL = {
   pending_payment: "รอชำระเงิน",
@@ -26,10 +29,17 @@ async function loadOrders(user) {
   // ดึงเฉพาะข้อมูลออเดอร์ของ user นี้ และกรองเฉพาะสถานะ "paid" (ชำระเงินสำเร็จ) เท่านั้น
   const { data: orders, error } = await supabase
     .from("orders")
-    .select("*, events(title), ticket_packages(num_days), ticket_package_day_options(label)")
+    .select("*, events(title, status), ticket_packages(num_days), ticket_package_day_options(label)")
     .eq('user_id', user.id)
     .eq('status', 'paid') // <-- เพิ่มเงื่อนไขกรองเฉพาะที่จ่ายเงินสำเร็จแล้ว
     .order("created_at", { ascending: false });
+
+  // ลิงก์กลุ่ม LINE สำหรับงานไลฟ์สด (ตั้งค่าในหน้าแอดมิน)
+  const { data: settingsList } = await supabase
+    .from("app_settings")
+    .select("line_openchat_url")
+    .limit(1);
+  openchatUrl = settingsList?.[0]?.line_openchat_url || "";
 
   loadingText.style.display = "none";
 
@@ -60,6 +70,8 @@ function renderOrderCard(order) {
   const statusLabel = STATUS_LABEL[order.status] || order.status;
   const isPaid = order.status === "paid";
   const isPending = order.status === "pending_payment";
+  // ปุ่มเข้ากลุ่มมีเฉพาะงานไลฟ์สด (งานที่เป็นรีรันแล้วไม่มี)
+  const canJoinGroup = isPaid && !!openchatUrl && order.events?.status !== "rerun";
   const expiresLabel = order.access_code_expires_at
     ? new Date(order.access_code_expires_at).toLocaleDateString("th-TH", { year: "numeric", month: "long", day: "numeric" })
     : "";
@@ -93,6 +105,11 @@ function renderOrderCard(order) {
           <button type="button" class="icon-btn" style="flex:1;" data-copy-code="${escapeHtml(order.access_code)}">คัดลอกรหัส</button>
           <a href="./watch.html?code=${escapeHtml(order.access_code)}" class="btn-marquee" style="flex:1; margin:0; text-decoration:none; text-align:center;">เข้าชม</a>
         </div>
+        ${
+          canJoinGroup
+            ? `<a href="${escapeHtml(openchatUrl)}" target="_blank" rel="noopener" class="btn-line" style="margin-top:10px;">${lineLogo(24)}<span>เข้าร่วมกลุ่ม LINE</span></a>`
+            : ""
+        }
       `
           : ""
       }
