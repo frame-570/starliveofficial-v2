@@ -1,4 +1,5 @@
 import { adminSupabase as supabase } from "./supabaseClient.js";
+import { svgIcon } from "./icons.js";
 
 const $ = (id) => document.getElementById(id);
 const esc = (s) => String(s ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
@@ -42,7 +43,7 @@ function scanBarcode() {
   return new Promise((resolve) => {
     let done = false, stop = () => {};
     const finish = (val) => { if (done) return; done = true; stop(); ov.remove(); resolve(val); };
-    const { ov } = popup(`<div class="ca-row" style="justify-content:space-between"><h3 class="display" style="margin:0">สแกนบาร์โค้ด Tracking</h3><button class="icon-btn ghost" data-x type="button" aria-label="ปิด" style="padding:5px 9px">✕</button></div>
+    const { ov } = popup(`<div class="ca-row" style="justify-content:space-between"><h3 class="display" style="margin:0">สแกนบาร์โค้ด Tracking</h3><button class="icon-btn ghost" data-x type="button" aria-label="ปิด" style="padding:5px 9px; display:inline-flex; align-items:center;">${svgIcon("x", 14)}</button></div>
       <div class="ca-scan"><video id="scanVideo" playsinline muted autoplay></video><div class="ca-scan-line"></div></div>
       <p class="muted" id="scanMsg" style="font-size:13px;text-align:center;margin:10px 0 0">เล็งกล้องไปที่บาร์โค้ดบนกล่องพัสดุ ระบบจะกรอกเลขให้อัตโนมัติ</p>`, () => finish(null));
     ov.querySelector("[data-x]").onclick = () => finish(null);
@@ -279,7 +280,7 @@ async function categoryPopup() {
   const render = async () => {
     await loadCats();
     const box = ov.querySelector("#catBox");
-    box.innerHTML = `<div class="ca-row" style="justify-content:space-between"><h3 class="display" style="margin:0">จัดการหมวดหมู่</h3><button class="icon-btn ghost" data-x type="button" aria-label="ปิด" style="padding:5px 9px">✕</button></div>
+    box.innerHTML = `<div class="ca-row" style="justify-content:space-between"><h3 class="display" style="margin:0">จัดการหมวดหมู่</h3><button class="icon-btn ghost" data-x type="button" aria-label="ปิด" style="padding:5px 9px; display:inline-flex; align-items:center;">${svgIcon("x", 14)}</button></div>
       <div class="ca-row" style="margin:12px 0 4px"><input id="catName" class="field-input" style="flex:1" placeholder="ชื่อหมวดหมู่ใหม่" /><button class="btn-marquee" id="catAdd" type="button" style="margin:0">เพิ่ม</button></div>
       <p class="error-text" id="catErr"></p>
       ${categories.map((c) => `<div class="ca-row" style="justify-content:space-between;padding:8px 0;border-bottom:1px solid var(--line)"><span>${esc(c.name)}</span><button class="icon-btn ghost" data-del="${c.id}" type="button" style="color:var(--crimson)">ลบ</button></div>`).join("") || '<p class="muted">ยังไม่มีหมวดหมู่</p>'}
@@ -300,7 +301,7 @@ async function categoryPopup() {
 // ---------- ป๊อปอัพตั้งค่าร้าน (ปุ่มฟันเฟือง) ----------
 async function settingsPopup() {
   const { data: s } = await supabase.from("card_settings").select("*").eq("id", 1).maybeSingle();
-  const { ov, close } = popup(`<div class="ca-row" style="justify-content:space-between"><h3 class="display" style="margin:0">ตั้งค่าร้าน CARD SHOP</h3><button class="icon-btn ghost" data-x type="button" aria-label="ปิด" style="padding:5px 9px">✕</button></div>
+  const { ov, close } = popup(`<div class="ca-row" style="justify-content:space-between"><h3 class="display" style="margin:0">ตั้งค่าร้าน CARD SHOP</h3><button class="icon-btn ghost" data-x type="button" aria-label="ปิด" style="padding:5px 9px; display:inline-flex; align-items:center;">${svgIcon("x", 14)}</button></div>
     <div class="ca-grid" style="margin-top:12px">
     <div><label class="field-label">ค่าจัดส่งต่อออเดอร์ (บาท)</label><input id="sFee" type="number" min="0" step="1" class="field-input" value="${s?.shipping_fee ?? 0}" /></div>
     <div><label class="field-label">ซื้อครบกี่บาทส่งฟรี (เว้นว่าง = ไม่มี)</label><input id="sFree" type="number" min="0" step="1" class="field-input" value="${s?.free_shipping_min ?? ""}" /></div></div>
@@ -335,7 +336,7 @@ async function promosView() {
   $("view").innerHTML = `<div class="ca-row" style="margin-bottom:12px"><button class="btn-marquee" id="newPromo" type="button" style="margin:0">+ เพิ่มโปรโมชั่น</button></div>
     ${(promos || []).map((pr) => `<div class="ca-card ca-row"><div style="flex:1;min-width:180px"><b>${esc(pr.name)}</b>
       <div class="muted" style="font-size:12px">ลด ${pr.discount_type === "percent" ? `${pr.discount_value}%` : baht(pr.discount_value)} · ใช้กับ: ${pr.product_id ? "สินค้า " + esc(prodName[pr.product_id] || "(ถูกลบ)") : pr.category_id ? "หมวดหมู่ " + esc(catName[pr.category_id] || "(ถูกลบ)") : "ทุกสินค้า"}</div>
-      <div class="muted" style="font-size:12px">${pr.starts_at ? fmtDT(pr.starts_at) : "เริ่มทันที"} → ${pr.ends_at ? fmtDT(pr.ends_at) : "ไม่มีวันหมดอายุ"}</div>
+      <div class="muted" style="font-size:12px">${pr.starts_at ? fmtDT(pr.starts_at) : "เริ่มทันที"} ${svgIcon("arrowRight", 11, 2, "vertical-align:-1px")} ${pr.ends_at ? fmtDT(pr.ends_at) : "ไม่มีวันหมดอายุ"}</div>
       <span class="ca-st" style="margin-top:4px">${state(pr)}</span></div>
       <button class="icon-btn" data-edit="${pr.id}" type="button">แก้ไข</button>
       <button class="icon-btn ghost" data-tog="${pr.id}" data-on="${pr.is_active}" type="button">${pr.is_active ? "ปิดใช้งาน" : "เปิดใช้งาน"}</button>
@@ -352,7 +353,7 @@ async function promosView() {
 
 function promoPopup(pr, prods) {
   const scope = pr?.product_id ? "product" : pr?.category_id ? "category" : "all";
-  const { ov, close } = popup(`<div class="ca-row" style="justify-content:space-between"><h3 class="display" style="margin:0">${pr ? "แก้ไขโปรโมชั่น" : "เพิ่มโปรโมชั่น"}</h3><button class="icon-btn ghost" data-x type="button" aria-label="ปิด" style="padding:5px 9px">✕</button></div>
+  const { ov, close } = popup(`<div class="ca-row" style="justify-content:space-between"><h3 class="display" style="margin:0">${pr ? "แก้ไขโปรโมชั่น" : "เพิ่มโปรโมชั่น"}</h3><button class="icon-btn ghost" data-x type="button" aria-label="ปิด" style="padding:5px 9px; display:inline-flex; align-items:center;">${svgIcon("x", 14)}</button></div>
     <div class="ca-grid" style="margin-top:12px">
     <div class="full"><label class="field-label">ชื่อโปรโมชั่น (แสดงเป็นป้ายบนสินค้า)</label><input id="pName" class="field-input" placeholder="เช่น ลดต้อนรับเปิดร้าน" value="${esc(pr?.name || "")}" /></div>
     <div><label class="field-label">รูปแบบส่วนลด</label><select id="pType" class="field-input"><option value="percent" ${pr?.discount_type !== "amount" ? "selected" : ""}>ลดเป็น %</option><option value="amount" ${pr?.discount_type === "amount" ? "selected" : ""}>ลดเป็นบาท</option></select></div>
