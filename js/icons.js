@@ -19,3 +19,8 @@ export function svgIcon(name, size = 18, strokeWidth = 2, style = "") {
 export function svgDot(size = 10) {
   return `<svg class="ico" viewBox="0 0 24 24" width="${size}" height="${size}" aria-hidden="true" style="vertical-align:middle;margin-right:5px"><circle cx="12" cy="12" r="10" fill="currentColor"/></svg>`;
 }
+
+// โลโก้สไตล์ LINE (สี่เหลี่ยมมนสีเขียว + ฟองคำพูดสีขาว) ใช้กับปุ่มเข้ากลุ่ม
+export function lineLogo(size = 24) {
+  return `<svg class="ico" viewBox="0 0 48 48" width="${size}" height="${size}" aria-hidden="true"><rect width="48" height="48" rx="11" fill="#06C755"/><path d="M24 10C14.6 10 7 16 7 23.4c0 6.6 6 12.1 14.2 13.2.6.1 1.3.4 1.5.9.2.5.1 1.2 0 1.7l-.2 1.3c-.1.4-.4 1.6 1.4.9s9.7-5.7 13.2-9.7c2.4-2.6 3.9-5.3 3.9-8.3C41 16 33.4 10 24 10z" fill="#fff"/><text x="24" y="27" text-anchor="middle" font-family="Arial, Helvetica, sans-serif" font-weight="800" font-size="9.5" fill="#06C755">LINE</text></svg>`;
+}
