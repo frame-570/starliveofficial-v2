@@ -204,7 +204,7 @@ if (codeForm) {
 // 4. Modals & Flow Handlers
 // ==========================================
 
-// 📌 Pop-up ที่ 1: เลือกรอบวันที่ต้องการรับชม
+// Pop-up ที่ 1: เลือกรอบวันที่ต้องการรับชม
 function showDaySelectionModal(data) {
   if (!dayOptionsList || !daySelectModal) return;
 
@@ -247,7 +247,7 @@ function showDaySelectionModal(data) {
   daySelectModal.style.display = "flex";
 }
 
-// 📌 Pop-up ที่ 2: กฎข้อตกลงการรับชม
+// Pop-up ที่ 2: กฎข้อตกลงการรับชม
 function showRulesModal() {
   const hideRules = localStorage.getItem("hide_watch_rules") === "true";
 
