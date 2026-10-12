@@ -3,7 +3,7 @@ import { renderHeaderAuth, getSession } from "./auth.js";
 // แก้ไขการ import promptpay-qr ชนิด ES Module ให้สมบูรณ์
 import promptpayQr from "https://cdn.jsdelivr.net/npm/promptpay-qr@0.5.0/+esm";
 import QRCode from "https://esm.sh/qrcode@1.5.3";
-import { svgIcon } from "./icons.js";
+import { svgIcon, lineLogo } from "./icons.js";
 
 renderHeaderAuth();
 
@@ -45,14 +45,48 @@ async function init() {
   }
 
   currentOrder = order;
+  await ensureSettings();
 
   if (order.status === "paid") {
     alreadyPaidCard.style.display = "block";
     document.getElementById("alreadyPaidCode").textContent = order.access_code || "-";
+    const watchLink = document.getElementById("alreadyPaidWatchLink");
+    if (watchLink && order.access_code) watchLink.href = `./watch.html?code=${encodeURIComponent(order.access_code)}`;
+    renderJoinGroupBlock("alreadyPaidJoin");
     return;
   }
 
   await renderPaymentCard(order);
+}
+
+// ดึงแถวแรกของ app_settings ครั้งเดียว ใช้ทั้งหน้าชำระเงิน หน้ารหัสเข้าชม และปุ่มเข้ากลุ่ม
+async function ensureSettings() {
+  if (paymentSettings) return paymentSettings;
+  const { data: settingsList } = await supabase
+    .from("app_settings")
+    .select("promptpay_id, promptpay_name, promptpay_logo_url, shop_name, line_oa_url, line_openchat_url, line_openchat_message")
+    .limit(1);
+  const settings = settingsList?.[0];
+  openchatSettings = settings;
+  paymentSettings = settings;
+  return settings;
+}
+
+// ปุ่มเข้ากลุ่ม LINE (เฉพาะงานไลฟ์สด) อยู่ล่างสุดของหน้ารหัสเข้าชม แทนป๊อปอัพเดิม
+function renderJoinGroupBlock(containerId) {
+  const box = document.getElementById(containerId);
+  if (!box) return;
+  const url = openchatSettings?.line_openchat_url;
+  if (!url || currentOrder?.events?.status === "rerun") {
+    box.style.display = "none";
+    return;
+  }
+  const msg = openchatSettings?.line_openchat_message || "เข้าร่วมกลุ่ม LINE เพื่อรับข่าวสารและอัปเดตล่าสุดจากเรา";
+  box.innerHTML = `
+    <p class="muted" style="font-size:13px; line-height:1.7; margin:0 0 10px; white-space:pre-line; text-align:left;">${escapeHtml(msg)}</p>
+    <a href="${escapeHtml(url)}" target="_blank" rel="noopener" class="btn-line">${lineLogo(24)}<span>เข้าร่วมกลุ่ม LINE</span></a>
+  `;
+  box.style.display = "block";
 }
 
 function showNotFound(msg) {
@@ -68,15 +102,7 @@ async function renderPaymentCard(order) {
   document.getElementById("eventTitleLabel").textContent = order.events?.title || "";
   document.getElementById("amountLabel").textContent = `${Number(order.amount).toLocaleString("th-TH")}฿`;
 
-  // ดึงแถวแรกของ app_settings โดยไม่ต้องเจาะจง id = 1
-  const { data: settingsList } = await supabase
-    .from("app_settings")
-    .select("promptpay_id, promptpay_name, promptpay_logo_url, shop_name, line_oa_url, line_openchat_url, line_openchat_message")
-    .limit(1);
-
-  const settings = settingsList?.[0];
-  openchatSettings = settings;
-  paymentSettings = settings;
+  const settings = await ensureSettings();
 
   const lineOaLink = document.getElementById("lineOaLink");
   if (settings?.line_oa_url) lineOaLink.href = settings.line_oa_url;
@@ -193,25 +219,62 @@ async function submitSlip() {
   }
 }
 
-function showSuccess(result) {
-  // ปิดป๊อปอัพตรวจสอบสลิป แล้วสลับไปแสดงหน้ารหัสเข้าชมแบบหน้าปกติ (ไม่ใช่ป๊อปอัพ)
+async function showSuccess(result) {
+  // ปิดป๊อปอัพตรวจสลิป แล้วสลับไปแสดงหน้ารหัสเข้าชมแบบหน้าปกติ (ไม่ใช่ป๊อปอัพ)
   verifyOverlay.style.display = "none";
   paymentCard.style.display = "none";
   successCard.style.display = "block";
 
-  document.getElementById("successOrderDetails").innerHTML = `
-    <div style="display:flex; justify-content:space-between;"><span class="muted">เลขที่คำสั่งซื้อ</span><span>${escapeHtml(result.order_number)}</span></div>
-    <div style="display:flex; justify-content:space-between;"><span class="muted">งาน</span><span>${escapeHtml(currentOrder.events?.title || "-")}</span></div>
-    <div style="display:flex; justify-content:space-between;"><span class="muted">แพ็กเกจ</span><span>${currentOrder.ticket_packages?.num_days || "-"} วัน (${escapeHtml(currentOrder.ticket_package_day_options?.label || "-")})</span></div>
-    <div style="display:flex; justify-content:space-between; font-weight:700; color:var(--amber);"><span>ยอดชำระ</span><span>${Number(currentOrder.amount).toLocaleString("th-TH")}฿</span></div>
-  `;
+  const isRerun = currentOrder.events?.status === "rerun";
+  const paidAt = new Date().toLocaleString("th-TH", { dateStyle: "long", timeStyle: "short" });
+
+  // ดึงวันหมดอายุของรหัสจากฐานข้อมูล (ถ้าได้) เพื่อบอกลูกค้าว่าดูได้ถึงเมื่อไหร่
+  let expiresLabel = "";
+  try {
+    const { data: fresh } = await supabase
+      .from("orders")
+      .select("access_code_expires_at")
+      .eq("id", currentOrder.id)
+      .maybeSingle();
+    if (fresh?.access_code_expires_at) {
+      expiresLabel = new Date(fresh.access_code_expires_at).toLocaleDateString("th-TH", {
+        year: "numeric",
+        month: "long",
+        day: "numeric",
+      });
+    }
+  } catch {
+    // ไม่ได้ก็ข้ามไป ไม่ให้หน้าสำเร็จพัง
+  }
+
+  const row = (label, value, extra = "") =>
+    `<div style="display:flex; justify-content:space-between; gap:12px; ${extra}"><span class="muted" style="flex-shrink:0;">${label}</span><span style="text-align:right;">${value}</span></div>`;
+
+  document.getElementById("successOrderDetails").innerHTML = [
+    row("เลขที่คำสั่งซื้อ", escapeHtml(result.order_number)),
+    row("งาน", escapeHtml(currentOrder.events?.title || "-")),
+    row("ประเภท", isRerun ? "รับชมรีรัน" : "ไลฟ์สด + รีรัน"),
+    row(
+      "แพ็กเกจ",
+      `${currentOrder.ticket_packages?.num_days || "-"} วัน (${escapeHtml(currentOrder.ticket_package_day_options?.label || "-")})`
+    ),
+    row("ชำระเมื่อ", escapeHtml(paidAt)),
+    expiresLabel ? row("ดูได้ถึงวันที่", escapeHtml(expiresLabel)) : "",
+    row("ยอดชำระ", `${Number(currentOrder.amount).toLocaleString("th-TH")}฿`, "font-weight:700; color:var(--amber);"),
+  ].join("");
+
   document.getElementById("successAccessCode").textContent = result.access_code;
 
+  // ปุ่มเข้าชมทันที: พาไปหน้าดูพร้อมรหัสที่กรอกไว้แล้ว (เหมือนในหน้าประวัติการสั่งซื้อ)
+  const watchBtn = document.getElementById("watchNowBtn");
+  if (watchBtn) watchBtn.href = `./watch.html?code=${encodeURIComponent(result.access_code)}`;
+
+  renderJoinGroupBlock("successJoinGroup");
   maybeShowOpenchatPopup();
 }
 
 // ============================================================
-// Popup ชวนเข้า LINE OpenChat (แสดงหลังตรวจสลิปสำเร็จ)
+// Popup รายละเอียดพิเศษสำหรับงานรีรัน (งานไลฟ์สดใช้ปุ่มเข้ากลุ่มในหน้ารหัสแทน)
 // ============================================================
 function maybeShowOpenchatPopup() {
   const overlay = document.getElementById("openchatOverlay");
@@ -250,35 +313,6 @@ function maybeShowOpenchatPopup() {
     return;
   }
 
-  // งานปกติ (ยังไม่ถึงวัน/กำลังถ่ายทอดสด): ชวนเข้า LINE OpenChat ตามเดิม
-  const url = openchatSettings?.line_openchat_url;
-  if (!url) return; // แอดมินยังไม่ได้ตั้งค่าลิงก์ ไม่ต้องแสดงป๊อปอัพ
-
-  icon.style.background = "linear-gradient(135deg,#06c755,#04a648)";
-  icon.innerHTML = svgIcon("megaphone", 28, 2);
-  title.textContent = "อย่าพลาดข่าวสารและอัปเดต";
-  messageText.textContent =
-    openchatSettings?.line_openchat_message ||
-    "เข้าร่วม LINE OpenChat เพื่อรับข่าวสารและอัปเดตล่าสุดจากเรา";
-  joinLink.href = url;
-  joinLink.style.display = "block";
-  skipBtn.textContent = "ข้ามไปก่อน";
-  skipBtn.style.width = "";
-
-  const closeOverlay = () => {
-    overlay.style.display = "none";
-  };
-
-  skipBtn.onclick = closeOverlay;
-  overlay.onclick = (e) => {
-    if (e.target === overlay) closeOverlay();
-  };
-  joinLink.onclick = closeOverlay;
-
-  // หน่วงเล็กน้อยให้ผู้ใช้เห็นหน้ารหัสเข้าชมก่อน ค่อยเด้งป๊อปอัพชวนเข้า LINE
-  setTimeout(() => {
-    overlay.style.display = "flex";
-  }, 600);
 }
 
 function showFail(reason) {
