@@ -1,4 +1,7 @@
 import { extractYouTubeId } from "./supabaseClient.js";
+
+// ข้อความป้ายตอนแสดงคลิปตัวอย่าง (แทนคำว่า LIVE / รีรัน) — เปลี่ยนคำได้ที่นี่ที่เดียว
+const PREVIEW_LABEL = "ทีเซอร์คอนเสิร์ต";
 import { SUPABASE_ANON_KEY, FUNCTIONS_URL } from "./config.js";
 
 const THAI_MONTHS = [
@@ -236,6 +239,14 @@ function showDaySelectionModal(data) {
         currentSelectedDay = { dayData: day, mode: "live" };
         showRulesModal();
       };
+    } else if (data.preview_available) {
+      // ยังไม่มีไลฟ์/รีรัน แต่งานนี้มีคลิปทีเซอร์ให้ดูก่อน
+      btn.innerHTML = `<div class="day-title">${ICONS.play} ${formatDayDateLabel(day)}</div><div class="day-status rerun">${PREVIEW_LABEL}</div>`;
+      btn.onclick = () => {
+        daySelectModal.style.display = "none";
+        currentSelectedDay = { dayData: day, mode: "preview" };
+        showRulesModal();
+      };
     } else {
       btn.disabled = true;
       btn.innerHTML = `<div class="day-title">${ICONS.clock} ${formatDayDateLabel(day)}</div><div class="day-status">ยังไม่ถึงวันถ่ายทอดสด</div>`;
@@ -346,6 +357,13 @@ function renderRightSidebarDays(data, activeDay) {
         currentSelectedDay = { dayData: day, mode: "live" };
         loadSelectedDayStream(day, "live");
       };
+    } else if (data.preview_available) {
+      btn.innerHTML = `${ICONS.play} <span>${PREVIEW_LABEL}: ${formatDayDateLabel(day)}</span>`;
+      btn.onclick = () => {
+        setActiveTab(btn);
+        currentSelectedDay = { dayData: day, mode: "preview" };
+        loadSelectedDayStream(day, "preview");
+      };
     } else {
       btn.disabled = true;
       btn.innerHTML = `${ICONS.clock} <span>${formatDayDateLabel(day)} (ยังไม่ถึงวัน)</span>`;
@@ -378,7 +396,7 @@ async function loadSelectedDayStream(day, forceMode = null) {
     Number(cached.day_number) === Number(dayNumber) &&
     (!forceMode || cached.status === forceMode)
   ) {
-    updateStatusBadge(cached.status === "rerun" ? "rerun" : "live");
+    updateStatusBadge(cached.status);
     loadVideoStream({
       platform: cached.platform,
       streamUrl: cached.stream_url,
@@ -414,7 +432,7 @@ async function loadSelectedDayStream(day, forceMode = null) {
     currentSessionToken = body.session_token || currentSessionToken;
     if (activeEventData) activeEventData.current_day = body.current_day;
 
-    updateStatusBadge(body.current_day.status === "rerun" ? "rerun" : "live");
+    updateStatusBadge(body.current_day.status);
     loadVideoStream({
       platform: body.current_day.platform,
       streamUrl: body.current_day.stream_url,
@@ -460,6 +478,9 @@ function updateStatusBadge(status) {
   if (!statusBadge) return;
   if (status === "rerun") {
     statusBadge.innerHTML = `รีรัน`;
+    statusBadge.classList.add("event-card-badge-rerun");
+  } else if (status === "preview") {
+    statusBadge.innerHTML = PREVIEW_LABEL;
     statusBadge.classList.add("event-card-badge-rerun");
   } else {
     statusBadge.innerHTML = `<span class="live-dot"></span> LIVE`;
