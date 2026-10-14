@@ -7,6 +7,8 @@
 
 const W = 1080;
 const H = 1200;
+// โปสเตอร์วิดีโอ: กรอบวางคลิปด้านบนขนาด 16:9 (กว้างเต็ม 1080 → สูง 608)
+const FRAME_H = Math.round((W * 9) / 16);
 
 const C = {
   stage: "#08070d",
@@ -82,6 +84,8 @@ function defaultsFromEvent(ev) {
     logoCorner: saved.logoCorner || "left",
     showBrand: saved.showBrand !== false,
     theme: POSTER_THEMES.some((t) => t.id === saved.theme) ? saved.theme : "st",
+    mode: saved.mode === "video" ? "video" : "image",
+    videoColor: /^#[0-9a-fA-F]{6}$/.test(saved.videoColor || "") ? saved.videoColor : "#7c3aed",
   };
 }
 
@@ -683,6 +687,47 @@ function drawBgNewYear(ctx, H) {
   }
 }
 
+function drawGhost(ctx, x, y, s, alpha = 1) {
+  ctx.save();
+  ctx.translate(x, y);
+  ctx.scale(s, s);
+  ctx.globalAlpha = alpha;
+  ctx.shadowColor = "rgba(255,255,255,0.75)";
+  ctx.shadowBlur = 26;
+  const g = ctx.createLinearGradient(0, -62, 0, 60);
+  g.addColorStop(0, "#ffffff");
+  g.addColorStop(1, "#e4def5");
+  ctx.fillStyle = g;
+  ctx.beginPath();
+  ctx.moveTo(-34, 46);
+  ctx.lineTo(-34, -10);
+  ctx.bezierCurveTo(-34, -50, -18, -62, 0, -62);
+  ctx.bezierCurveTo(18, -62, 34, -50, 34, -10);
+  ctx.lineTo(34, 46);
+  for (let i = 0; i < 3; i++) {
+    const x0 = 34 - i * (68 / 3);
+    const x1 = 34 - (i + 1) * (68 / 3);
+    ctx.quadraticCurveTo((x0 + x1) / 2, 70, x1, 46);
+  }
+  ctx.closePath();
+  ctx.fill();
+  ctx.shadowBlur = 0;
+  ctx.fillStyle = "#2a1a40";
+  ctx.beginPath();
+  ctx.ellipse(-12, -20, 5.5, 8.5, 0, 0, Math.PI * 2);
+  ctx.ellipse(12, -20, 5.5, 8.5, 0, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.beginPath();
+  ctx.ellipse(0, 0, 5.5, 8, 0, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.fillStyle = "rgba(255,150,170,0.55)";
+  ctx.beginPath();
+  ctx.ellipse(-22, -6, 5, 3, 0, 0, Math.PI * 2);
+  ctx.ellipse(22, -6, 5, 3, 0, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.restore();
+}
+
 function drawBgHalloween(ctx, H) {
   const bg = ctx.createLinearGradient(0, 0, 0, H);
   bg.addColorStop(0, "#1c0a2c");
@@ -766,6 +811,11 @@ function drawBgHalloween(ctx, H) {
   [[90, 30, 36], [250, 26, 26], [430, 32, 30], [620, 28, 24], [790, 30, 34], [960, 24, 38]].forEach(([x, dy, r]) => {
     drawPumpkin(ctx, x, H - dy - r * 0.55, r);
   });
+
+  // ผีสีขาวลอยอยู่ระหว่างฟักทอง และตามขอบข้าง
+  [[340, H - 70, 0.82, 0.95], [705, H - 74, 0.76, 0.95], [26, 650, 0.6, 0.6], [1054, 600, 0.62, 0.6], [1050, 840, 0.5, 0.5]].forEach(
+    ([gx, gy, gs, ga]) => drawGhost(ctx, gx, gy, gs, ga)
+  );
 }
 
 function drawSnowflake(ctx, x, y, r) {
@@ -1341,6 +1391,165 @@ function drawPoster(canvas, st, images) {
   if (lr) ctx.drawImage(images.logo, lr.x, lr.y, lr.w, lr.h);
 }
 
+// ---------- โปสเตอร์วิดีโอ ----------
+// ขนาดโปสเตอร์เท่าแนวตั้งเดิม (1080×1200) ด้านบนเป็นกรอบสี 16:9 (1080×608) ไว้วางคลิป
+// ใต้กรอบ: ป้ายหัวเรื่องกลางโปสเตอร์ แล้วแบ่งซ้าย (ชื่องาน/วันที่/เวลา) ขวา (กล่องราคา)
+function drawVideoPoster(canvas, st, images) {
+  const Hc = H + themeExtra(st.theme);
+  canvas.width = W;
+  canvas.height = Hc;
+  const ctx = canvas.getContext("2d");
+  ctx.clearRect(0, 0, W, Hc);
+  ctx.textBaseline = "alphabetic";
+  ctx.textAlign = "left";
+
+  drawBackground(ctx, Hc, st.theme);
+
+  // ----- กรอบ 16:9 ด้านบน: สีที่เลือก -----
+  const fh = FRAME_H;
+  ctx.fillStyle = st.videoColor || "#7c3aed";
+  ctx.fillRect(0, 0, W, fh);
+  const sh = ctx.createLinearGradient(0, fh, 0, fh + 28);
+  sh.addColorStop(0, "rgba(0,0,0,0.35)");
+  sh.addColorStop(1, "rgba(0,0,0,0)");
+  ctx.fillStyle = sh;
+  ctx.fillRect(0, fh, W, 28);
+  ctx.fillStyle = C.amber;
+  ctx.fillRect(0, fh - 3, W, 5);
+
+  // โลโก้ร้าน (ตำแหน่งเดิมมุมบน)
+  const lr = logoRect(st, images);
+  if (lr) ctx.drawImage(images.logo, lr.x, lr.y, lr.w, lr.h);
+
+  // ----- ป้าย "เปิดหารจอไลฟ์สตรีม" กึ่งกลาง ใต้กรอบ -----
+  const pillW = 580;
+  const pillH = 72;
+  const pillX = (W - pillW) / 2;
+  const pillY = fh + 18;
+  rr(ctx, pillX, pillY, pillW, pillH, pillH / 2);
+  ctx.fillStyle = "rgba(19,17,32,0.62)";
+  ctx.fill();
+  ctx.lineWidth = 3;
+  ctx.strokeStyle = C.amber;
+  ctx.stroke();
+  ctx.fillStyle = C.amber;
+  ctx.textAlign = "center";
+  ctx.textBaseline = "middle";
+  fitSize(ctx, st.subtitle || "", pillW - 56, 38, 22, 600);
+  ctx.fillText(st.subtitle || "", W / 2, pillY + pillH / 2 + 3);
+  ctx.textBaseline = "alphabetic";
+
+  // ----- พื้นที่รายละเอียดใต้ป้าย -----
+  const topLimit = pillY + pillH + 22;
+  const bottomLimit = Hc - (st.theme && st.theme !== "st" ? 140 : 36);
+  const region = bottomLimit - topLimit;
+
+  // ซ้าย: ชื่องาน + วันที่ + เวลาเริ่ม
+  const lx = 50;
+  const lw = 480;
+  ctx.textAlign = "left";
+  const rowsH = (st.dateText ? 92 : 0) + (st.timeText ? 92 : 0);
+  const gap = rowsH ? 22 : 0;
+  let size = 60;
+  let lines = [];
+  let lh = 0;
+  for (; size >= 32; size -= 2) {
+    setFont(ctx, 800, size);
+    lines = wrapLines(ctx, st.title || "", lw);
+    lh = Math.round(size * 1.2);
+    const maxLines = size > 46 ? 2 : 3;
+    if (lines.length <= maxLines && lines.length * lh + gap + rowsH <= region) break;
+  }
+  lines = lines.slice(0, 3);
+  const blockH = lines.length * lh + gap + rowsH;
+  let y = topLimit + Math.max(0, (region - blockH) / 2);
+  ctx.fillStyle = C.text;
+  setFont(ctx, 800, size);
+  lines.forEach((ln, i) => ctx.fillText(ln, lx, y + size * 0.92 + i * lh));
+  y += lines.length * lh + gap;
+
+  if (st.dateText) {
+    iconCalendar(ctx, lx + 4, y + 2, 64);
+    ctx.fillStyle = C.text;
+    setFont(ctx, 500, 24, "Sarabun");
+    ctx.fillText("วันที่", lx + 92, y + 22);
+    fitSize(ctx, st.dateText, lw - 92, 38, 22, 700);
+    ctx.fillStyle = C.amberLight;
+    ctx.fillText(st.dateText, lx + 92, y + 64);
+    y += 92;
+  }
+  if (st.timeText) {
+    iconClock(ctx, lx + 4, y + 2, 64);
+    ctx.fillStyle = C.text;
+    setFont(ctx, 500, 24, "Sarabun");
+    ctx.fillText("เวลาเริ่ม", lx + 92, y + 22);
+    fitSize(ctx, st.timeText, lw - 92, 38, 22, 700);
+    ctx.fillStyle = C.amberLight;
+    ctx.fillText(st.timeText, lx + 92, y + 64);
+  }
+
+  // ขวา: กล่องสี่เหลี่ยม = ราคา + จุดเด่น 3 อย่าง
+  const bw = 470;
+  const bx = W - 46 - bw;
+  const boxH = Math.min(360, region);
+  const by = topLimit + (region - boxH) / 2;
+  panel(ctx, bx, by, bw, boxH, 14, "rgba(242,183,5,0.75)", 3, "rgba(19,17,32,0.72)");
+
+  const featZone = 106;
+  ctx.textAlign = "left";
+  ctx.fillStyle = C.text;
+  setFont(ctx, 500, 26, "Sarabun");
+  const labelBase = by + 42;
+  ctx.fillText(st.priceLabel || "ราคาเพียง", bx + 24, labelBase);
+
+  const capBase = by + boxH - featZone - 14;
+  const priceTxt = st.price ? Number(st.price).toLocaleString("th-TH") + ".-" : "-";
+  let ps = Math.max(48, Math.min(104, (capBase - labelBase - 40) * 1.2));
+  setFont(ctx, 800, ps);
+  while (ps > 40 && ctx.measureText(priceTxt).width > bw - 50) {
+    ps -= 4;
+    setFont(ctx, 800, ps);
+  }
+  const priceBase = (labelBase + 6 + capBase - 28) / 2 + ps * 0.36;
+  ctx.save();
+  ctx.textAlign = "center";
+  ctx.shadowColor = "rgba(242,183,5,0.45)";
+  ctx.shadowBlur = 16;
+  ctx.fillStyle = C.amberLight;
+  ctx.fillText(priceTxt, bx + bw / 2, priceBase);
+  ctx.restore();
+  ctx.textAlign = "center";
+  ctx.fillStyle = C.text;
+  fitSize(ctx, st.priceCaption || "", bw - 36, 26, 16, 600);
+  ctx.fillText(st.priceCaption || "", bx + bw / 2, capBase);
+
+  const dy = by + boxH - featZone;
+  ctx.strokeStyle = "rgba(245,242,234,0.2)";
+  ctx.lineWidth = 2;
+  ctx.beginPath();
+  ctx.moveTo(bx + 22, dy);
+  ctx.lineTo(bx + bw - 22, dy);
+  ctx.stroke();
+  const feats = [
+    { icon: iconFHD, label: "ความชัด 1080p" },
+    { icon: iconDevices, label: "ดูได้ทุกอุปกรณ์" },
+    { icon: iconLink, label: "รับชมผ่านลิงก์" },
+  ];
+  const cw = (bw - 24) / 3;
+  feats.forEach((f, i) => {
+    const cx = bx + 12 + cw * i + cw / 2;
+    ctx.save();
+    ctx.translate(cx, dy + 34);
+    ctx.scale(0.42, 0.42);
+    f.icon(ctx, 0, 0);
+    ctx.restore();
+    ctx.fillStyle = C.text;
+    ctx.textAlign = "center";
+    fitSize(ctx, f.label, cw - 6, 20, 14, 600, "Sarabun");
+    ctx.fillText(f.label, cx, by + boxH - 14);
+  });
+}
+
 // ---------- โหลดรูป ----------
 // ตัดขอบโปร่งใสรอบโลโก้ออก ให้โลโก้ใหญ่เต็มช่องมุมโปสเตอร์ คืนค่าเป็น dataURL (PNG)
 function trimTransparent(img) {
@@ -1436,7 +1645,20 @@ export async function openPosterMaker(ev) {
     <div style="background:var(--surface,#131120); border:1px solid var(--line,#2c2745); border-radius:18px; width:min(1120px,100%); padding:18px; display:flex; flex-wrap:wrap; gap:18px;">
       <div style="flex:1 1 320px; min-width:0; max-width:420px;">
         <h3 class="display" style="margin:0 0 12px;">สร้างโปสเตอร์งาน</h3>
+        <div style="display:flex; gap:8px; margin-bottom:12px;">
+          <button type="button" id="pmModeImage" class="icon-btn" style="flex:1; padding:10px 8px;">โปสเตอร์ภาพ (แนวตั้ง)</button>
+          <button type="button" id="pmModeVideo" class="icon-btn" style="flex:1; padding:10px 8px;">โปสเตอร์วิดีโอ (16:9)</button>
+        </div>
         <div style="display:flex; flex-direction:column; gap:10px;">
+          <div id="pmVideoOpts" style="display:none;">
+            <label class="field-label">สีครึ่งบนของโปสเตอร์ <span class="muted" style="font-size:11px;">(กรอบ 16:9 ไว้วางคลิป)</span></label>
+            <div style="display:flex; align-items:center; gap:8px; flex-wrap:wrap;">
+              <input id="pmVideoColor" type="color" style="width:52px; height:38px; padding:0; border:1px solid var(--line,#2c2745); border-radius:8px; background:none; cursor:pointer;" />
+              ${[["#00b140", "เขียว"], ["#0047bb", "น้ำเงิน"], ["#000000", "ดำ"], ["#ffffff", "ขาว"], ["#7c3aed", "ม่วง"], ["#e8384f", "แดง"]]
+                .map(([c, n]) => `<button type="button" class="pm-swatch" data-color="${c}" title="${n}" style="width:30px; height:30px; border-radius:8px; border:2px solid var(--line,#2c2745); background:${c}; cursor:pointer;"></button>`)
+                .join("")}
+            </div>
+          </div>
           <div><label class="field-label">หัวข้อบนป้าย</label><input id="pmSubtitle" class="field-input" /></div>
           <div><label class="field-label">ชื่องาน</label><input id="pmTitle" class="field-input" /></div>
           <div><label class="field-label">วันที่</label><input id="pmDate" class="field-input" /></div>
@@ -1452,7 +1674,7 @@ export async function openPosterMaker(ev) {
               ${POSTER_THEMES.map((t) => `<option value="${t.id}">${t.label}</option>`).join("")}
             </select>
           </div>
-          <label style="display:flex; align-items:center; gap:8px; font-size:14px; cursor:pointer;">
+          <label id="pmBrandRow" style="display:flex; align-items:center; gap:8px; font-size:14px; cursor:pointer;">
             <input type="checkbox" id="pmShowBrand" /> แสดงชื่อร้านด้านบน (รวมดาวซ้าย-ขวา)
           </label>
           <div>
@@ -1466,7 +1688,7 @@ export async function openPosterMaker(ev) {
               <button type="button" id="pmLogoClear" class="icon-btn ghost" style="padding:8px 14px;">ลบโลโก้</button>
             </div>
           </div>
-          <div>
+          <div id="pmPosterRow">
             <label class="field-label">รูปโปสเตอร์งาน <span class="muted" style="font-size:11px;">(ใช้รูปของงานให้อัตโนมัติ เลือกไฟล์เพื่อเปลี่ยน)</span></label>
             <input id="pmPosterFile" type="file" accept="image/*" class="field-input" />
           </div>
@@ -1498,12 +1720,44 @@ export async function openPosterMaker(ev) {
   $("pmLogoCorner").value = st.logoCorner;
   $("pmShowBrand").checked = st.showBrand;
   $("pmTheme").value = st.theme;
+  $("pmVideoColor").value = st.videoColor;
+
+  // สลับโหมด: โปสเตอร์ภาพแนวตั้ง / โปสเตอร์วิดีโอ 16:9
+  const applyMode = () => {
+    const video = st.mode === "video";
+    $("pmVideoOpts").style.display = video ? "block" : "none";
+    $("pmBrandRow").style.display = video ? "none" : "flex";
+    $("pmPosterRow").style.display = video ? "none" : "block";
+    $("pmModeImage").style.opacity = video ? "0.55" : "1";
+    $("pmModeVideo").style.opacity = video ? "1" : "0.55";
+    $("pmModeImage").style.outline = video ? "none" : "2px solid var(--amber,#f2b705)";
+    $("pmModeVideo").style.outline = video ? "2px solid var(--amber,#f2b705)" : "none";
+  };
 
   let raf = 0;
   const render = () => {
     cancelAnimationFrame(raf);
-    raf = requestAnimationFrame(() => drawPoster(canvas, st, images));
+    raf = requestAnimationFrame(() =>
+      st.mode === "video" ? drawVideoPoster(canvas, st, images) : drawPoster(canvas, st, images)
+    );
   };
+  const setMode = (m) => {
+    st.mode = m;
+    saveSettings({ mode: m });
+    applyMode();
+    render();
+  };
+  $("pmModeImage").addEventListener("click", () => setMode("image"));
+  $("pmModeVideo").addEventListener("click", () => setMode("video"));
+  const setVideoColor = (c) => {
+    st.videoColor = c;
+    $("pmVideoColor").value = c;
+    saveSettings({ videoColor: c });
+    render();
+  };
+  $("pmVideoColor").addEventListener("input", (e) => setVideoColor(e.target.value));
+  overlay.querySelectorAll(".pm-swatch").forEach((b) => b.addEventListener("click", () => setVideoColor(b.dataset.color)));
+  applyMode();
 
   const bind = (id, key, persistKey) => {
     $(id).addEventListener(id === "pmLogoCorner" ? "change" : "input", (e) => {
@@ -1597,7 +1851,7 @@ export async function openPosterMaker(ev) {
         const a = document.createElement("a");
         const safe = (st.title || "poster").replace(/[\\/:*?"<>|]+/g, "").trim().slice(0, 40) || "poster";
         a.href = URL.createObjectURL(blob);
-        a.download = `starlive-${safe}.png`;
+        a.download = `starlive-${st.mode === "video" ? "video-" : ""}${safe}.png`;
         document.body.appendChild(a);
         a.click();
         a.remove();
