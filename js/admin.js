@@ -1,3 +1,4 @@
+
 import { adminSupabase as supabase } from "./supabaseClient.js";
 import { SUPABASE_ANON_KEY, FUNCTIONS_URL } from "./config.js";
 import { openPosterMaker } from "./poster.js";
@@ -359,6 +360,7 @@ const evDescription = document.getElementById("evDescription");
 const evBannerFile = document.getElementById("evBannerFile");
 const evBannerPreview = document.getElementById("evBannerPreview");
 const evStatus = document.getElementById("evStatus");
+const evPreviewUrl = document.getElementById("evPreviewUrl");
 const evRerunMonths = document.getElementById("evRerunMonths");
 const dayRows = document.getElementById("dayRows");
 const packageRows = document.getElementById("packageRows");
@@ -556,6 +558,7 @@ function openEventForm(event = null) {
     evTitle.value = event.title;
     evDescription.value = event.description || "";
     evStatus.value = event.status;
+    if (evPreviewUrl) evPreviewUrl.value = event.preview_youtube_url || "";
     if (evRerunMonths) evRerunMonths.value = event.rerun_duration_months || 6;
     currentBannerUrl = event.banner_url || "";
     if (currentBannerUrl) {
@@ -579,6 +582,7 @@ function openEventForm(event = null) {
     eventFormTitle.textContent = "สร้างงานใหม่";
     eventIdInput.value = "";
     evStatus.value = "upcoming";
+    if (evPreviewUrl) evPreviewUrl.value = "";
     if (evRerunMonths) evRerunMonths.value = 6;
     addDayRow();
   }
@@ -638,6 +642,12 @@ eventForm.addEventListener("submit", async (e) => {
     return;
   }
 
+  const previewUrlVal = evPreviewUrl ? evPreviewUrl.value.trim() : "";
+  if (previewUrlVal && !/(youtube\.com|youtu\.be)\//i.test(previewUrlVal)) {
+    eventFormError.textContent = "ลิงก์ตัวอย่าง/ทีเซอร์ต้องเป็นลิงก์ YouTube";
+    return;
+  }
+
   const saveBtn = document.getElementById("saveEventBtn");
   saveBtn.disabled = true;
   saveBtn.textContent = "กำลังบันทึก...";
@@ -660,6 +670,7 @@ eventForm.addEventListener("submit", async (e) => {
       description: evDescription.value.trim() || null,
       banner_url: bannerUrl || null,
       status: evStatus.value,
+      preview_youtube_url: previewUrlVal || null,
       viewing_duration_months: rerunMonthsVal,
       rerun_duration_months: rerunMonthsVal,
     };
