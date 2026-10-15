@@ -81,7 +81,7 @@ function defaultsFromEvent(ev) {
     price: minPrice === "" ? "" : String(minPrice),
     priceCaption: `ชมสด+รีรัน(นาน${months}เดือน)+E-Photo`,
     months,
-    logoCorner: saved.logoCorner || "left",
+    logoCorner: ["left", "right", "none"].includes(saved.logoCorner) ? saved.logoCorner : "left",
     showBrand: saved.showBrand !== false,
     theme: POSTER_THEMES.some((t) => t.id === saved.theme) ? saved.theme : "st",
     mode: saved.mode === "video" ? "video" : "image",
@@ -1192,7 +1192,8 @@ function iconReplay(ctx, cx, cy) {
 // ตั๋วสีทอง มีรอยเว้าสองข้างและเส้นปรุ
 // กล่องโลโก้มุมบน: ชิดเส้นกรอบนอกของรูปงาน (ซ้าย x=46) หรือกรอบกล่องราคา (ขวา x=1022)
 function logoRect(st, images) {
-  if (!images.logo) return null;
+  // เลือก "ไม่ใส่โลโก้" = ไม่วาดโลโก้ แต่ยังเก็บไฟล์โลโก้ไว้ ไม่ต้องอัปโหลดใหม่
+  if (!images.logo || st.logoCorner === "none") return null;
   const bw = 150;
   const bh = 130;
   const k = Math.min(bw / images.logo.width, bh / images.logo.height);
@@ -1684,6 +1685,7 @@ export async function openPosterMaker(ev) {
               <select id="pmLogoCorner" class="field-input" style="max-width:150px;">
                 <option value="left">มุมบนซ้าย</option>
                 <option value="right">มุมบนขวา</option>
+                <option value="none">ไม่ใส่โลโก้</option>
               </select>
               <button type="button" id="pmLogoClear" class="icon-btn ghost" style="padding:8px 14px;">ลบโลโก้</button>
             </div>
