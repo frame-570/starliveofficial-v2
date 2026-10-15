@@ -1,4 +1,3 @@
-
 import { adminSupabase as supabase } from "./supabaseClient.js";
 import { SUPABASE_ANON_KEY, FUNCTIONS_URL } from "./config.js";
 import { openPosterMaker } from "./poster.js";
@@ -1722,6 +1721,7 @@ const randomDiscountCodeBtn = document.getElementById("randomDiscountCodeBtn");
 const randomDiscountLengthSelect = document.getElementById("randomDiscountLengthSelect");
 const discountEventSelect = document.getElementById("discountEventSelect");
 const discountExpiresInput = document.getElementById("discountExpiresInput");
+const discountStartsInput = document.getElementById("discountStartsInput");
 
 discountCodeCreateInput.addEventListener("input", () => {
   discountCodeCreateInput.value = discountCodeCreateInput.value.toUpperCase().replace(/[^A-Z0-9]/g, "");
@@ -1782,6 +1782,21 @@ discountForm.addEventListener("submit", async (e) => {
     }
     expiresAt = expiresAt.toISOString();
   }
+  // วันเริ่มใช้โค้ด: 00:00 น. เวลาไทยของวันที่เลือก (ตั้งล่วงหน้าได้)
+  const startsDate = discountStartsInput ? discountStartsInput.value : "";
+  let startsAt = null;
+  if (startsDate) {
+    const startsObj = new Date(`${startsDate}T00:00:00+07:00`);
+    if (isNaN(startsObj.getTime())) {
+      discountFormError.textContent = "วันเริ่มใช้โค้ดไม่ถูกต้อง";
+      return;
+    }
+    if (expiresDate && startsDate > expiresDate) {
+      discountFormError.textContent = "วันเริ่มใช้ต้องไม่เกินวันหมดอายุ";
+      return;
+    }
+    startsAt = startsObj.toISOString();
+  }
   const eventId = discountEventSelect.value || null;
 
   createDiscountBtn.disabled = true;
@@ -1794,6 +1809,7 @@ discountForm.addEventListener("submit", async (e) => {
     max_uses: maxUses,
     event_id: eventId,
     expires_at: expiresAt,
+    starts_at: startsAt,
   });
 
   createDiscountBtn.disabled = false;
@@ -1850,6 +1866,10 @@ function renderDiscountRow(code, eventTitleById = new Map()) {
   const isExhausted = code.used_count >= code.max_uses;
   const isExpired = !!code.expires_at && new Date(code.expires_at) < new Date();
   const eventLabel = code.event_id ? (eventTitleById.get(String(code.event_id)) || "งานที่ถูกลบแล้ว") : "ทุกงาน";
+  const isNotStarted = !!code.starts_at && new Date(code.starts_at) > new Date();
+  const startLabel = code.starts_at
+    ? "เริ่มใช้ " + new Date(code.starts_at).toLocaleDateString("th-TH", { timeZone: "Asia/Bangkok", day: "numeric", month: "short", year: "numeric" })
+    : "ใช้ได้ทันที";
   const expiryLabel = code.expires_at
     ? "ใช้ได้ถึง " + new Date(code.expires_at).toLocaleDateString("th-TH", { timeZone: "Asia/Bangkok", day: "numeric", month: "short", year: "numeric" })
     : "ไม่มีวันหมดอายุ";
@@ -1862,7 +1882,8 @@ function renderDiscountRow(code, eventTitleById = new Map()) {
       <div class="muted" style="font-size:12.5px;">
         ${escapeHtml(valueLabel)} · ใช้ไปแล้ว ${code.used_count}/${code.max_uses} สิทธิ์
         ${isExhausted ? ' · <span style="color:var(--crimson);">ใช้ครบแล้ว</span>' : ""}
-        <br>งาน: ${escapeHtml(eventLabel)} · ${escapeHtml(expiryLabel)}
+        <br>งาน: ${escapeHtml(eventLabel)} · ${escapeHtml(startLabel)} · ${escapeHtml(expiryLabel)}
+        ${isNotStarted ? ' · <span style="color:var(--amber);">ยังไม่ถึงวันเริ่มใช้</span>' : ""}
         ${isExpired ? ' · <span style="color:var(--crimson);">หมดอายุแล้ว</span>' : ""}
         ${!code.is_active ? ' · <span style="color:var(--muted);">ปิดใช้งาน</span>' : ""}
       </div>
