@@ -166,16 +166,6 @@ body[data-theme="newyear"] .rv-decor::after {
 }
 .rv-write-btn:hover { transform: translateY(-1px); }
 
-.rv-admin-bar {
-  display: none; align-items: center; gap: 10px; flex-wrap: wrap; justify-content: center;
-  margin: 0 auto 22px; padding: 10px 14px; border: 1px dashed var(--rv-accent); border-radius: 12px;
-  font-size: 13.5px; color: var(--rv-muted);
-}
-.rv-admin-bar select {
-  background: rgba(0,0,0,.35); color: var(--rv-text); border: 1.5px solid var(--rv-card-line);
-  border-radius: 8px; padding: 7px 10px; font-family: "Sarabun", sans-serif; font-size: 13.5px;
-}
-
 .rv-list { display: flex; flex-direction: column; gap: 14px; }
 .rv-card {
   width: 100%; padding: 16px 20px; border-radius: 14px;
