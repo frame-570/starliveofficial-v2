@@ -95,6 +95,7 @@
     <button type="button" class="admin-tab-btn" data-tab="discount">โค้ดส่วนลด</button>
     <button type="button" class="admin-tab-btn" data-tab="members">สมาชิก</button>
     <button type="button" class="admin-tab-btn" data-tab="slipcheck">ตรวจสลิป</button>
+    <button type="button" class="admin-tab-btn" data-tab="reviews">รีวิว</button>
   </div>
 
   <!-- ============ Tab: งาน (Events) ============ -->
@@ -357,6 +358,26 @@
     </div>
     <div id="memberListWrap" style="display:flex; flex-direction:column; gap:12px;"></div>
     <p id="memberEmptyState" class="muted" style="display:none; text-align:center; padding:40px 0;">ยังไม่มีสมาชิกสมัครเข้ามา</p>
+  </div>
+
+  <!-- ============ Tab: รีวิว (Reviews) ============ -->
+  <div id="reviewsTab" class="admin-tab-panel" style="display:none;">
+    <style>.rv-admin-stars .rv-star{fill:none;stroke:#ffd21f;stroke-width:1.8}.rv-admin-stars .rv-star.is-on{fill:#ffd21f}.rv-admin-stars .rv-stars{display:inline-flex;gap:2px;line-height:0}</style>
+    <div style="display:flex; gap:12px; margin-bottom:16px; flex-wrap:wrap; align-items:center;">
+      <label class="muted" style="font-size:13px;">ธีมหน้ารีวิว</label>
+      <select id="reviewThemeSelect" class="field-input" style="width:auto; min-width:220px;"></select>
+      <span class="muted" id="reviewThemeStatus" style="font-size:12.5px;"></span>
+      <a href="./review.html" target="_blank" rel="noopener" class="icon-btn ghost" style="text-decoration:none; display:inline-block;">เปิดหน้ารีวิว</a>
+    </div>
+    <div style="display:flex; gap:10px; margin-bottom:16px; flex-wrap:wrap; align-items:center;">
+      <select id="reviewFilterSelect" class="field-input" style="width:auto;">
+        <option value="all">ทั้งหมด</option>
+        <option value="visible">ที่แสดงอยู่</option>
+        <option value="hidden">ที่ซ่อนไว้</option>
+      </select>
+      <span class="muted" id="reviewCountLabel" style="font-size:12.5px;"></span>
+    </div>
+    <div id="reviewListWrap" style="display:flex; flex-direction:column; gap:12px;"></div>
   </div>
 
   <!-- ============ Tab: ตรวจสลิป (Slip quota) ============ -->
