@@ -1,0 +1,68 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>รีวิวจากลูกค้า | Star Live Official</title>
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="icon" type="image/svg+xml" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'><path d='M12 0C12 6.627 6.627 12 0 12C6.627 12 12 17.373 12 24C12 17.373 17.373 12 24 12C17.373 12 12 6.627 12 0Z' fill='%23FFD700'/></svg>">
+<link href="https://fonts.googleapis.com/css2?family=Prompt:wght@500;600;700;800&family=Sarabun:wght@400;500;600&display=swap" rel="stylesheet" />
+<link rel="stylesheet" href="./style.css" />
+<link rel="stylesheet" href="./review.css" />
+</head>
+<body class="rv-body" data-theme="st">
+<div class="rv-decor"></div>
+
+<header class="rv-header">
+  <a href="./index.html" class="marquee-brand"><span class="bulb"></span> STAR LIVE OFFICIAL</a>
+  <a href="./index.html" class="rv-home-link">← กลับหน้าแรก</a>
+</header>
+
+<main class="rv-shell">
+  <section class="rv-hero">
+    <h1 class="display">รีวิวจากลูกค้า</h1>
+    <div class="rv-summary" id="rvSummary"></div>
+  </section>
+
+  <button type="button" class="rv-write-btn" id="rvWriteBtn">เขียนรีวิว</button>
+
+  <div class="rv-admin-bar" id="rvAdminBar">
+    <span>โหมดแอดมิน · ธีมหน้ารีวิว:</span>
+    <select id="rvThemeSelect"></select>
+    <span id="rvThemeStatus"></span>
+  </div>
+
+  <section id="rvList" class="rv-list"></section>
+  <p id="rvLoading" class="rv-loading">กำลังโหลดรีวิว...</p>
+  <p id="rvEmpty" class="rv-empty" style="display:none;">ยังไม่มีรีวิว เป็นคนแรกที่รีวิวเลย!</p>
+</main>
+
+<div class="rv-modal" id="rvModal" role="dialog" aria-modal="true" aria-labelledby="rvModalTitle">
+  <form class="rv-modal-box" id="rvForm" autocomplete="off">
+    <h2 class="display" id="rvModalTitle">เขียนรีวิว</h2>
+
+    <label class="rv-label">ให้คะแนน <span style="color:#ff7b8a">*</span></label>
+    <div class="rv-star-input" id="rvStarInput"></div>
+
+    <label class="rv-label" for="rvName">ชื่อ (ไม่บังคับ)</label>
+    <input class="rv-input" id="rvName" maxlength="40" placeholder="เช่น คุณสมชาย" />
+
+    <label class="rv-label" for="rvText">ข้อความรีวิว <span style="color:#ff7b8a">*</span></label>
+    <textarea class="rv-input" id="rvText" maxlength="1000" placeholder="เล่าประสบการณ์ของคุณให้เราฟัง..."></textarea>
+    <div class="rv-count"><span id="rvCount">0</span>/1000</div>
+
+    <input class="rv-hp" id="rvHp" tabindex="-1" aria-hidden="true" autocomplete="off" />
+
+    <div class="rv-error" id="rvError"></div>
+    <div class="rv-modal-actions">
+      <button type="button" class="rv-btn-cancel" id="rvCancel">ยกเลิก</button>
+      <button type="submit" class="rv-btn-submit" id="rvSubmit" disabled>ส่งรีวิว</button>
+    </div>
+  </form>
+</div>
+
+<div class="rv-toast" id="rvToast"></div>
+
+<script type="module" src="./js/review.js"></script>
+</body>
+</html>
