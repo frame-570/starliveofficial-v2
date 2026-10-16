@@ -37,6 +37,13 @@
   </div>
 
   <!-- หน้าชำระเงินปกติ -->
+  <!-- ยอด 0 บาท: ไม่มี QR / สลิป แค่รอยืนยันสิทธิ์ -->
+  <div id="freeCard" class="pass-card" style="display:none; width:100%; margin-top:10px; text-align:center;">
+    <h1 class="display" style="font-size:19px; margin:0 0 8px;">ไม่ต้องชำระเงิน</h1>
+    <p id="freeStatusText" class="muted" style="font-size:14px; line-height:1.7; margin:0;"></p>
+    <button type="button" id="freeRetryBtn" class="btn-marquee" style="display:none; margin-top:16px;">ลองอีกครั้ง</button>
+  </div>
+
   <div id="paymentCard" class="pass-card" style="display:none; width:100%; margin-top:10px;">
     <div style="text-align:center;">
       <p class="muted" id="orderNumberLabel" style="font-size:12.5px; margin:0 0 2px;"></p>
