@@ -56,8 +56,41 @@ async function init() {
     return;
   }
 
+  // ยอด 0 บาท (ใช้โค้ดลดเต็มจำนวน): ไม่ต้องจ่าย ข้ามหน้า QR/แนบสลิป แล้วออกรหัสเข้าชมทันที
+  if (Number(order.amount) <= 0) {
+    await claimFreeOrder();
+    return;
+  }
+
   await renderPaymentCard(order);
 }
+
+async function claimFreeOrder() {
+  const freeCard = document.getElementById("freeCard");
+  const freeText = document.getElementById("freeStatusText");
+  const retryBtn = document.getElementById("freeRetryBtn");
+  freeCard.style.display = "block";
+  retryBtn.style.display = "none";
+  freeText.textContent = "ยอดชำระ 0 บาท กำลังยืนยันสิทธิ์รับชมให้คุณ...";
+
+  try {
+    const { data: sessionData } = await supabase.auth.getSession();
+    const accessToken = sessionData.session?.access_token;
+    const { data: result, error: fnError } = await supabase.functions.invoke("claim-free-order", {
+      body: { orderId: currentOrder.id },
+      headers: accessToken ? { Authorization: `Bearer ${accessToken}` } : {},
+    });
+    if (fnError || !result?.success) {
+      throw new Error(result?.error || "ยืนยันสิทธิ์ไม่สำเร็จ");
+    }
+    freeCard.style.display = "none";
+    showSuccess(result);
+  } catch (err) {
+    freeText.textContent = (err && err.message) || "ยืนยันสิทธิ์ไม่สำเร็จ กรุณาลองใหม่อีกครั้ง";
+    retryBtn.style.display = "inline-block";
+  }
+}
+document.getElementById("freeRetryBtn")?.addEventListener("click", claimFreeOrder);
 
 // ดึงแถวแรกของ app_settings ครั้งเดียว ใช้ทั้งหน้าชำระเงิน หน้ารหัสเข้าชม และปุ่มเข้ากลุ่ม
 async function ensureSettings() {
@@ -118,8 +151,29 @@ async function renderPaymentCard(order) {
   // สร้าง QR Code จาก payload พร้อมเพย์ (สำหรับแสดงบนหน้าเว็บ — คงเดิมทุกอย่าง)
   const payload = promptpayQr(settings.promptpay_id, { amount: Number(order.amount) });
   currentPromptpayPayload = payload;
-  const qrDataUrl = await QRCode.toDataURL(payload, { width: 280, margin: 1 });
-  document.getElementById("qrImage").src = qrDataUrl;
+  // โชว์ QR พร้อมโลโก้พร้อมเพย์ตรงกลาง เหมือนรูปที่กด "บันทึกรูป QR"
+  document.getElementById("qrImage").src = await buildQrWithLogo(payload, 360);
+}
+
+// QR ระดับแก้ไขข้อผิดพลาดสูง (H) + โลโก้พร้อมเพย์กึ่งกลาง (ถ้าแอดมินอัปโหลดไว้) ใช้ทั้งหน้าเว็บและรูปที่บันทึก
+async function buildQrWithLogo(payload, size) {
+  const plain = await QRCode.toDataURL(payload, { width: size, margin: 1, errorCorrectionLevel: "H" });
+  const logoUrl = paymentSettings?.promptpay_logo_url;
+  if (!logoUrl) return plain;
+  try {
+    const [qrImg, logoImg] = await Promise.all([loadImage(plain), loadImage(logoUrl)]);
+    const canvas = document.createElement("canvas");
+    canvas.width = size;
+    canvas.height = size;
+    const ctx = canvas.getContext("2d");
+    ctx.drawImage(qrImg, 0, 0, size, size);
+    const box = Math.round(size * 0.224); // สัดส่วนเดียวกับรูปที่บันทึก (76/340)
+    ctx.drawImage(logoImg, (size - box) / 2, (size - box) / 2, box, box);
+    return canvas.toDataURL("image/png");
+  } catch {
+    // โหลดโลโก้ไม่ได้ (เช่น CORS) ก็แสดง QR เปล่าไปก่อน ดีกว่าให้หน้าชำระเงินพัง
+    return plain;
+  }
 }
 
 // ---------- แนบสลิป ----------
