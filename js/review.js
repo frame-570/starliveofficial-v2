@@ -24,6 +24,8 @@ const themeCanvas = document.getElementById("reviewThemeBg");
 const STAR_PATH = "M12 2.5l2.9 6.1 6.6.9-4.8 4.6 1.2 6.6L12 17.5l-5.9 3.2 1.2-6.6L2.5 9.5l6.6-.9z";
 const STAR_HINTS = ["", "ไม่พอใจ", "พอใช้", "ปานกลาง", "ดี", "ยอดเยี่ยม"];
 
+const summaryEl = document.getElementById("reviewSummary");
+
 let offset = 0;
 let rating = 0;
 let openedAt = 0;
@@ -152,7 +154,7 @@ async function submitReview() {
     localStorage.setItem("review_last_at", String(Date.now()));
     closeModal();
     showToast(data.status === "pending" ? "ขอบคุณสำหรับรีวิว! จะแสดงในหน้านี้หลังทีมงานตรวจสอบ" : "ขอบคุณสำหรับรีวิว!", 3600);
-    if (data.status !== "pending") loadReviews(true);
+    if (data.status !== "pending") { loadReviews(true); loadStats(); }
   } catch (err) {
     errorEl.textContent = err.message || "ส่งรีวิวไม่สำเร็จ กรุณาลองใหม่อีกครั้ง";
   } finally {
@@ -187,6 +189,31 @@ function renderCard(r) {
     <div class="review-meta">${name ? `<span class="review-name">${escapeHtml(name)}</span>` : ""}${name && when ? `<span class="review-dot" aria-hidden="true">·</span>` : ""}${when ? `<time datetime="${escapeHtml(r.created_at)}">${escapeHtml(when)}</time>` : ""}</div>
   `;
   return el;
+}
+
+// ============================================================
+// สรุปคะแนน
+// ============================================================
+async function loadStats() {
+  const { data, error } = await supabase.rpc("get_review_stats");
+  const s = Array.isArray(data) ? data[0] : data;
+  if (error || !s || Number(s.total) < 1) {
+    summaryEl.style.display = "none";
+    return;
+  }
+  const total = Number(s.total);
+  const avg = Math.min(5, Math.max(0, Number(s.average) || 0));
+  const avgText = (Math.round(avg * 10 + 1e-9) / 10).toFixed(1); // ปัดแบบปกติ 4.35 → 4.4
+  document.getElementById("rsAverage").textContent = avgText;
+  document.getElementById("rsTotal").textContent = `จาก ${total.toLocaleString("th-TH")} รีวิว`;
+
+  // ดาวเฉลี่ย: ชั้นล่างเป็นกรอบ ชั้นบนเป็นดาวเต็มที่ถูกตัดตามสัดส่วนคะแนน (เช่น 4.6 = เต็ม 4 ดวง + 60%)
+  const row = (filled) => Array.from({ length: 5 }, () => starSvg(filled, 26)).join("");
+  const starsEl = document.getElementById("rsStars");
+  starsEl.setAttribute("aria-label", `คะแนนเฉลี่ย ${avgText} จาก 5 ดาว`);
+  starsEl.innerHTML = `<div class="rs-stars-base">${row(false)}</div><div class="rs-stars-fill" style="width:${(avg / 5) * 100}%">${row(true)}</div>`;
+
+  summaryEl.style.display = "flex";
 }
 
 async function loadReviews(reset = false) {
@@ -276,4 +303,5 @@ function showToast(msg, ms = 1800) {
 }
 
 loadTheme();
+loadStats();
 loadReviews(true);
