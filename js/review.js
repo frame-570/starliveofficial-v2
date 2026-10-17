@@ -1,139 +1,266 @@
-import { customerSupabase as supabase } from "./supabaseClient.js";
-import { REVIEW_THEMES, normalizeTheme, starsSvg, escapeHtml, formatThaiDate } from "./review-themes.js";
+import { supabase } from "./supabaseClient.js";
+import { svgIcon } from "./icons.js";
+import { drawBackground, POSTER_THEMES } from "./poster.js";
 
-const $ = (id) => document.getElementById(id);
+const PAGE_SIZE = 20;
+const MIN_LEN = 5;
 const COOLDOWN_MS = 60 * 1000;
-const COOLDOWN_KEY = "starlive_review_last";
 
+const listEl = document.getElementById("reviewList");
+const emptyEl = document.getElementById("reviewEmpty");
+const loadingEl = document.getElementById("reviewLoading");
+const moreBtn = document.getElementById("reviewMoreBtn");
+const modal = document.getElementById("reviewModal");
+const starPicker = document.getElementById("starPicker");
+const starHint = document.getElementById("starHint");
+const textEl = document.getElementById("reviewText");
+const counterEl = document.getElementById("reviewCounter");
+const errorEl = document.getElementById("reviewError");
+const submitBtn = document.getElementById("reviewSubmitBtn");
+const toastEl = document.getElementById("reviewToast");
+const themeCanvas = document.getElementById("reviewThemeBg");
+
+const STAR_PATH = "M12 2.5l2.9 6.1 6.6.9-4.8 4.6 1.2 6.6L12 17.5l-5.9 3.2 1.2-6.6L2.5 9.5l6.6-.9z";
+const STAR_HINTS = ["", "ไม่พอใจ", "พอใช้", "ปานกลาง", "ดี", "ยอดเยี่ยม"];
+
+let offset = 0;
 let rating = 0;
+let openedAt = 0;
+let sending = false;
 
-// ---------- ธีม ----------
-function applyTheme(id) {
-  document.body.dataset.theme = normalizeTheme(id);
+document.getElementById("reviewCloseBtn").innerHTML = svgIcon("x", 16, 2.2);
+
+// ============================================================
+// ดาว
+// ============================================================
+function starSvg(filled, size = 22) {
+  return `<svg class="rv-star ${filled ? "on" : "off"}" viewBox="0 0 24 24" width="${size}" height="${size}" aria-hidden="true"><path d="${STAR_PATH}" /></svg>`;
 }
-try { applyTheme(localStorage.getItem("starlive_review_theme")); } catch { /* ignore */ }
+
+// ดาว 5 ดวง: ได้กี่ดวงเป็นสีเหลืองเต็ม ที่เหลือเป็นแค่กรอบสีเหลืองข้างในโปร่ง
+function starsRow(n) {
+  let html = "";
+  for (let i = 1; i <= 5; i++) html += starSvg(i <= n);
+  return html;
+}
+
+function buildStarPicker() {
+  starPicker.innerHTML = "";
+  for (let i = 1; i <= 5; i++) {
+    const b = document.createElement("button");
+    b.type = "button";
+    b.className = "star-btn";
+    b.setAttribute("role", "radio");
+    b.setAttribute("aria-label", `${i} ดาว`);
+    b.setAttribute("aria-checked", "false");
+    b.innerHTML = starSvg(false, 40);
+    b.addEventListener("click", () => setRating(i));
+    b.addEventListener("mouseenter", () => paintStars(i));
+    b.addEventListener("focus", () => paintStars(i));
+    starPicker.appendChild(b);
+  }
+  starPicker.addEventListener("mouseleave", () => paintStars(rating));
+  starPicker.addEventListener("focusout", () => paintStars(rating));
+}
+
+function paintStars(n) {
+  [...starPicker.children].forEach((b, idx) => {
+    const svg = b.querySelector("svg");
+    svg.classList.toggle("on", idx < n);
+    svg.classList.toggle("off", idx >= n);
+  });
+}
+
+function setRating(n) {
+  rating = n;
+  paintStars(n);
+  [...starPicker.children].forEach((b, idx) => b.setAttribute("aria-checked", String(idx + 1 === n)));
+  starHint.textContent = `${n} ดาว · ${STAR_HINTS[n]}`;
+  refreshSubmit();
+}
+
+function refreshSubmit() {
+  const len = Array.from(textEl.value.trim()).length;
+  counterEl.textContent = `${Array.from(textEl.value).length}/500`;
+  // ต้องมีทั้งดาวและข้อความ ถึงจะส่งได้
+  submitBtn.disabled = sending || rating < 1 || len < MIN_LEN;
+}
+
+// ============================================================
+// เปิด/ปิดฟอร์ม
+// ============================================================
+function openModal() {
+  rating = 0;
+  textEl.value = "";
+  errorEl.textContent = "";
+  document.getElementById("reviewWebsite").value = "";
+  starHint.textContent = "";
+  buildStarPicker();
+  refreshSubmit();
+  openedAt = Date.now();
+  modal.style.display = "flex";
+  document.body.style.overflow = "hidden";
+  starPicker.firstElementChild.focus();
+}
+
+function closeModal() {
+  modal.style.display = "none";
+  document.body.style.overflow = "";
+}
+
+document.getElementById("writeReviewBtn").addEventListener("click", openModal);
+document.getElementById("reviewCloseBtn").addEventListener("click", closeModal);
+modal.addEventListener("click", (e) => {
+  if (e.target === modal) closeModal();
+});
+document.addEventListener("keydown", (e) => {
+  if (e.key === "Escape" && modal.style.display !== "none") closeModal();
+});
+textEl.addEventListener("input", refreshSubmit);
+
+submitBtn.addEventListener("click", submitReview);
+
+async function submitReview() {
+  errorEl.textContent = "";
+  const content = textEl.value.trim();
+  if (rating < 1) return (errorEl.textContent = "กรุณาให้คะแนนดาวก่อน");
+  if (Array.from(content).length < MIN_LEN) return (errorEl.textContent = `กรุณาเขียนข้อความรีวิวอย่างน้อย ${MIN_LEN} ตัวอักษร`);
+
+  const last = Number(localStorage.getItem("review_last_at") || 0);
+  if (Date.now() - last < COOLDOWN_MS) {
+    return (errorEl.textContent = "คุณเพิ่งส่งรีวิวไป กรุณารอสักครู่แล้วลองใหม่");
+  }
+
+  sending = true;
+  submitBtn.disabled = true;
+  submitBtn.textContent = "กำลังส่ง...";
+  try {
+    const { data, error } = await supabase.functions.invoke("submit-review", {
+      body: {
+        rating,
+        content,
+        website: document.getElementById("reviewWebsite").value,
+        t: openedAt,
+      },
+    });
+    if (error || !data?.success) {
+      throw new Error(data?.reason || "ส่งรีวิวไม่สำเร็จ กรุณาลองใหม่อีกครั้ง");
+    }
+    localStorage.setItem("review_last_at", String(Date.now()));
+    closeModal();
+    showToast(data.status === "pending" ? "ขอบคุณสำหรับรีวิว! จะแสดงในหน้านี้หลังทีมงานตรวจสอบ" : "ขอบคุณสำหรับรีวิว!", 3600);
+    if (data.status !== "pending") loadReviews(true);
+  } catch (err) {
+    errorEl.textContent = err.message || "ส่งรีวิวไม่สำเร็จ กรุณาลองใหม่อีกครั้ง";
+  } finally {
+    sending = false;
+    submitBtn.textContent = "ส่งรีวิว";
+    refreshSubmit();
+  }
+}
+
+// ============================================================
+// รายการรีวิว
+// ============================================================
+function escapeHtml(s) {
+  return String(s ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+}
+
+function renderCard(r) {
+  const el = document.createElement("article");
+  el.className = "review-card";
+  el.innerHTML = `
+    <div class="review-stars" role="img" aria-label="ให้ ${r.rating} ดาวจาก 5 ดาว">${starsRow(Number(r.rating))}</div>
+    <p class="review-text">${escapeHtml(r.content)}</p>
+  `;
+  return el;
+}
+
+async function loadReviews(reset = false) {
+  if (reset) {
+    offset = 0;
+    listEl.innerHTML = "";
+    emptyEl.style.display = "none";
+    moreBtn.style.display = "none";
+    loadingEl.style.display = "block";
+  }
+  const { data, error } = await supabase.rpc("get_public_reviews", { p_limit: PAGE_SIZE, p_offset: offset });
+  loadingEl.style.display = "none";
+
+  if (error) {
+    emptyEl.textContent = "โหลดรีวิวไม่สำเร็จ กรุณาลองใหม่อีกครั้ง";
+    emptyEl.style.display = "block";
+    return;
+  }
+  (data || []).forEach((r) => listEl.appendChild(renderCard(r)));
+  offset += (data || []).length;
+  emptyEl.style.display = listEl.children.length === 0 ? "block" : "none";
+  moreBtn.style.display = (data || []).length === PAGE_SIZE ? "inline-block" : "none";
+}
+moreBtn.addEventListener("click", () => loadReviews(false));
+
+// ============================================================
+// ธีมหน้ารีวิว (แอดมินเลือก) — ใช้พื้นหลังชุดเดียวกับระบบสร้างโปสเตอร์
+// ============================================================
+let currentTheme = "st";
+let resizeTimer = 0;
+
+function paintTheme() {
+  try {
+    const vw = window.innerWidth;
+    const vh = window.innerHeight;
+    themeCanvas.width = vw;
+    themeCanvas.height = vh;
+    const ctx = themeCanvas.getContext("2d");
+
+    // จอแคบ: ย่อภาพธีมให้เห็นลวดลายครบ (ไม่ย่อต่ำกว่า 0.55 แล้วตัดขอบซ้าย-ขวา)
+    const s = vw < 1080 ? Math.max(vw / 1080, 0.55) : 1;
+    const off = document.createElement("canvas");
+    off.width = 1080;
+    off.height = Math.max(Math.ceil(vh / s), 600);
+    drawBackground(off.getContext("2d"), off.height, currentTheme);
+
+    if (s !== 1) {
+      ctx.drawImage(off, (vw - 1080 * s) / 2, 0, 1080 * s, off.height * s);
+    } else {
+      // จอกว้าง: ต่อภาพสลับสะท้อนซ้าย-ขวา ให้เนียนไม่มีรอยต่อ
+      for (let x = 0, i = 0; x < vw; x += 1080, i++) {
+        ctx.save();
+        if (i % 2 === 1) {
+          ctx.translate(x + 1080, 0);
+          ctx.scale(-1, 1);
+          ctx.drawImage(off, 0, 0);
+        } else {
+          ctx.drawImage(off, x, 0);
+        }
+        ctx.restore();
+      }
+    }
+    document.body.dataset.reviewTheme = currentTheme;
+    themeCanvas.style.display = "block";
+  } catch {
+    themeCanvas.style.display = "none";
+  }
+}
 
 async function loadTheme() {
-  const { data } = await supabase.from("app_settings").select("review_theme").eq("id", 1).maybeSingle();
-  const t = normalizeTheme(data?.review_theme);
-  applyTheme(t);
-  try { localStorage.setItem("starlive_review_theme", t); } catch { /* ignore */ }
-  return t;
+  const { data } = await supabase.rpc("get_review_theme");
+  currentTheme = POSTER_THEMES.some((t) => t.id === data) ? data : "st";
+  paintTheme();
 }
-
-// ---------- รายการรีวิว ----------
-async function loadReviews() {
-  const { data, error } = await supabase
-    .from("reviews")
-    .select("id, rating, comment, reviewer_name, created_at")
-    .order("created_at", { ascending: false })
-    .limit(200);
-
-  $("rvLoading").style.display = "none";
-  if (error) {
-    $("rvEmpty").textContent = "โหลดรีวิวไม่สำเร็จ กรุณาลองใหม่";
-    $("rvEmpty").style.display = "block";
-    return;
-  }
-  const list = data || [];
-  $("rvEmpty").style.display = list.length ? "none" : "block";
-  if (!list.length) $("rvEmpty").textContent = "ยังไม่มีรีวิว เป็นคนแรกที่รีวิวเลย!";
-
-  $("rvList").innerHTML = list.map((r) => `
-    <article class="rv-card">
-      ${starsSvg(r.rating, 22)}
-      <p class="rv-card-text">${escapeHtml(r.comment)}</p>
-      <div class="rv-card-meta">${escapeHtml(r.reviewer_name || "ลูกค้า")} · ${formatThaiDate(r.created_at)}</div>
-    </article>
-  `).join("");
-
-  if (list.length) {
-    const avg = list.reduce((s, r) => s + r.rating, 0) / list.length;
-    $("rvSummary").innerHTML = `${starsSvg(Math.round(avg), 18)} <strong>${avg.toFixed(1)}</strong> <span>จาก ${list.length} รีวิว</span>`;
-  } else {
-    $("rvSummary").innerHTML = "";
-  }
-}
-
-// ---------- ฟอร์มเขียนรีวิว ----------
-function renderStarInput() {
-  const wrap = $("rvStarInput");
-  wrap.innerHTML = [1, 2, 3, 4, 5].map((n) => `
-    <button type="button" data-n="${n}" aria-label="${n} ดาว">
-      <svg class="rv-star ${n <= rating ? "is-on" : ""}" width="38" height="38" viewBox="0 0 24 24"><path d="M12 2.5l2.95 6.1 6.7.9-4.9 4.65 1.2 6.65L12 17.6l-5.95 3.2 1.2-6.65-4.9-4.65 6.7-.9z" stroke-linejoin="round"/></svg>
-    </button>`).join("");
-  wrap.querySelectorAll("button").forEach((b) => {
-    b.addEventListener("click", () => { rating = Number(b.dataset.n); renderStarInput(); updateSubmit(); });
-  });
-}
-
-function updateSubmit() {
-  $("rvSubmit").disabled = !(rating >= 1 && $("rvText").value.trim().length > 0);
-}
-
-function openModal() {
-  const wait = COOLDOWN_MS - (Date.now() - Number(safeGet(COOLDOWN_KEY) || 0));
-  if (wait > 0) { toast(`กรุณารออีก ${Math.ceil(wait / 1000)} วินาที ก่อนส่งรีวิวใหม่`); return; }
-  rating = 0;
-  $("rvText").value = "";
-  $("rvName").value = "";
-  $("rvCount").textContent = "0";
-  $("rvError").textContent = "";
-  renderStarInput();
-  updateSubmit();
-  $("rvModal").classList.add("open");
-  setTimeout(() => $("rvText").focus(), 50);
-}
-function closeModal() { $("rvModal").classList.remove("open"); }
-
-function safeGet(k) { try { return localStorage.getItem(k); } catch { return null; } }
-function safeSet(k, v) { try { localStorage.setItem(k, v); } catch { /* ignore */ } }
-
-let toastTimer;
-function toast(msg) {
-  const el = $("rvToast");
-  el.textContent = msg;
-  el.classList.add("show");
-  clearTimeout(toastTimer);
-  toastTimer = setTimeout(() => el.classList.remove("show"), 2800);
-}
-
-$("rvWriteBtn").addEventListener("click", openModal);
-$("rvCancel").addEventListener("click", closeModal);
-$("rvModal").addEventListener("click", (e) => { if (e.target === $("rvModal")) closeModal(); });
-document.addEventListener("keydown", (e) => { if (e.key === "Escape") closeModal(); });
-$("rvText").addEventListener("input", () => { $("rvCount").textContent = $("rvText").value.length; updateSubmit(); });
-
-$("rvForm").addEventListener("submit", async (e) => {
-  e.preventDefault();
-  const comment = $("rvText").value.trim();
-  if (rating < 1 || !comment) return;
-  if ($("rvHp").value) { closeModal(); return; } // บอทกรอกช่องซ่อน
-
-  $("rvSubmit").disabled = true;
-  $("rvSubmit").textContent = "กำลังส่ง...";
-  $("rvError").textContent = "";
-
-  const { error } = await supabase.from("reviews").insert({
-    rating,
-    comment,
-    reviewer_name: $("rvName").value.trim() || null,
-  });
-
-  $("rvSubmit").textContent = "ส่งรีวิว";
-  if (error) {
-    $("rvError").textContent = "ส่งรีวิวไม่สำเร็จ กรุณาลองใหม่อีกครั้ง";
-    updateSubmit();
-    return;
-  }
-  safeSet(COOLDOWN_KEY, String(Date.now()));
-  closeModal();
-  toast("ขอบคุณสำหรับรีวิว ⭐");
-  loadReviews();
+window.addEventListener("resize", () => {
+  clearTimeout(resizeTimer);
+  resizeTimer = setTimeout(paintTheme, 250);
 });
 
-// ---------- เริ่มต้น ----------
-(async () => {
-  loadTheme();
-  loadReviews();
-})();
+// ============================================================
+let toastTimer = 0;
+function showToast(msg, ms = 1800) {
+  toastEl.textContent = msg;
+  toastEl.classList.add("show");
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(() => toastEl.classList.remove("show"), ms);
+}
+
+loadTheme();
+loadReviews(true);
