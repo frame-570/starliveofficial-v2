@@ -232,7 +232,7 @@ function showDaySelectionModal(data) {
         currentSelectedDay = { dayData: day, mode: "rerun" };
         showRulesModal();
       };
-    } else if (day.live_youtube_url || day.live_cloudflare_uid) {
+    } else if (day.live_youtube_url || day.live_cloudflare_uid || (data.special_stream_days || []).includes(Number(day.day_number))) {
       btn.innerHTML = `<div class="day-title">${ICONS.liveDot} ${formatDayDateLabel(day)}</div><div class="day-status live">ถ่ายทอดสด</div>`;
       btn.onclick = () => {
         daySelectModal.style.display = "none";
@@ -350,7 +350,7 @@ function renderRightSidebarDays(data, activeDay) {
         currentSelectedDay = { dayData: day, mode: "rerun" };
         loadSelectedDayStream(day, "rerun");
       };
-    } else if (day.live_youtube_url || day.live_cloudflare_uid) {
+    } else if (day.live_youtube_url || day.live_cloudflare_uid || (data.special_stream_days || []).includes(Number(day.day_number))) {
       btn.innerHTML = `${ICONS.liveDot} <span>สด: ${formatDayDateLabel(day)}</span>`;
       btn.onclick = () => {
         setActiveTab(btn);
@@ -457,6 +457,12 @@ function loadVideoStream(streamData) {
     } else if (streamData.token) {
       const code = streamData.customer_code || "ohx74kd7koi6qp2a";
       src = `https://customer-${code}.cloudflarestream.com/${streamData.token}/iframe?autoplay=true`;
+    }
+  } else if (streamData.platform === "kick") {
+    // การรับชมพิเศษ (Kick): รับเฉพาะ player ของ Kick เท่านั้น กันลิงก์แปลกปลอมใส่ใน iframe
+    const u = String(streamData.streamUrl || "");
+    if (/^https:\/\/player\.kick\.com\/[A-Za-z0-9_-]{1,30}$/.test(u)) {
+      src = `${u}?autoplay=true`;
     }
   } else {
     const rawUrl = streamData.streamUrl || streamData.youtube_url;
