@@ -1574,3 +1574,25 @@ body.review-page .site-footer {
 #writeReviewBtn:focus-visible { box-shadow: 0 0 0 3px rgba(255, 255, 255, 0.55), 0 0 24px 4px rgba(255, 210, 60, 0.6); }
 body.review-page .home-header,
 body.review-page .site-footer { width: 100%; box-sizing: border-box; }
+
+/* ชื่อผู้รีวิว + วันที่เวลา ใต้ข้อความรีวิว */
+.review-meta { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; margin-top: 12px; font-size: 12.5px; color: var(--muted); }
+.review-name { color: var(--amber); font-weight: 600; overflow-wrap: anywhere; }
+.review-dot { opacity: 0.6; }
+
+/* ป๊อปอัปยืนยันของหน้าแอดมิน (รีวิว) */
+.rv-dialog-overlay { position: fixed; inset: 0; z-index: 100000; background: rgba(4, 3, 8, 0.74); display: flex; align-items: center; justify-content: center; padding: 16px; animation: rvFade 0.15s ease; }
+.rv-dialog { width: 100%; max-width: 380px; background: var(--surface); border: 1px solid var(--line); border-radius: 18px; padding: 26px 22px 20px; text-align: center; box-shadow: 0 30px 60px -20px rgba(0, 0, 0, 0.85); animation: rvPop 0.18s ease; }
+.rv-dialog-icon { width: 54px; height: 54px; border-radius: 50%; margin: 0 auto 14px; display: flex; align-items: center; justify-content: center; background: rgba(232, 56, 79, 0.14); border: 1.5px solid rgba(232, 56, 79, 0.5); color: #ff6b81; }
+.rv-dialog h3 { margin: 0 0 8px; font-size: 18px; font-family: "Prompt", sans-serif; }
+.rv-dialog p { margin: 0 0 20px; font-size: 14px; line-height: 1.6; color: var(--muted); }
+.rv-dialog-quote { margin: 0 0 20px; padding: 10px 12px; border-radius: 10px; background: rgba(0, 0, 0, 0.3); border: 1px solid var(--line); font-size: 13px; color: var(--text); text-align: left; overflow-wrap: anywhere; display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden; }
+.rv-dialog-actions { display: flex; gap: 10px; }
+.rv-dialog-actions button { flex: 1; padding: 11px 12px; border-radius: 12px; font-family: "Prompt", sans-serif; font-weight: 600; font-size: 14px; cursor: pointer; }
+.rv-btn-cancel { background: transparent; border: 1px solid var(--line); color: var(--text); }
+.rv-btn-cancel:hover { border-color: var(--muted); }
+.rv-btn-danger { border: 0; color: #fff; background: linear-gradient(135deg, #ff8a8a, #e8384f); box-shadow: 0 10px 26px -8px rgba(232, 56, 79, 0.6); }
+.rv-btn-danger:hover { filter: brightness(1.08); }
+.rv-dialog-actions button:focus-visible { outline: 2px solid var(--amber); outline-offset: 2px; }
+@keyframes rvFade { from { opacity: 0; } to { opacity: 1; } }
+@keyframes rvPop { from { opacity: 0; transform: scale(0.94); } to { opacity: 1; transform: scale(1); } }
