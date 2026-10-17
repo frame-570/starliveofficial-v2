@@ -77,7 +77,7 @@ function render() {
       <div style="display:flex; justify-content:space-between; gap:10px; flex-wrap:wrap; align-items:center;">
         <span class="rv-admin-stars">${stars(Number(r.rating))}</span>
         <span><span class="rv-badge ${esc(r.status)}">${esc(STATUS_LABEL[r.status] || r.status)}</span>
-        <span class="muted" style="font-size:12px; margin-left:8px;">${esc(fmtDate(r.created_at))}</span></span>
+        <span class="muted" style="font-size:12px; margin-left:8px;">${r.nickname ? esc(r.nickname) + " · " : ""}${esc(fmtDate(r.created_at))}</span></span>
       </div>
       <p style="margin:10px 0 6px; white-space:pre-wrap; overflow-wrap:anywhere; font-size:14px; line-height:1.6;">${esc(r.content)}</p>
       ${r.flag_reason ? `<p style="margin:0 0 8px; font-size:12px; color:#ffb84d;">⚠ ถูกพักไว้เพราะ: ${esc(r.flag_reason)}</p>` : ""}
@@ -91,6 +91,42 @@ function render() {
     .join("");
 }
 
+// ป๊อปอัปยืนยันแบบเดียวกับหน้าเว็บ (แทน window.confirm / alert)
+function dialog({ title, message, quote = "", confirmText = "ยืนยัน", cancelText = "ยกเลิก", showCancel = true }) {
+  return new Promise((resolve) => {
+    const overlay = document.createElement("div");
+    overlay.className = "rv-dialog-overlay";
+    overlay.innerHTML = `
+      <div class="rv-dialog" role="alertdialog" aria-modal="true" aria-labelledby="rvDlgTitle">
+        <div class="rv-dialog-icon" aria-hidden="true">
+          <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/><path d="M10 11v6M14 11v6"/><path d="M9 6V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2"/></svg>
+        </div>
+        <h3 id="rvDlgTitle">${esc(title)}</h3>
+        <p>${esc(message)}</p>
+        ${quote ? `<div class="rv-dialog-quote">${esc(quote)}</div>` : ""}
+        <div class="rv-dialog-actions">
+          ${showCancel ? `<button type="button" class="rv-btn-cancel">${esc(cancelText)}</button>` : ""}
+          <button type="button" class="rv-btn-danger">${esc(confirmText)}</button>
+        </div>
+      </div>`;
+    const prevFocus = document.activeElement;
+    const done = (v) => {
+      document.removeEventListener("keydown", onKey);
+      overlay.remove();
+      if (prevFocus && prevFocus.focus) prevFocus.focus();
+      resolve(v);
+    };
+    const onKey = (ev) => { if (ev.key === "Escape") done(false); };
+    document.addEventListener("keydown", onKey);
+    overlay.addEventListener("click", (ev) => { if (ev.target === overlay) done(false); });
+    overlay.querySelector(".rv-btn-danger").addEventListener("click", () => done(true));
+    const cancel = overlay.querySelector(".rv-btn-cancel");
+    if (cancel) cancel.addEventListener("click", () => done(false));
+    document.body.appendChild(overlay);
+    (cancel || overlay.querySelector(".rv-btn-danger")).focus();
+  });
+}
+
 async function onListClick(e) {
   const btn = e.target.closest("button[data-act]");
   if (!btn) return;
@@ -99,7 +135,14 @@ async function onListClick(e) {
   btn.disabled = true;
   let error;
   if (act === "delete") {
-    if (!window.confirm("ลบรีวิวนี้ถาวร? ย้อนกลับไม่ได้")) return void (btn.disabled = false);
+    const target = rows.find((r) => r.id === id);
+    const ok = await dialog({
+      title: "ลบรีวิวนี้ถาวร?",
+      message: "เมื่อลบแล้วจะกู้คืนไม่ได้ ถ้าแค่ไม่อยากให้แสดง ให้ใช้ปุ่ม \"ซ่อน\" แทน",
+      quote: target ? target.content : "",
+      confirmText: "ลบถาวร",
+    });
+    if (!ok) return void (btn.disabled = false);
     ({ error } = await sb.from("reviews").delete().eq("id", id));
     if (!error) rows = rows.filter((r) => r.id !== id);
   } else {
@@ -107,7 +150,7 @@ async function onListClick(e) {
     if (!error) rows = rows.map((r) => (r.id === id ? { ...r, status: act } : r));
   }
   if (error) {
-    window.alert("ทำรายการไม่สำเร็จ: " + error.message);
+    await dialog({ title: "ทำรายการไม่สำเร็จ", message: error.message || "เกิดข้อผิดพลาด กรุณาลองใหม่", confirmText: "ตกลง", showCancel: false });
     btn.disabled = false;
     return;
   }
@@ -118,7 +161,7 @@ async function loadReviews() {
   $("reviewListWrap").innerHTML = '<p class="muted" style="text-align:center; padding:30px 0;">กำลังโหลด...</p>';
   const { data, error } = await sb
     .from("reviews")
-    .select("id, rating, content, status, flag_reason, created_at")
+    .select("id, rating, content, nickname, status, flag_reason, created_at")
     .order("created_at", { ascending: false })
     .limit(500);
   if (error) {
