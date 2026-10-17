@@ -3,59 +3,73 @@
 <head>
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-<title>รีวิวจากลูกค้า | Star Live Official</title>
-<link rel="preconnect" href="https://fonts.googleapis.com" />
-<link rel="icon" type="image/svg+xml" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'><path d='M12 0C12 6.627 6.627 12 0 12C6.627 12 12 17.373 12 24C12 17.373 17.373 12 24 12C17.373 12 12 6.627 12 0Z' fill='%23FFD700'/></svg>">
+<title>รีวิวจากลูกค้า — Star Live Official</title>
+<link rel="icon" type="image/svg+xml" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'><defs><radialGradient id='g' cx='50%25' cy='50%25' r='50%25'><stop offset='0%25' stop-color='%23FFF275'/><stop offset='60%25' stop-color='%23FFD700'/><stop offset='100%25' stop-color='%23FFA500'/></radialGradient></defs><path d='M12 0C12 6.627 6.627 12 0 12C6.627 12 12 17.373 12 24C12 17.373 17.373 12 24 12C17.373 12 12 6.627 12 0Z' fill='url(%23g)'/></svg>">
 <link href="https://fonts.googleapis.com/css2?family=Prompt:wght@500;600;700;800&family=Sarabun:wght@400;500;600&display=swap" rel="stylesheet" />
 <link rel="stylesheet" href="./style.css" />
-<link rel="stylesheet" href="./review.css" />
 </head>
-<body class="rv-body" data-theme="st">
-<div class="rv-decor"></div>
+<body class="review-page">
+<div class="stage-bg"></div>
+<canvas id="reviewThemeBg" class="review-theme-bg" aria-hidden="true"></canvas>
 
-<header class="rv-header">
-  <a href="./index.html" class="marquee-brand"><span class="bulb"></span> STAR LIVE OFFICIAL</a>
-  <a href="./index.html" class="rv-home-link">← กลับหน้าแรก</a>
+<header class="home-header">
+  <div class="marquee-brand"><span class="bulb"></span> STAR LIVE OFFICIAL</div>
+  <div class="home-header-right">
+    <button type="button" id="writeReviewBtn" class="promo-order-btn">เขียนรีวิว</button>
+  </div>
 </header>
 
-<main class="rv-shell">
-  <section class="rv-hero">
-    <h1 class="display">รีวิวจากลูกค้า</h1>
-    <div class="rv-summary" id="rvSummary"></div>
+<main class="home-shell">
+  <section class="home-hero" style="padding-bottom:26px;">
+    <h1 class="display home-hero-title">รีวิวจากลูกค้า</h1>
+    <p class="muted home-hero-sub">เสียงจากผู้ชมจริง ขอบคุณทุกกำลังใจที่มอบให้กับเรา</p>
   </section>
 
-  <button type="button" class="rv-write-btn" id="rvWriteBtn">เขียนรีวิว</button>
-
-  <section id="rvList" class="rv-list"></section>
-  <p id="rvLoading" class="rv-loading">กำลังโหลดรีวิว...</p>
-  <p id="rvEmpty" class="rv-empty" style="display:none;">ยังไม่มีรีวิว เป็นคนแรกที่รีวิวเลย!</p>
+  <section id="reviewList" class="review-list"></section>
+  <p id="reviewEmpty" class="muted" style="display:none; text-align:center; padding:60px 0;">ยังไม่มีรีวิว มาเป็นคนแรกที่รีวิวกันเถอะ</p>
+  <p id="reviewLoading" class="muted" style="text-align:center; padding:60px 0;">กำลังโหลดรีวิว...</p>
+  <div style="text-align:center; margin:22px 0 10px;">
+    <button type="button" id="reviewMoreBtn" class="icon-btn ghost" style="display:none;">ดูรีวิวเพิ่มเติม</button>
+  </div>
 </main>
 
-<div class="rv-modal" id="rvModal" role="dialog" aria-modal="true" aria-labelledby="rvModalTitle">
-  <form class="rv-modal-box" id="rvForm" autocomplete="off">
-    <h2 class="display" id="rvModalTitle">เขียนรีวิว</h2>
+<footer class="site-footer">
+  <div class="site-footer-inner">
+    <p class="site-footer-copy">© 2026 STARLIVE OFFICIAL — บริการสตรีมมิ่งและรับชมย้อนหลัง</p>
+  </div>
+</footer>
 
-    <label class="rv-label">ให้คะแนน <span style="color:#ff7b8a">*</span></label>
-    <div class="rv-star-input" id="rvStarInput"></div>
-
-    <label class="rv-label" for="rvName">ชื่อ (ไม่บังคับ)</label>
-    <input class="rv-input" id="rvName" maxlength="40" placeholder="เช่น คุณสมชาย" />
-
-    <label class="rv-label" for="rvText">ข้อความรีวิว <span style="color:#ff7b8a">*</span></label>
-    <textarea class="rv-input" id="rvText" maxlength="1000" placeholder="เล่าประสบการณ์ของคุณให้เราฟัง..."></textarea>
-    <div class="rv-count"><span id="rvCount">0</span>/1000</div>
-
-    <input class="rv-hp" id="rvHp" tabindex="-1" aria-hidden="true" autocomplete="off" />
-
-    <div class="rv-error" id="rvError"></div>
-    <div class="rv-modal-actions">
-      <button type="button" class="rv-btn-cancel" id="rvCancel">ยกเลิก</button>
-      <button type="submit" class="rv-btn-submit" id="rvSubmit" disabled>ส่งรีวิว</button>
+<!-- ฟอร์มเขียนรีวิว -->
+<div id="reviewModal" class="review-modal" style="display:none;" role="dialog" aria-modal="true" aria-labelledby="reviewModalTitle">
+  <div class="review-modal-card">
+    <div style="display:flex; align-items:center; justify-content:space-between; gap:10px;">
+      <h2 id="reviewModalTitle" class="display" style="margin:0; font-size:20px;">เขียนรีวิว</h2>
+      <button type="button" id="reviewCloseBtn" class="icon-btn ghost" aria-label="ปิด" style="padding:6px 10px;"></button>
     </div>
-  </form>
+
+    <p class="muted" style="font-size:13px; margin:14px 0 6px;">ให้คะแนนความพึงพอใจ</p>
+    <div id="starPicker" class="star-picker" role="radiogroup" aria-label="ให้คะแนนดาว"></div>
+    <p id="starHint" class="muted" style="font-size:12.5px; min-height:18px; margin:6px 0 0;"></p>
+
+    <label class="field-label" for="reviewText" style="margin-top:14px; display:block;">ข้อความรีวิว</label>
+    <textarea id="reviewText" class="field-input" rows="5" maxlength="500" placeholder="เล่าประสบการณ์การรับชมของคุณ (อย่างน้อย 5 ตัวอักษร)"></textarea>
+    <div style="display:flex; justify-content:space-between; gap:10px; margin-top:4px;">
+      <span class="muted" style="font-size:12px;">โปรดใช้ถ้อยคำสุภาพ ไม่ใส่ลิงก์ เบอร์โทร หรือไอดีติดต่อ</span>
+      <span id="reviewCounter" class="muted" style="font-size:12px; white-space:nowrap;">0/500</span>
+    </div>
+
+    <!-- ช่องล่อบอท: คนจริงมองไม่เห็นและไม่กรอก -->
+    <div class="review-hp" aria-hidden="true">
+      <label>เว็บไซต์ <input type="text" id="reviewWebsite" name="website" tabindex="-1" autocomplete="off" /></label>
+    </div>
+
+    <p id="reviewError" class="error-text" style="min-height:18px; margin:8px 0 0;"></p>
+    <button type="button" id="reviewSubmitBtn" class="btn-marquee" style="width:100%; margin-top:6px;" disabled>ส่งรีวิว</button>
+    <p class="muted" style="font-size:11.5px; text-align:center; margin:10px 0 0;">ต้องให้ดาวและเขียนข้อความก่อน จึงจะส่งรีวิวได้</p>
+  </div>
 </div>
 
-<div class="rv-toast" id="rvToast"></div>
+<div id="reviewToast" class="promo-toast" role="status" aria-live="polite"></div>
 
 <script type="module" src="./js/review.js"></script>
 </body>
