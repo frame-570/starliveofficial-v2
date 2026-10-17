@@ -14,6 +14,7 @@ const modal = document.getElementById("reviewModal");
 const starPicker = document.getElementById("starPicker");
 const starHint = document.getElementById("starHint");
 const textEl = document.getElementById("reviewText");
+const nickEl = document.getElementById("reviewNickname");
 const counterEl = document.getElementById("reviewCounter");
 const errorEl = document.getElementById("reviewError");
 const submitBtn = document.getElementById("reviewSubmitBtn");
@@ -92,6 +93,7 @@ function refreshSubmit() {
 function openModal() {
   rating = 0;
   textEl.value = "";
+  nickEl.value = "";
   errorEl.textContent = "";
   document.getElementById("reviewWebsite").value = "";
   starHint.textContent = "";
@@ -139,6 +141,7 @@ async function submitReview() {
       body: {
         rating,
         content,
+        nickname: nickEl.value.trim(),
         website: document.getElementById("reviewWebsite").value,
         t: Date.now() - openedAt, // เวลาที่ใช้กรอก (ms) — ไม่พึ่งนาฬิกาเครื่องลูกค้า
       },
@@ -166,12 +169,22 @@ function escapeHtml(s) {
   return String(s ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
 }
 
+// วันที่ + เวลา เวลาไทย เช่น "17 ต.ค. 2569 15:30"
+function formatReviewDate(iso) {
+  const d = new Date(iso);
+  if (isNaN(d)) return "";
+  return d.toLocaleString("th-TH", { timeZone: "Asia/Bangkok", day: "numeric", month: "short", year: "numeric", hour: "2-digit", minute: "2-digit", hour12: false });
+}
+
 function renderCard(r) {
   const el = document.createElement("article");
   el.className = "review-card";
+  const name = String(r.nickname || "").trim();
+  const when = formatReviewDate(r.created_at);
   el.innerHTML = `
     <div class="review-stars" role="img" aria-label="ให้ ${r.rating} ดาวจาก 5 ดาว">${starsRow(Number(r.rating))}</div>
     <p class="review-text">${escapeHtml(r.content)}</p>
+    <div class="review-meta">${name ? `<span class="review-name">${escapeHtml(name)}</span>` : ""}${name && when ? `<span class="review-dot" aria-hidden="true">·</span>` : ""}${when ? `<time datetime="${escapeHtml(r.created_at)}">${escapeHtml(when)}</time>` : ""}</div>
   `;
   return el;
 }
