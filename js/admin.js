@@ -2065,7 +2065,8 @@ const SETTINGS_ICON_PATHS = {
   contact: '<path d="M21 12a8 8 0 01-11.6 7.1L4 20l1-4.4A8 8 0 1121 12z"/>',
   rules: '<rect x="5" y="4" width="14" height="17" rx="2"/><rect x="9" y="2" width="6" height="4" rx="1"/><path d="M9 11h6M9 15h6"/>',
   special: '<path d="M12 21s-6-5.6-6-10a6 6 0 1112 0c0 4.4-6 10-6 10z"/><circle cx="12" cy="11" r="2.2"/>',
-  ephoto: '<path d="M4 8h3l1.5-2h7L17 8h3a1 1 0 011 1v9a1 1 0 01-1 1H4a1 1 0 01-1-1V9a1 1 0 011-1z"/><circle cx="12" cy="13" r="3.5"/>'
+  ephoto: '<path d="M4 8h3l1.5-2h7L17 8h3a1 1 0 011 1v9a1 1 0 01-1 1H4a1 1 0 01-1-1V9a1 1 0 011-1z"/><circle cx="12" cy="13" r="3.5"/>',
+  kick: '<path d="M4 6h16a1 1 0 011 1v9a1 1 0 01-1 1H4a1 1 0 01-1-1V7a1 1 0 011-1z"/><path d="M8 21h8M12 17v4"/><path d="M10 9.5v3l3-1.5z"/>'
 };
 
 function settingsIcon(name, size = 18) {
@@ -2083,6 +2084,7 @@ const SETTINGS_CATEGORY_LABELS = {
   rules: { icon: "rules", text: "กฎการรับชม" },
   special: { icon: "special", text: "รายละเอียดพิเศษ" },
   ephoto: { icon: "ephoto", text: "E-Photo" },
+  kick: { icon: "kick", text: "การรับชมพิเศษ" },
 };
 
 function showSettingsMenu() {
@@ -2100,13 +2102,14 @@ function showSettingsCategory(category) {
   });
   settingsBackBtn.style.display = "inline-flex";
   // หมวด "รายละเอียดพิเศษ" มีปุ่มบันทึกของตัวเองแยกต่างหาก (บันทึกต่องาน ไม่ใช่ค่าตายตัวแบบหมวดอื่น)
-  settingsFooterButtons.style.display = category === "special" || category === "ephoto" ? "none" : "flex";
+  settingsFooterButtons.style.display = category === "special" || category === "ephoto" || category === "kick" ? "none" : "flex";
   const label = SETTINGS_CATEGORY_LABELS[category];
   if (label) setSettingsTitle(label.icon, label.text);
   else setSettingsTitle("gear", "ตั้งค่าระบบ");
 
   if (category === "special") loadSpecialNotesEventOptions();
   if (category === "ephoto") loadEphotoEventOptions();
+  if (category === "kick") loadKickEventOptions();
 }
 
 function capitalize(str) {
@@ -2362,6 +2365,142 @@ saveEphotoBtn.addEventListener("click", async () => {
 
   ephotoSaved.textContent = "บันทึกเรียบร้อยแล้ว";
   setTimeout(() => (ephotoSaved.textContent = ""), 2000);
+});
+
+// ---------- หมวด: การรับชมพิเศษ (ลิงก์ Kick แยกรายวัน — ตาราง event_day_special_streams คีย์ event_id + day_number) ----------
+// ตารางนี้อ่านได้เฉพาะแอดมิน ลูกค้าได้ลิงก์ผ่าน edge function verify-access-code หลังกรอกรหัสเข้าชมถูกต้องเท่านั้น
+const kickEventSelect = document.getElementById("kickEventSelect");
+const kickDaysList = document.getElementById("kickDaysList");
+const kickError = document.getElementById("kickError");
+const kickSaved = document.getElementById("kickSaved");
+const saveKickBtn = document.getElementById("saveKickBtn");
+
+// รับ "https://kick.com/ชื่อช่อง" หรือพิมพ์แค่ชื่อช่อง -> คืน URL มาตรฐาน (ไม่ผ่านรูปแบบ = null)
+const KICK_RESERVED_PATHS = ["video", "videos", "categories", "category", "browse", "following", "dashboard", "search", "clips", "api"];
+function normalizeKickUrl(raw) {
+  const v = String(raw || "").trim();
+  const m = v.match(/^(?:https?:\/\/)?(?:www\.|player\.)?(?:kick\.com\/)?([A-Za-z0-9_-]{1,30})\/?(?:\?.*)?$/i);
+  if (!m || KICK_RESERVED_PATHS.includes(m[1].toLowerCase())) return null;
+  return `https://kick.com/${m[1]}`;
+}
+
+async function loadKickEventOptions() {
+  kickError.textContent = "";
+  kickSaved.textContent = "";
+  kickDaysList.innerHTML = "";
+  saveKickBtn.disabled = true;
+
+  const [evRes, linkRes] = await Promise.all([
+    supabase.from("events").select("id, title").order("created_at", { ascending: false }),
+    supabase.from("event_day_special_streams").select("event_id"),
+  ]);
+  if (evRes.error) {
+    kickError.textContent = "โหลดรายการงานไม่สำเร็จ: " + evRes.error.message;
+    return;
+  }
+  if (linkRes.error) {
+    kickError.textContent = "โหลดข้อมูลไม่สำเร็จ (ยังไม่ได้รัน special-stream-setup.sql ใน Supabase?): " + linkRes.error.message;
+  }
+  const active = new Set((linkRes.data || []).map((r) => r.event_id));
+  kickEventSelect.innerHTML =
+    `<option value="">-- เลือกงาน --</option>` +
+    (evRes.data || [])
+      .map((ev) => `<option value="${escapeAttr(ev.id)}">${escapeHtml(ev.title)}${active.has(ev.id) ? " ● เปิดใช้ Kick" : ""}</option>`)
+      .join("");
+}
+
+kickEventSelect.addEventListener("change", async () => {
+  kickError.textContent = "";
+  kickSaved.textContent = "";
+  kickDaysList.innerHTML = "";
+  saveKickBtn.disabled = true;
+
+  const eventId = kickEventSelect.value;
+  if (!eventId) return;
+
+  const [daysRes, linksRes] = await Promise.all([
+    supabase.from("event_days").select("day_number, event_date").eq("event_id", eventId).order("day_number"),
+    supabase.from("event_day_special_streams").select("day_number, url").eq("event_id", eventId),
+  ]);
+  if (daysRes.error || linksRes.error) {
+    kickError.textContent = "โหลดข้อมูลไม่สำเร็จ: " + (daysRes.error || linksRes.error).message;
+    return;
+  }
+
+  const linkByDay = new Map((linksRes.data || []).map((r) => [Number(r.day_number), r.url]));
+  kickDaysList.innerHTML = (daysRes.data || [])
+    .map(
+      (day) => `
+      <div>
+        <label class="field-label">${escapeHtml(formatEphotoDayLabel(day))}</label>
+        <input type="text" class="field-input kick-url-input" data-day="${escapeAttr(day.day_number)}" autocomplete="off"
+          placeholder="https://kick.com/ชื่อช่อง (เว้นว่าง = ใช้ไลฟ์ปกติ)" value="${escapeAttr(linkByDay.get(Number(day.day_number)) || "")}" />
+      </div>`
+    )
+    .join("");
+
+  saveKickBtn.disabled = !(daysRes.data || []).length;
+  if (!(daysRes.data || []).length) kickError.textContent = "งานนี้ยังไม่มีวันจัดงาน";
+});
+
+saveKickBtn.addEventListener("click", async () => {
+  const eventId = kickEventSelect.value;
+  if (!eventId) return;
+
+  const inputs = [...kickDaysList.querySelectorAll(".kick-url-input")];
+  const toSave = [];
+  const toDelete = [];
+  for (const input of inputs) {
+    const dayNumber = Number(input.dataset.day);
+    const raw = input.value.trim();
+    if (!raw) {
+      toDelete.push(dayNumber);
+      continue;
+    }
+    const url = normalizeKickUrl(raw);
+    if (!url) {
+      kickError.textContent = `ลิงก์ของวันที่ ${dayNumber} ไม่ถูกต้อง — ใส่ลิงก์ช่อง Kick เช่น https://kick.com/ชื่อช่อง (ไม่รองรับลิงก์วิดีโอย้อนหลังหรือคลิป)`;
+      return;
+    }
+    toSave.push({ event_id: eventId, day_number: dayNumber, url, updated_at: new Date().toISOString() });
+  }
+
+  const session = await ensureAuthSession();
+  if (!session) return;
+
+  kickError.textContent = "";
+  kickSaved.textContent = "";
+  saveKickBtn.disabled = true;
+  saveKickBtn.textContent = "กำลังบันทึก...";
+
+  let errMsg = "";
+  if (toSave.length) {
+    const { error } = await supabase.from("event_day_special_streams").upsert(toSave, { onConflict: "event_id,day_number" });
+    if (error) errMsg = error.message;
+  }
+  if (!errMsg && toDelete.length) {
+    const { error } = await supabase
+      .from("event_day_special_streams")
+      .delete()
+      .eq("event_id", eventId)
+      .in("day_number", toDelete);
+    if (error) errMsg = error.message;
+  }
+
+  saveKickBtn.disabled = false;
+  saveKickBtn.textContent = "บันทึกการรับชมพิเศษ";
+
+  if (errMsg) {
+    kickError.textContent = "บันทึกไม่สำเร็จ: " + errMsg;
+    return;
+  }
+
+  // แสดงลิงก์ในรูปแบบมาตรฐานที่บันทึกจริง
+  const savedByDay = new Map(toSave.map((r) => [r.day_number, r.url]));
+  inputs.forEach((input) => (input.value = savedByDay.get(Number(input.dataset.day)) || ""));
+  kickSaved.textContent = "บันทึกเรียบร้อยแล้ว";
+  setTimeout(() => (kickSaved.textContent = ""), 2500);
+  loadKickEventOptions().then(() => (kickEventSelect.value = eventId));
 });
 
 settingsForm.addEventListener("submit", async (e) => {
