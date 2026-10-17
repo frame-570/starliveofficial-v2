@@ -1596,3 +1596,26 @@ body.review-page .site-footer { width: 100%; box-sizing: border-box; }
 .rv-dialog-actions button:focus-visible { outline: 2px solid var(--amber); outline-offset: 2px; }
 @keyframes rvFade { from { opacity: 0; } to { opacity: 1; } }
 @keyframes rvPop { from { opacity: 0; transform: scale(0.94); } to { opacity: 1; transform: scale(1); } }
+
+/* สรุปคะแนนรีวิว (แถวเดียว: ดาว  คะแนน  จากกี่รีวิว) */
+.review-summary {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-wrap: wrap;
+  gap: 8px 14px;
+  max-width: 760px;
+  margin: 0 auto 22px;
+  text-shadow: 0 1px 8px rgba(0, 0, 0, 0.7);
+}
+.rs-stars { position: relative; display: inline-block; line-height: 0; }
+.rs-stars-base, .rs-stars-fill { display: flex; white-space: nowrap; }
+.rs-stars-fill { position: absolute; left: 0; top: 0; overflow: hidden; }
+.rs-stars svg { flex: 0 0 auto; width: 26px; height: 26px; }
+.rs-average { font-size: 24px; font-weight: 800; line-height: 1; color: #fff; }
+.rs-total { font-size: 15px; color: #cbb8ee; }
+@media (max-width: 560px) {
+  .rs-stars svg { width: 22px; height: 22px; }
+  .rs-average { font-size: 21px; }
+  .rs-total { font-size: 14px; }
+}
