@@ -1551,4 +1551,26 @@ body.review-page[data-review-theme] .stage-bg { display: none; }
 @media (prefers-reduced-motion: reduce) {
   .rv-star, .star-btn:hover .rv-star { transition: none; transform: none; }
 }
-body.review-page .site-footer { background: rgba(8, 7, 13, 0.88); position: relative; }
+
+/* หน้ารีวิว: footer ชิดล่างสุดเสมอ ไม่ลอย + ปุ่มเขียนรีวิวสีเหลืองมีแสงฟุ้ง */
+body.review-page { display: flex; flex-direction: column; min-height: 100vh; }
+body.review-page .home-shell { width: 100%; box-sizing: border-box; flex: 0 0 auto; }
+body.review-page .site-footer {
+  margin-top: auto;
+  border-top: 0;
+  background: linear-gradient(to top, rgba(8, 7, 13, 0.82), rgba(8, 7, 13, 0));
+  text-shadow: 0 1px 6px rgba(0, 0, 0, 0.8);
+}
+#writeReviewBtn {
+  border: 0;
+  outline: 0;
+  cursor: pointer;
+  font-family: "Prompt", sans-serif;
+  background: linear-gradient(180deg, #ffd84d, #f2b705);
+  box-shadow: 0 0 18px 2px rgba(255, 210, 60, 0.5), 0 0 42px 6px rgba(242, 183, 5, 0.28);
+  transition: box-shadow 0.2s, transform 0.2s;
+}
+#writeReviewBtn:hover { box-shadow: 0 0 24px 4px rgba(255, 210, 60, 0.7), 0 0 56px 10px rgba(242, 183, 5, 0.36); transform: translateY(-1px); }
+#writeReviewBtn:focus-visible { box-shadow: 0 0 0 3px rgba(255, 255, 255, 0.55), 0 0 24px 4px rgba(255, 210, 60, 0.6); }
+body.review-page .home-header,
+body.review-page .site-footer { width: 100%; box-sizing: border-box; }
