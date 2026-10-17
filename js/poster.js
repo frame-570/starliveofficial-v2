@@ -178,7 +178,7 @@ function ellipseGlow(ctx, cx, cy, rx, ry, rgba) {
 
 // ---------- พื้นหลัง: สไตล์เดียวกับเว็บ (เวทีมืด + แสงสปอตไลต์สีเหลือง + แสงแดงด้านล่าง) ----------
 // ---------- ธีมพื้นหลัง (เทศกาล) ----------
-const POSTER_THEMES = [
+export const POSTER_THEMES = [
   { id: "st", label: "ST THEMES" },
   { id: "halloween", label: "HALLOWEEN THEMES" },
   { id: "loikrathong", label: "LOI KRATHONG THEMES" },
@@ -1019,7 +1019,7 @@ function drawBgSt(ctx, H) {
   spots.forEach(([x, y, r]) => sparkle(ctx, x, y, r, C.amberLight, 14));
 }
 
-function drawBackground(ctx, H, theme) {
+export function drawBackground(ctx, H, theme) {
   if (theme === "halloween") return drawBgHalloween(ctx, H);
   if (theme === "loikrathong") return drawBgLoiKrathong(ctx, H);
   if (theme === "winter") return drawBgWinter(ctx, H);
