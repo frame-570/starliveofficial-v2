@@ -140,7 +140,7 @@ async function submitReview() {
         rating,
         content,
         website: document.getElementById("reviewWebsite").value,
-        t: openedAt,
+        t: Date.now() - openedAt, // เวลาที่ใช้กรอก (ms) — ไม่พึ่งนาฬิกาเครื่องลูกค้า
       },
     });
     if (error || !data?.success) {
