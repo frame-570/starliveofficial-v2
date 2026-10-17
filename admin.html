@@ -507,6 +507,14 @@
           </span>
           <span class="settings-menu-arrow"><svg class="ico" viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 18l6-6-6-6"/></svg></span>
         </button>
+        <button type="button" class="settings-menu-item" data-category="kick">
+          <span class="settings-menu-icon"><svg class="ico" viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 6h16a1 1 0 011 1v9a1 1 0 01-1 1H4a1 1 0 01-1-1V7a1 1 0 011-1z"/><path d="M8 21h8M12 17v4"/><path d="M10 9.5v3l3-1.5z"/></svg></span>
+          <span class="settings-menu-text">
+            <strong>การรับชมพิเศษ</strong>
+            <small>ใช้ลิงก์ Kick แทน Cloudflare แยกตามงาน</small>
+          </span>
+          <span class="settings-menu-arrow"><svg class="ico" viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 18l6-6-6-6"/></svg></span>
+        </button>
       </div>
 
       <!-- หมวด: ข้อมูลร้าน -->
@@ -610,6 +618,29 @@
         <p class="muted" id="ephotoSaved" style="text-align:center; font-size:13px; margin:0 0 4px; min-height:16px; color:#46c882;"></p>
 
         <button type="button" class="btn-marquee" style="margin:0;" id="saveEphotoBtn" disabled>บันทึกลิงก์ E-Photo</button>
+      </div>
+
+      <!-- หมวด: การรับชมพิเศษ (ลิงก์ Kick แยกรายวันของแต่ละงาน บันทึกแยกเอกเทศ) -->
+      <div id="settingsCategoryKick" class="settings-category" style="display:none;">
+        <div style="margin-bottom:14px;">
+          <label class="field-label" for="kickEventSelect">เลือกงาน</label>
+          <select id="kickEventSelect" class="field-input">
+            <option value="">-- เลือกงาน --</option>
+          </select>
+        </div>
+
+        <div id="kickDaysList" style="display:flex; flex-direction:column; gap:14px; margin-bottom:14px;"></div>
+
+        <p class="muted" style="font-size:12.5px; margin:0 0 12px; line-height:1.6;">
+          ใส่ลิงก์ช่อง Kick ของแต่ละวัน เช่น <code>https://kick.com/ชื่อช่อง</code> (หรือพิมพ์แค่ชื่อช่องก็ได้) —
+          วันที่ใส่ลิงก์ไว้ ผู้ชมที่กรอกรหัสเข้าชมจะดูไลฟ์ผ่าน Kick ในหน้าเว็บของเราได้เลย แทนการใช้ Cloudflare
+          (ถ้าวันนั้นตั้งรีรันไว้ จะเล่นรีรันตามปกติ) · ปล่อยว่าง = วันนั้นใช้ไลฟ์ปกติ
+        </p>
+
+        <p class="error-text" id="kickError"></p>
+        <p class="muted" id="kickSaved" style="text-align:center; font-size:13px; margin:0 0 4px; min-height:16px; color:#46c882;"></p>
+
+        <button type="button" class="btn-marquee" style="margin:0;" id="saveKickBtn" disabled>บันทึกการรับชมพิเศษ</button>
       </div>
 
       <p class="error-text" id="settingsError"></p>
