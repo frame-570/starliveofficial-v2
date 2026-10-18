@@ -187,7 +187,7 @@ export const POSTER_THEMES = [
   { id: "newyear", label: "NEW YEAR COUNTDOWN THEMES" },
 ];
 // ธีมเทศกาลเพิ่มพื้นที่ด้านล่างไว้ให้ลวดลาย (ฟักทอง / ต้นสน) โดยไม่ทับกล่องเนื้อหา
-function themeExtra(theme) {
+export function themeExtra(theme) {
   return POSTER_THEMES.some((t) => t.id === theme && t.id !== "st") ? 80 : 0;
 }
 
