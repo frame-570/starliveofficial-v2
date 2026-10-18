@@ -322,8 +322,6 @@ async function showSuccess(result, { reopened = false } = {}) {
 
   renderJoinGroupBlock("successJoinGroup");
   if (!reopened) maybeShowOpenchatPopup();
-  // เปิดซ้ำจากประวัติ: ไม่ต้องบอกวิธีเข้าประวัติการสั่งซื้อ
-  if (reopened) successCard.querySelector(".tip-box")?.remove();
 }
 
 // ============================================================
