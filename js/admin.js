@@ -736,8 +736,8 @@ eventForm.addEventListener("submit", async (e) => {
         .single();
       if (pkgError) throw new Error(pkgError.message);
 
-      await supabase.from("ticket_package_day_options").delete().eq("package_id", pkgRow.id);
-
+      // อย่าลบตัวเลือกวันทั้งหมดแล้วสร้างใหม่ — ออเดอร์เดิมอ้างอิง day_option_id อยู่ ถ้าลบจะทำให้ลูกค้าที่ซื้อไปแล้วเข้าชมไม่ได้
+      // ("คุณไม่มีสิทธิ์รับชมวันนี้") จึงอัปเดตตัวที่มีอยู่ และลบเฉพาะตัวที่ไม่อยู่ในชุดใหม่แล้วเท่านั้น
       const combos = combinations(sortedDays, pkg.num_days);
       const optionRows = combos.map((combo) => ({
         package_id: pkgRow.id,
@@ -749,6 +749,14 @@ eventForm.addEventListener("submit", async (e) => {
         .from("ticket_package_day_options")
         .upsert(optionRows, { onConflict: "package_id, day_numbers" });
       if (optError) throw new Error(optError.message);
+
+      const { data: oldOpts } = await supabase.from("ticket_package_day_options").select("id, day_numbers").eq("package_id", pkgRow.id);
+      const keepKeys = new Set(optionRows.map((o) => JSON.stringify(o.day_numbers)));
+      const staleIds = (oldOpts || []).filter((o) => !keepKeys.has(JSON.stringify(o.day_numbers))).map((o) => o.id);
+      if (staleIds.length) {
+        // ตัวที่ถูกออเดอร์อ้างอิงอยู่อาจลบไม่ได้ — ปล่อยไว้ ดีกว่าทำให้ลูกค้าเสียสิทธิ์
+        await supabase.from("ticket_package_day_options").delete().in("id", staleIds);
+      }
     }
 
     closeEventForm();
