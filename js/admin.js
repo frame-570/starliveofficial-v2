@@ -3,6 +3,7 @@ import { SUPABASE_ANON_KEY, FUNCTIONS_URL } from "./config.js";
 import { openPosterMaker } from "./poster.js";
 import { svgIcon, svgDot } from "./icons.js";
 import { loadReviewsAdmin } from "./review-admin.js";
+import { initSignDesigner } from "./sign-designer.js";
 
 // ============================================================
 // Styled confirm/alert modal
@@ -299,6 +300,7 @@ document.querySelectorAll(".admin-tab-btn").forEach((btn) => {
     document.getElementById("membersTab").style.display = btn.dataset.tab === "members" ? "block" : "none";
     document.getElementById("slipcheckTab").style.display = btn.dataset.tab === "slipcheck" ? "block" : "none";
     document.getElementById("reviewsTab").style.display = btn.dataset.tab === "reviews" ? "block" : "none";
+    document.getElementById("signsTab").style.display = btn.dataset.tab === "signs" ? "block" : "none";
 
     if (btn.dataset.tab === "orders") {
       loadOrders();
@@ -332,6 +334,10 @@ document.querySelectorAll(".admin-tab-btn").forEach((btn) => {
 
     if (btn.dataset.tab === "slipcheck") {
       loadSlipQuota();
+    }
+
+    if (btn.dataset.tab === "signs") {
+      initSignDesigner();
     }
 
     if (btn.dataset.tab === "reviews") {
