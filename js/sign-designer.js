@@ -103,7 +103,7 @@ function rr(ctx, x, y, w, h, r) {
 }
 
 function setFont(ctx, weight, size, family = "Prompt") {
-  ctx.font = `${weight} ${size}px ${family}, "Sarabun", sans-serif`;
+  ctx.font = `${weight} ${size}px ${family}, "Noto Sans Thai", sans-serif`;
 }
 // ลดขนาดตัวอักษรให้พอดีความกว้าง
 function fitFont(ctx, text, weight, maxW, start, min, family = "Prompt") {
@@ -146,8 +146,18 @@ function paintTheme(ctx, W, H, theme) {
 // ------------------------------------------------------------
 // วาดริชเมนู
 // ------------------------------------------------------------
+async function ensureFonts(text) {
+  try {
+    await Promise.all([
+      document.fonts.load("800 40px Prompt", text || "ก"),
+      document.fonts.load("600 40px Prompt", text || "ก"),
+    ]);
+  } catch {}
+}
+
 async function renderRichMenu(canvas, outW, outH) {
   const token = ++renderToken;
+  await ensureFonts(rm.cells.map((c) => (c.title || "") + (c.sub || "")).join(""));
   const icons = await Promise.all(rm.cells.map((c) => svgImage(signIconSvg(c.icon, lighten(c.color, 0.2), 512, 5))));
   if (token !== renderToken) return false;
 
@@ -159,7 +169,7 @@ async function renderRichMenu(canvas, outW, outH) {
   ctx.textBaseline = "alphabetic";
 
   paintTheme(ctx, RM_W, RM_H, rm.theme);
-  ctx.fillStyle = "rgba(0,0,0,0.2)";
+  ctx.fillStyle = "rgba(0,0,0,0.06)";
   ctx.fillRect(0, 0, RM_W, RM_H);
 
   const margin = 80;
@@ -184,15 +194,15 @@ function drawCell(ctx, x, y, w, h, c, iconImg) {
   ctx.save();
   rr(ctx, x, y, w, h, R);
   const g = ctx.createLinearGradient(x, y, x + w, y + h);
-  g.addColorStop(0, mix(accent, "#05070f", 0.74));
-  g.addColorStop(1, mix(accent, "#05070f", 0.9));
-  ctx.globalAlpha = 0.94;
+  g.addColorStop(0, mix(accent, "#0a0f24", 0.42));
+  g.addColorStop(1, mix(accent, "#0a0f24", 0.58));
+  ctx.globalAlpha = 0.55;
   ctx.fillStyle = g;
   ctx.fill();
   ctx.globalAlpha = 1;
   ctx.clip();
   const glow = ctx.createRadialGradient(x + w / 2, y + h * 0.35, 20, x + w / 2, y + h * 0.35, w * 0.8);
-  glow.addColorStop(0, rgba(accent, 0.28));
+  glow.addColorStop(0, rgba(accent, 0.22));
   glow.addColorStop(1, rgba(accent, 0));
   ctx.fillStyle = glow;
   ctx.fillRect(x, y, w, h);
@@ -237,12 +247,10 @@ function drawCell(ctx, x, y, w, h, c, iconImg) {
   ctx.textAlign = "center";
   const title = c.title || "";
   const ts = fitFont(ctx, title, 800, w - 90, 118, 56);
-  const tg = ctx.createLinearGradient(0, y + 330, 0, y + 330 + ts);
-  tg.addColorStop(0, "#ffffff");
-  tg.addColorStop(1, lighten(accent, 0.65));
-  ctx.shadowColor = rgba(accent, 0.9);
-  ctx.shadowBlur = 24;
-  ctx.fillStyle = tg;
+  ctx.shadowColor = "rgba(0,0,0,0.35)";
+  ctx.shadowBlur = 14;
+  ctx.shadowOffsetY = 4;
+  ctx.fillStyle = "#ffffff";
   ctx.fillText(title, cx, y + 440);
   ctx.restore();
 
@@ -250,7 +258,7 @@ function drawCell(ctx, x, y, w, h, c, iconImg) {
   ctx.save();
   ctx.textAlign = "center";
   const sub = c.sub || "";
-  fitFont(ctx, sub, 500, w - 110, 56, 32);
+  fitFont(ctx, sub, 600, w - 110, 56, 32);
   ctx.fillStyle = "rgba(255,255,255,0.9)";
   ctx.fillText(sub, cx, y + 520);
   ctx.restore();
@@ -282,22 +290,17 @@ function drawCell(ctx, x, y, w, h, c, iconImg) {
 function fancyText(ctx, text, cx, baseline, size, accent) {
   ctx.save();
   ctx.textAlign = "center";
-  ctx.lineJoin = "round";
-  ctx.lineWidth = size * 0.16;
-  ctx.strokeStyle = "rgba(16,28,90,0.92)";
-  ctx.strokeText(text, cx, baseline);
-  const g = ctx.createLinearGradient(0, baseline - size * 0.9, 0, baseline + size * 0.1);
-  g.addColorStop(0, lighten(accent, 0.8));
-  g.addColorStop(1, accent);
-  ctx.shadowColor = rgba(accent, 0.8);
-  ctx.shadowBlur = 26;
-  ctx.fillStyle = g;
+  ctx.shadowColor = "rgba(0,0,0,0.35)";
+  ctx.shadowBlur = 18;
+  ctx.shadowOffsetY = 5;
+  ctx.fillStyle = "#ffffff";
   ctx.fillText(text, cx, baseline);
   ctx.restore();
 }
 
 async function renderPay(canvas, outW, outH) {
   const token = ++renderToken;
+  await ensureFonts((pay.line1 || "") + (pay.line2 || "") + (pay.name || ""));
   const accent = pay.accent;
   const [coin, phone] = await Promise.all([
     svgImage(signIllustrationSvg("coin", accent).replace('width="200" height="200"', 'width="512" height="512"')),
@@ -313,7 +316,7 @@ async function renderPay(canvas, outW, outH) {
   ctx.textBaseline = "alphabetic";
 
   drawBackground(ctx, PAY_H, pay.theme);
-  ctx.fillStyle = "rgba(0,0,0,0.16)";
+  ctx.fillStyle = "rgba(0,0,0,0.06)";
   ctx.fillRect(0, 0, PAY_W, PAY_H);
 
   // ป้ายชื่อร้านด้านบน
