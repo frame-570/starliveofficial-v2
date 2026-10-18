@@ -1898,13 +1898,26 @@ function renderDiscountRow(code, eventTitleById = new Map()) {
         ${isNotStarted ? ' · <span style="color:var(--amber);">ยังไม่ถึงวันเริ่มใช้</span>' : ""}
         ${isExpired ? ' · <span style="color:var(--crimson);">หมดอายุแล้ว</span>' : ""}
         ${!code.is_active ? ' · <span style="color:var(--muted);">ปิดใช้งาน</span>' : ""}
+        ${code.is_public === false ? ' · <span style="color:var(--amber);">ซ่อนจากหน้าโปรโมชั่น</span>' : ' · <span style="color:#46c882;">แสดงในหน้าโปรโมชั่น</span>'}
       </div>
     </div>
     <div style="display:flex; align-items:center; gap:8px; flex-shrink:0; flex-wrap:wrap;">
+      <button class="icon-btn ghost" data-action="toggle-public">${code.is_public === false ? "แสดง" : "ซ่อน"}</button>
       <button class="icon-btn ghost" data-action="toggle-active">${code.is_active ? "ปิดใช้งาน" : "เปิดใช้งาน"}</button>
       <button class="icon-btn ghost" data-action="delete-discount" style="border-color:var(--crimson); color:var(--crimson);">ลบ</button>
     </div>
   `;
+
+  row.querySelector('[data-action="toggle-public"]').addEventListener("click", async () => {
+    const session = await ensureAuthSession();
+    if (!session) return;
+    const { error } = await supabase.from("discount_codes").update({ is_public: code.is_public === false }).eq("id", code.id);
+    if (error) {
+      await appAlert("อัปเดตไม่สำเร็จ (ต้องรัน SQL เพิ่มคอลัมน์ is_public ก่อน): " + error.message, { type: "error" });
+      return;
+    }
+    loadDiscountCodes();
+  });
 
   row.querySelector('[data-action="toggle-active"]').addEventListener("click", async () => {
     const session = await ensureAuthSession();
