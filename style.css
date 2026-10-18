@@ -1619,3 +1619,15 @@ body.review-page .site-footer { width: 100%; box-sizing: border-box; }
   .rs-average { font-size: 21px; }
   .rs-total { font-size: 14px; }
 }
+
+
+/* ============================================================
+   ออกแบบป้าย (หน้าแอดมิน)
+   ============================================================ */
+.sign-cell-card {
+  padding: 10px;
+  border-radius: 12px;
+  border: 1px solid var(--line, #2c2745);
+  background: rgba(255, 255, 255, 0.03);
+}
+.sign-sub.active { outline: 2px solid var(--amber, #f2b705); }
