@@ -48,11 +48,8 @@ async function init() {
   await ensureSettings();
 
   if (order.status === "paid") {
-    alreadyPaidCard.style.display = "block";
-    document.getElementById("alreadyPaidCode").textContent = order.access_code || "-";
-    const watchLink = document.getElementById("alreadyPaidWatchLink");
-    if (watchLink && order.access_code) watchLink.href = `./watch.html?code=${encodeURIComponent(order.access_code)}`;
-    renderJoinGroupBlock("alreadyPaidJoin");
+    // เปิดออเดอร์ที่จ่ายแล้วซ้ำ (รีเฟรช/กลับมาดู): แสดงสลิปเต็มแบบเดียวกับตอนชำระเสร็จ
+    await showSuccess({ order_number: order.order_number, access_code: order.access_code || "-" }, { reopened: true });
     return;
   }
 
@@ -273,14 +270,14 @@ async function submitSlip() {
   }
 }
 
-async function showSuccess(result) {
+async function showSuccess(result, { reopened = false } = {}) {
   // ปิดป๊อปอัพตรวจสลิป แล้วสลับไปแสดงหน้ารหัสเข้าชมแบบหน้าปกติ (ไม่ใช่ป๊อปอัพ)
   verifyOverlay.style.display = "none";
   paymentCard.style.display = "none";
   successCard.style.display = "block";
 
   const isRerun = currentOrder.events?.status === "rerun";
-  const paidAt = new Date().toLocaleString("th-TH", { dateStyle: "long", timeStyle: "short" });
+  const paidAt = new Date(reopened && currentOrder.paid_at ? currentOrder.paid_at : Date.now()).toLocaleString("th-TH", { dateStyle: "long", timeStyle: "short" });
 
   // ดึงวันหมดอายุของรหัสจากฐานข้อมูล (ถ้าได้) เพื่อบอกลูกค้าว่าดูได้ถึงเมื่อไหร่
   let expiresLabel = "";
@@ -324,7 +321,9 @@ async function showSuccess(result) {
   if (watchBtn) watchBtn.href = `./watch.html?code=${encodeURIComponent(result.access_code)}`;
 
   renderJoinGroupBlock("successJoinGroup");
-  maybeShowOpenchatPopup();
+  if (!reopened) maybeShowOpenchatPopup();
+  // เปิดซ้ำจากประวัติ: ไม่ต้องบอกวิธีเข้าประวัติการสั่งซื้อ
+  if (reopened) successCard.querySelector(".tip-box")?.remove();
 }
 
 // ============================================================
