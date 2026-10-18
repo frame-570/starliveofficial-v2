@@ -171,11 +171,11 @@ function escapeHtml(s) {
   return String(s ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
 }
 
-// วันที่ + เวลา เวลาไทย เช่น "17 ต.ค. 2569 15:30"
+// วันที่อย่างเดียว เวลาไทย เช่น "17 ต.ค. 2569"
 function formatReviewDate(iso) {
   const d = new Date(iso);
   if (isNaN(d)) return "";
-  return d.toLocaleString("th-TH", { timeZone: "Asia/Bangkok", day: "numeric", month: "short", year: "numeric", hour: "2-digit", minute: "2-digit", hour12: false });
+  return d.toLocaleDateString("th-TH", { timeZone: "Asia/Bangkok", day: "numeric", month: "short", year: "numeric" });
 }
 
 function renderCard(r) {
