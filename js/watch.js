@@ -224,7 +224,7 @@ function showDaySelectionModal(data) {
     if (!isPurchased) {
       btn.disabled = true;
       btn.innerHTML = `<div class="day-title">${ICONS.lock} ${formatDayDateLabel(day)}</div><div class="day-status">ไม่มีสิทธิ์รับชม</div>`;
-    } else if (day.rerun_youtube_url || day.rerun_cloudflare_uid) {
+    } else if (day.rerun_youtube_url || day.rerun_cloudflare_uid || (data.special_rerun_days || []).includes(Number(day.day_number))) {
       // เช็ครีรันก่อนเสมอ: วันที่มีรีรันตั้งไว้แปลว่าวันนั้นถ่ายทอดจบแล้ว ไม่ขึ้นกับสถานะวันอื่นในงานเดียวกัน
       btn.innerHTML = `<div class="day-title">${ICONS.play} ${formatDayDateLabel(day)}</div><div class="day-status rerun">รับชมรีรัน</div>`;
       btn.onclick = () => {
@@ -342,7 +342,7 @@ function renderRightSidebarDays(data, activeDay) {
     if (!isPurchased) {
       btn.disabled = true;
       btn.innerHTML = `${ICONS.lock} <span>${formatDayDateLabel(day)}</span>`;
-    } else if (day.rerun_youtube_url || day.rerun_cloudflare_uid) {
+    } else if (day.rerun_youtube_url || day.rerun_cloudflare_uid || (data.special_rerun_days || []).includes(Number(day.day_number))) {
       // เช็ครีรันก่อนเสมอ: วันที่มีรีรันตั้งไว้แปลว่าวันนั้นถ่ายทอดจบแล้ว ไม่ขึ้นกับสถานะวันอื่นในงานเดียวกัน
       btn.innerHTML = `${ICONS.play} <span>รีรัน: ${formatDayDateLabel(day)}</span>`;
       btn.onclick = () => {
@@ -461,7 +461,7 @@ function loadVideoStream(streamData) {
   } else if (streamData.platform === "kick") {
     // การรับชมพิเศษ (Kick): รับเฉพาะ player ของ Kick เท่านั้น กันลิงก์แปลกปลอมใส่ใน iframe
     const u = String(streamData.streamUrl || "");
-    if (/^https:\/\/player\.kick\.com\/[A-Za-z0-9_-]{1,30}$/.test(u)) {
+    if (/^https:\/\/player\.kick\.com\/(?:video\/[A-Za-z0-9-]{8,64}|[A-Za-z0-9_-]{1,30})$/.test(u)) {
       src = `${u}?autoplay=true`;
     }
   } else {
