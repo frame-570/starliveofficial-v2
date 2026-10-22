@@ -373,6 +373,7 @@ const evBannerPreview = document.getElementById("evBannerPreview");
 const evStatus = document.getElementById("evStatus");
 const evPreviewUrl = document.getElementById("evPreviewUrl");
 const evRerunMonths = document.getElementById("evRerunMonths");
+const evLineGroupUrl = document.getElementById("evLineGroupUrl");
 const dayRows = document.getElementById("dayRows");
 const packageRows = document.getElementById("packageRows");
 const eventFormError = document.getElementById("eventFormError");
@@ -442,6 +443,7 @@ function addDayRow(dayData = {}) {
   const rerunPlatform = dayData.rerun_platform || "";
   const rerunYt = dayData.rerun_youtube_url || "";
   const rerunCf = dayData.rerun_cloudflare_uid || "";
+  const salesClosed = !!dayData.sales_closed;
 
   const row = document.createElement("div");
   row.className = "day-row";
@@ -453,6 +455,11 @@ function addDayRow(dayData = {}) {
       <span style="font-weight:600; font-size:14px;" class="day-title-label">${formatDayLabel(date, n)}</span>
       <button type="button" class="icon-btn ghost remove-day-btn" style="padding:4px 10px; font-size:12px;">ลบวันนี้</button>
     </div>
+
+    <label style="display:flex; align-items:center; gap:8px; margin-bottom:10px; cursor:pointer; font-size:13px;">
+      <input type="checkbox" class="day-sales-closed" ${salesClosed ? "checked" : ""} />
+      <span>ปิดการขายวันนี้ <span class="muted" style="font-size:12px;">(ลูกค้าซื้อวันนี้ไม่ได้ ไม่ต้องลบวัน · คนที่ซื้อไปแล้วยังดูได้ตามปกติ · ถ้าปิดครบทุกวันงานจะไม่ขึ้นหน้าหลัก)</span></span>
+    </label>
     
     <div style="display:grid; grid-template-columns: 1fr 1fr; gap:10px; margin-bottom:10px;">
       <input type="date" class="field-input day-date-input" value="${date}" required />
@@ -520,6 +527,7 @@ function getDaysFromForm() {
       rerun_platform: rerunPlat || null,
       rerun_youtube_url: rerunPlat === "youtube" ? rerunVal : null,
       rerun_cloudflare_uid: rerunPlat === "cloudflare" ? rerunVal : null,
+      sales_closed: !!row.querySelector(".day-sales-closed")?.checked,
     };
   });
 }
@@ -571,6 +579,7 @@ function openEventForm(event = null) {
     evStatus.value = event.status;
     if (evPreviewUrl) evPreviewUrl.value = event.preview_youtube_url || "";
     if (evRerunMonths) evRerunMonths.value = event.rerun_duration_months || 6;
+    if (evLineGroupUrl) evLineGroupUrl.value = event.line_group_url || "";
     currentBannerUrl = event.banner_url || "";
     if (currentBannerUrl) {
       evBannerPreview.src = currentBannerUrl;
@@ -595,6 +604,7 @@ function openEventForm(event = null) {
     evStatus.value = "upcoming";
     if (evPreviewUrl) evPreviewUrl.value = "";
     if (evRerunMonths) evRerunMonths.value = 6;
+    if (evLineGroupUrl) evLineGroupUrl.value = "";
     addDayRow();
   }
 
@@ -659,6 +669,12 @@ eventForm.addEventListener("submit", async (e) => {
     return;
   }
 
+  const lineGroupVal = evLineGroupUrl ? evLineGroupUrl.value.trim() : "";
+  if (lineGroupVal && !/^https:\/\//i.test(lineGroupVal)) {
+    eventFormError.textContent = "ลิงก์กลุ่ม LINE ต้องขึ้นต้นด้วย https://";
+    return;
+  }
+
   const saveBtn = document.getElementById("saveEventBtn");
   saveBtn.disabled = true;
   saveBtn.textContent = "กำลังบันทึก...";
@@ -682,6 +698,7 @@ eventForm.addEventListener("submit", async (e) => {
       banner_url: bannerUrl || null,
       status: evStatus.value,
       preview_youtube_url: previewUrlVal || null,
+      line_group_url: lineGroupVal || null,
       viewing_duration_months: rerunMonthsVal,
       rerun_duration_months: rerunMonthsVal,
     };
@@ -696,6 +713,20 @@ eventForm.addEventListener("submit", async (e) => {
       const { data, error } = await supabase.from("events").insert(eventPayload).select().single();
       if (error) throw new Error(error.message);
       savedEventId = data.id;
+    }
+
+    // เก็บภาพก่อนแก้ไว้ (วันเดิม + ตัวเลือกวันเดิม) เพื่อย้ายสิทธิ์ของลูกค้าที่ซื้อไปแล้วให้ตามวันใหม่ หลังเลขวันถูกเลื่อน
+    let oldDays = [];
+    let oldOptions = [];
+    if (eventId) {
+      const { data: od } = await supabase.from("event_days").select("day_number, event_date").eq("event_id", savedEventId);
+      oldDays = od || [];
+      const { data: opk } = await supabase.from("ticket_packages").select("id").eq("event_id", savedEventId);
+      const pkgIds = (opk || []).map((x) => x.id);
+      if (pkgIds.length) {
+        const { data: oo } = await supabase.from("ticket_package_day_options").select("id, package_id, day_numbers").in("package_id", pkgIds);
+        oldOptions = oo || [];
+      }
     }
 
     await supabase.from("event_days").delete().eq("event_id", savedEventId);
@@ -759,11 +790,52 @@ eventForm.addEventListener("submit", async (e) => {
       }
     }
 
+    // ย้ายสิทธิ์ลูกค้าที่ซื้อไปแล้วให้ตามเลขวันใหม่ (จับคู่ด้วยวันที่จัดงาน) เช่น ลบวัน 1-2 แล้ววัน 3 กลายเป็นวัน 1
+    let remapWarning = "";
+    if (eventId && oldOptions.length) {
+      try {
+        const dateOf = new Map(oldDays.map((d) => [Number(d.day_number), String(d.event_date)]));
+        const newByDate = new Map(sortedDays.map((d) => [String(d.event_date), Number(d.day_number)]));
+        const sameSet = (a, b) => a.length === b.length && a.every((v, i) => v === b[i]);
+        const { data: newOptions } = await supabase
+          .from("ticket_package_day_options")
+          .select("id, package_id, day_numbers")
+          .in("package_id", [...new Set(oldOptions.map((o) => o.package_id))]);
+        const lostOptionIds = [];
+        for (const old of oldOptions) {
+          const oldNums = (old.day_numbers || []).map(Number).sort((a, b) => a - b);
+          const mapped = oldNums.map((n) => newByDate.get(dateOf.get(n)));
+          if (mapped.some((v) => v === undefined)) {
+            lostOptionIds.push(old.id); // วันที่ซื้อไว้ถูกลบ/เปลี่ยนวันที่ — ย้ายอัตโนมัติไม่ได้
+            continue;
+          }
+          const target = mapped.sort((a, b) => a - b);
+          if (sameSet(oldNums, target)) continue; // เลขวันไม่เปลี่ยน ไม่ต้องย้าย
+          const dest = (newOptions || []).find(
+            (o) => o.package_id === old.package_id && sameSet((o.day_numbers || []).map(Number).sort((a, b) => a - b), target)
+          );
+          if (!dest) {
+            lostOptionIds.push(old.id);
+            continue;
+          }
+          await supabase.from("orders").update({ day_option_id: dest.id }).eq("day_option_id", old.id);
+          await supabase.from("ticket_package_day_options").delete().eq("id", old.id); // ถ้ายังมีออเดอร์ชี้อยู่จะลบไม่ได้ ปล่อยผ่าน
+        }
+        if (lostOptionIds.length) {
+          const { count } = await supabase.from("orders").select("id", { count: "exact", head: true }).in("day_option_id", lostOptionIds).eq("status", "paid");
+          if (count) remapWarning = `\n\n⚠️ มี ${count} ออเดอร์ที่ซื้อวันซึ่งถูกลบ/เปลี่ยนวันที่ ระบบย้ายสิทธิ์ให้อัตโนมัติไม่ได้ กรุณาตรวจสอบและแก้ด้วยตนเอง`;
+        }
+      } catch (remapErr) {
+        console.warn("ย้ายสิทธิ์ลูกค้าไม่สำเร็จ", remapErr);
+        remapWarning = "\n\n⚠️ ย้ายสิทธิ์ลูกค้าที่ซื้อไปแล้วไม่สำเร็จ กรุณาตรวจสอบออเดอร์ของงานนี้";
+      }
+    }
+
     closeEventForm();
     await loadEvents();
     
     // แสดง Pop-up สำเร็จ
-    await appAlert(eventId ? "แก้ไขงานสำเร็จเรียบร้อยแล้ว!" : "สร้างงานใหม่สำเร็จเรียบร้อยแล้ว!", { type: "success" });
+    await appAlert((eventId ? "แก้ไขงานสำเร็จเรียบร้อยแล้ว!" : "สร้างงานใหม่สำเร็จเรียบร้อยแล้ว!") + remapWarning, { type: remapWarning ? "error" : "success" });
 
   } catch (err) {
     eventFormError.textContent = err.message || "เกิดข้อผิดพลาด กรุณาลองใหม่";
@@ -924,7 +996,7 @@ async function loadOrders({ silent = false } = {}) {
 
   let query = supabase
     .from("orders")
-    .select("*, events(title, status, rerun_special_notes, event_days(event_date)), ticket_packages(num_days), ticket_package_day_options(label)")
+    .select("*, events(title, status, rerun_special_notes, line_group_url, event_days(event_date)), ticket_packages(num_days), ticket_package_day_options(label)")
     .order("created_at", { ascending: false })
     .limit(100);
 
@@ -1049,6 +1121,7 @@ function renderOrderRow(order, discountCodeById = new Map(), profileById = new M
         expiresAt: order.access_code_expires_at,
         eventStatus: order.events?.status,
         rerunSpecialNotes: order.events?.rerun_special_notes,
+        lineGroupUrl: order.events?.line_group_url,
       });
       manualResultText.value = lines.join("\n");
       manualResultOverlay.style.display = "flex";
@@ -1371,6 +1444,7 @@ async function buildCustomerMessageLines({
   expiresAt,
   eventStatus,
   rerunSpecialNotes,
+  lineGroupUrl,
 }) {
   const watchUrl = `${window.location.origin}/watch?code=${accessCode}`;
   const expiresLabel = new Date(expiresAt).toLocaleDateString("th-TH", {
@@ -1411,10 +1485,12 @@ async function buildCustomerMessageLines({
       .eq("id", 1)
       .maybeSingle();
 
-    if (settings?.line_openchat_url) {
+    // กลุ่มของงานนั้นก่อน ถ้าไม่ได้ตั้งไว้ใช้กลุ่มรวมจากหน้าตั้งค่า
+    const groupUrl = lineGroupUrl || settings?.line_openchat_url;
+    if (groupUrl) {
       lines.push(``);
-      lines.push(settings.line_openchat_message?.trim() || `เข้าร่วม LINE OpenChat เพื่อรับข่าวสารและอัปเดตล่าสุดจากเรา`);
-      lines.push(settings.line_openchat_url);
+      lines.push(settings?.line_openchat_message?.trim() || `เข้าร่วม LINE OpenChat เพื่อรับข่าวสารและอัปเดตล่าสุดจากเรา`);
+      lines.push(groupUrl);
     }
   }
 
@@ -1433,10 +1509,12 @@ function formatEventDateLabel(eventDays) {
 async function showManualResult(result, eventId) {
   let eventStatus = null;
   let rerunSpecialNotes = null;
+  let lineGroupUrl = null;
   if (eventId) {
-    const { data: ev } = await supabase.from("events").select("status, rerun_special_notes").eq("id", eventId).maybeSingle();
+    const { data: ev } = await supabase.from("events").select("status, rerun_special_notes, line_group_url").eq("id", eventId).maybeSingle();
     eventStatus = ev?.status;
     rerunSpecialNotes = ev?.rerun_special_notes;
+    lineGroupUrl = ev?.line_group_url;
   }
 
   const lines = await buildCustomerMessageLines({
@@ -2404,8 +2482,11 @@ const saveKickBtn = document.getElementById("saveKickBtn");
 
 // รับ "https://kick.com/ชื่อช่อง" หรือพิมพ์แค่ชื่อช่อง -> คืน URL มาตรฐาน (ไม่ผ่านรูปแบบ = null)
 const KICK_RESERVED_PATHS = ["video", "videos", "categories", "category", "browse", "following", "dashboard", "search", "clips", "api"];
+// รองรับ: ลิงก์ช่อง (ถ่ายทอดสด) และลิงก์วิดีโอย้อนหลัง kick.com/video/<id> หรือ kick.com/<ช่อง>/videos/<id> (รีรันชั่วคราว)
 function normalizeKickUrl(raw) {
   const v = String(raw || "").trim();
+  const vid = v.match(/^(?:https?:\/\/)?(?:www\.|player\.)?kick\.com\/(?:video\/|[A-Za-z0-9_-]{1,30}\/videos?\/)([A-Za-z0-9-]{8,64})\/?(?:\?.*)?$/i);
+  if (vid) return `https://kick.com/video/${vid[1]}`;
   const m = v.match(/^(?:https?:\/\/)?(?:www\.|player\.)?(?:kick\.com\/)?([A-Za-z0-9_-]{1,30})\/?(?:\?.*)?$/i);
   if (!m || KICK_RESERVED_PATHS.includes(m[1].toLowerCase())) return null;
   return `https://kick.com/${m[1]}`;
@@ -2461,7 +2542,7 @@ kickEventSelect.addEventListener("change", async () => {
       <div>
         <label class="field-label">${escapeHtml(formatEphotoDayLabel(day))}</label>
         <input type="text" class="field-input kick-url-input" data-day="${escapeAttr(day.day_number)}" autocomplete="off"
-          placeholder="https://kick.com/ชื่อช่อง (เว้นว่าง = ใช้ไลฟ์ปกติ)" value="${escapeAttr(linkByDay.get(Number(day.day_number)) || "")}" />
+          placeholder="ลิงก์ช่อง (ไลฟ์) หรือ kick.com/video/... (รีรัน) · เว้นว่าง = ใช้ไลฟ์ปกติ" value="${escapeAttr(linkByDay.get(Number(day.day_number)) || "")}" />
       </div>`
     )
     .join("");
@@ -2486,7 +2567,7 @@ saveKickBtn.addEventListener("click", async () => {
     }
     const url = normalizeKickUrl(raw);
     if (!url) {
-      kickError.textContent = `ลิงก์ของวันที่ ${dayNumber} ไม่ถูกต้อง — ใส่ลิงก์ช่อง Kick เช่น https://kick.com/ชื่อช่อง (ไม่รองรับลิงก์วิดีโอย้อนหลังหรือคลิป)`;
+      kickError.textContent = `ลิงก์ของวันที่ ${dayNumber} ไม่ถูกต้อง — ใส่ลิงก์ช่อง https://kick.com/ชื่อช่อง (ไลฟ์สด) หรือลิงก์วิดีโอ https://kick.com/video/รหัส (รีรัน) · ไม่รองรับลิงก์คลิป`;
       return;
     }
     toSave.push({ event_id: eventId, day_number: dayNumber, url, updated_at: new Date().toISOString() });
