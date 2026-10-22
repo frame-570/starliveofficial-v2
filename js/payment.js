@@ -33,7 +33,7 @@ if (!session) {
 async function init() {
   const { data: order, error } = await supabase
     .from("orders")
-    .select("*, events(title, status, viewing_duration_months, rerun_special_notes), ticket_packages(num_days), ticket_package_day_options(label)")
+    .select("*, events(title, status, viewing_duration_months, rerun_special_notes, line_group_url), ticket_packages(num_days), ticket_package_day_options(label)")
     .eq("id", orderId)
     .maybeSingle();
 
@@ -103,10 +103,15 @@ async function ensureSettings() {
 }
 
 // ปุ่มเข้ากลุ่ม LINE (เฉพาะงานไลฟ์สด) อยู่ล่างสุดของหน้ารหัสเข้าชม แทนป๊อปอัพเดิม
+// กลุ่ม LINE ของงานนั้นก่อน ถ้าไม่ได้ตั้งไว้ใช้กลุ่มรวมจากหน้าตั้งค่า
+function groupUrl() {
+  return currentOrder?.events?.line_group_url || openchatSettings?.line_openchat_url || "";
+}
+
 function renderJoinGroupBlock(containerId) {
   const box = document.getElementById(containerId);
   if (!box) return;
-  const url = openchatSettings?.line_openchat_url;
+  const url = groupUrl();
   if (!url || currentOrder?.events?.status === "rerun") {
     box.style.display = "none";
     return;
