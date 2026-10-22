@@ -144,6 +144,14 @@
         </div>
 
         <div style="margin-bottom:14px;">
+          <label class="field-label" for="evLineGroupUrl">ลิงก์กลุ่ม LINE ของงานนี้ (ใช้ร่วมกันทุกวันของงาน)</label>
+          <input id="evLineGroupUrl" class="field-input" placeholder="https://line.me/ti/g2/xxxxxxxx (ไม่บังคับ)" />
+          <p class="muted" style="font-size:12px; margin:6px 0 0; line-height:1.6;">
+            ลูกค้าที่ซื้องานนี้จะเห็นปุ่มเข้ากลุ่มนี้ ถ้าเว้นว่างจะใช้กลุ่มรวมจากหน้าตั้งค่าแทน
+          </p>
+        </div>
+
+        <div style="margin-bottom:14px;">
           <label class="field-label" for="evRerunMonths">ระยะเวลารับชมรีรัน (เดือน)</label>
           <input id="evRerunMonths" type="number" min="1" class="field-input" value="6" />
         </div>
@@ -636,9 +644,9 @@
         <div id="kickDaysList" style="display:flex; flex-direction:column; gap:14px; margin-bottom:14px;"></div>
 
         <p class="muted" style="font-size:12.5px; margin:0 0 12px; line-height:1.6;">
-          ใส่ลิงก์ช่อง Kick ของแต่ละวัน เช่น <code>https://kick.com/ชื่อช่อง</code> (หรือพิมพ์แค่ชื่อช่องก็ได้) —
-          วันที่ใส่ลิงก์ไว้ ผู้ชมที่กรอกรหัสเข้าชมจะดูไลฟ์ผ่าน Kick ในหน้าเว็บของเราได้เลย แทนการใช้ Cloudflare
-          (ถ้าวันนั้นตั้งรีรันไว้ จะเล่นรีรันตามปกติ) · ปล่อยว่าง = วันนั้นใช้ไลฟ์ปกติ
+          ใส่ลิงก์ Kick ของแต่ละวัน — ลิงก์ช่อง <code>https://kick.com/ชื่อช่อง</code> (หรือพิมพ์แค่ชื่อช่อง) = ถ่ายทอดสด ·
+          ลิงก์วิดีโอ <code>https://kick.com/video/รหัสวิดีโอ</code> = รีรันชั่วคราวระหว่างรอไฟล์รีรันขึ้น Cloudflare
+          (ไลฟ์จบแล้วให้เปลี่ยนจากลิงก์ช่องเป็นลิงก์วิดีโอ) · ถ้าวันนั้นตั้งรีรัน Cloudflare/YouTube ไว้ จะเล่นรีรันนั้นแทนเสมอ · ปล่อยว่าง = ใช้ไลฟ์ปกติ
         </p>
 
         <p class="error-text" id="kickError"></p>
