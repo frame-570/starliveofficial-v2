@@ -26,7 +26,7 @@ async function loadEvents() {
 
   const { data: events, error } = await supabase
     .from("events")
-    .select("*, event_days(event_date), ticket_packages(price)");
+    .select("*, event_days(event_date, sales_closed), ticket_packages(price)");
 
   loading.style.display = "none";
 
@@ -43,7 +43,17 @@ async function loadEvents() {
 
   // เรียงจากวันจัดงานล่าสุด (วันสุดท้ายของงาน) ไปเก่าสุด ไม่ใช่วันที่สร้างในระบบ
   // งานที่ยังไม่กำหนดวันเลย ให้ตกไปอยู่ท้ายสุด
-  const sortedEvents = [...events].sort((a, b) => getLastEventDate(b) - getLastEventDate(a));
+  // ปิดการขายครบทุกวันแล้ว -> ไม่แสดงงานในหน้าหลัก (ลูกค้าที่ซื้อไปแล้วยังดูได้ตามปกติ)
+  const visibleEvents = events.filter((ev) => {
+    const days = ev.event_days || [];
+    return days.length === 0 || days.some((d) => !d.sales_closed);
+  });
+  if (visibleEvents.length === 0) {
+    empty.style.display = "block";
+    return;
+  }
+
+  const sortedEvents = [...visibleEvents].sort((a, b) => getLastEventDate(b) - getLastEventDate(a));
 
   grid.innerHTML = sortedEvents.map(renderCard).join("");
 
