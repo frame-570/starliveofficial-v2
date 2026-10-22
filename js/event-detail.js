@@ -106,12 +106,31 @@ function renderEvent(event) {
   renderPackageTabs(event.ticket_packages || []);
 }
 
-function renderPackageTabs(packages) {
+// วันที่ปิดการขายแล้ว: ตัวเลือกวันที่มีวันนั้นปนอยู่จะไม่แสดง และแพ็กเกจที่เหลือตัวเลือกไม่ครบจะถูกซ่อน
+function applySalesClosed(packages) {
+  const days = currentEvent?.event_days || [];
+  const closedNums = new Set(days.filter((d) => d.sales_closed).map((d) => Number(d.day_number)));
+  if (closedNums.size === 0) return { packages, closedCount: 0 };
+  const result = [];
+  for (const pkg of packages) {
+    const opts = (pkg.ticket_package_day_options || []).filter((o) => !(o.day_numbers || []).some((n) => closedNums.has(Number(n))));
+    if (opts.length > 0) result.push({ ...pkg, ticket_package_day_options: opts });
+  }
+  return { packages: result, closedCount: closedNums.size };
+}
+
+function renderPackageTabs(rawPackages) {
   const wrap = document.getElementById("packageTabs");
+  const { packages, closedCount } = applySalesClosed(rawPackages);
   const sorted = [...packages].sort((a, b) => a.num_days - b.num_days);
 
   if (sorted.length === 0) {
-    wrap.innerHTML = `<p class="muted" style="font-size:13.5px;">งานนี้ยังไม่เปิดขายบัตร</p>`;
+    wrap.innerHTML =
+      closedCount > 0
+        ? `<p class="muted" style="font-size:13.5px;">ปิดการขายแล้ว (เต็มแล้ว)</p>`
+        : `<p class="muted" style="font-size:13.5px;">งานนี้ยังไม่เปิดขายบัตร</p>`;
+    selectedPackage = null;
+    selectedDayOptionId = null;
     return;
   }
 
@@ -123,6 +142,10 @@ function renderPackageTabs(packages) {
       </button>`
     )
     .join("");
+
+  if (closedCount > 0) {
+    wrap.insertAdjacentHTML("beforeend", `<p class="muted" style="font-size:12.5px; margin:8px 0 0; width:100%;">บางวันปิดการขายแล้ว (เต็มแล้ว) จึงไม่แสดงให้เลือก</p>`);
+  }
 
   wrap.querySelectorAll(".package-tab").forEach((btn) => {
     btn.addEventListener("click", () => {
