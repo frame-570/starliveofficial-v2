@@ -30,7 +30,7 @@ async function loadOrders(user) {
   // ดึงเฉพาะข้อมูลออเดอร์ของ user นี้ และกรองเฉพาะสถานะ "paid" (ชำระเงินสำเร็จ) เท่านั้น
   const { data: orders, error } = await supabase
     .from("orders")
-    .select("*, events(title, status), ticket_packages(num_days), ticket_package_day_options(label)")
+    .select("*, events(title, status, line_group_url), ticket_packages(num_days), ticket_package_day_options(label)")
     .eq('user_id', user.id)
     .eq('status', 'paid') // <-- เพิ่มเงื่อนไขกรองเฉพาะที่จ่ายเงินสำเร็จแล้ว
     .order("created_at", { ascending: false });
@@ -71,7 +71,8 @@ async function loadOrders(user) {
 // สลิปแบบเต็มของออเดอร์ที่ชำระแล้ว (รายละเอียดเดียวกับหน้าชำระเงินสำเร็จ แต่ไม่มีคำแนะนำวิธีเข้าประวัติการสั่งซื้อ)
 function renderPaidSlip(order) {
   const isRerun = order.events?.status === "rerun";
-  const canJoinGroup = !!openchatUrl && !isRerun;
+  const groupUrl = order.events?.line_group_url || openchatUrl;
+  const canJoinGroup = !!groupUrl && !isRerun;
   const fmtDate = (v) => new Date(v).toLocaleDateString("th-TH", { year: "numeric", month: "long", day: "numeric" });
   const paidAt = order.paid_at ? new Date(order.paid_at).toLocaleString("th-TH", { dateStyle: "long", timeStyle: "short" }) : "";
   const row = (label, value, extra = "") =>
@@ -102,7 +103,7 @@ function renderPaidSlip(order) {
         canJoinGroup
           ? `<div style="margin-top:18px;">
         <p class="muted" style="font-size:13px; line-height:1.7; margin:0 0 10px; white-space:pre-line; text-align:left;">${escapeHtml(openchatMessage)}</p>
-        <a href="${escapeHtml(openchatUrl)}" target="_blank" rel="noopener" class="btn-line">${lineLogo(24)}<span>เข้าร่วมกลุ่ม LINE</span></a>
+        <a href="${escapeHtml(groupUrl)}" target="_blank" rel="noopener" class="btn-line">${lineLogo(24)}<span>เข้าร่วมกลุ่ม LINE</span></a>
       </div>`
           : ""
       }
@@ -116,7 +117,8 @@ function renderOrderCard(order) {
   const isPaid = order.status === "paid";
   const isPending = order.status === "pending_payment";
   // ปุ่มเข้ากลุ่มมีเฉพาะงานไลฟ์สด (งานที่เป็นรีรันแล้วไม่มี)
-  const canJoinGroup = isPaid && !!openchatUrl && order.events?.status !== "rerun";
+  const groupUrl = order.events?.line_group_url || openchatUrl;
+  const canJoinGroup = isPaid && !!groupUrl && order.events?.status !== "rerun";
   const expiresLabel = order.access_code_expires_at
     ? new Date(order.access_code_expires_at).toLocaleDateString("th-TH", { year: "numeric", month: "long", day: "numeric" })
     : "";
@@ -152,7 +154,7 @@ function renderOrderCard(order) {
         </div>
         ${
           canJoinGroup
-            ? `<a href="${escapeHtml(openchatUrl)}" target="_blank" rel="noopener" class="btn-line" style="margin-top:10px;">${lineLogo(24)}<span>เข้าร่วมกลุ่ม LINE</span></a>`
+            ? `<a href="${escapeHtml(groupUrl)}" target="_blank" rel="noopener" class="btn-line" style="margin-top:10px;">${lineLogo(24)}<span>เข้าร่วมกลุ่ม LINE</span></a>`
             : ""
         }
       `
