@@ -55,6 +55,21 @@ const ephotoCloseBtn = document.getElementById("ephotoCloseBtn");
 let lockoutTimer = null;
 let heartbeatInterval = null;
 let currentSessionToken = null;
+
+// รหัสประจำเครื่อง (เก็บในเบราว์เซอร์) — บอกเซิร์ฟเวอร์ว่าเป็นเครื่องเดิมที่กลับมา จะได้ไม่กินโควต้า 2 เครื่องซ้ำ
+function getDeviceId() {
+  try {
+    let id = localStorage.getItem("slo_device_id");
+    if (!id) {
+      id = crypto.randomUUID ? crypto.randomUUID() : String(Date.now()) + Math.random().toString(36).slice(2);
+      localStorage.setItem("slo_device_id", id);
+    }
+    return id;
+  } catch {
+    return "tmp-" + Math.random().toString(36).slice(2);
+  }
+}
+const DEVICE_ID = getDeviceId();
 let currentAccessCode = null;
 let currentOrderId = null;
 let activeEventData = null;
@@ -132,7 +147,7 @@ if (codeForm) {
           apikey: SUPABASE_ANON_KEY,
           Authorization: `Bearer ${SUPABASE_ANON_KEY}`,
         },
-        body: JSON.stringify({ code }),
+        body: JSON.stringify({ code, deviceId: DEVICE_ID }),
       });
       body = await res.json();
     } catch (err) {
@@ -158,7 +173,7 @@ if (codeForm) {
       if (body.error === "code_expired") {
         showError("รหัสเข้าชมนี้หมดอายุแล้ว");
       } else if (body.error === "already_in_use") {
-        showError("รหัสนี้กำลังถูกใช้งานอยู่บนเครื่องอื่น (รับชมได้พร้อมกัน 1 เครื่อง)");
+        showError("รหัสนี้กำลังถูกใช้งานอยู่บนเครื่องอื่น (รับชมได้พร้อมกัน 2 เครื่อง)");
       } else if (body.error === "not_started") {
         showError(`"${body.title || "งานนี้"}" ยังไม่เริ่มถ่ายทอดสด กรุณากลับมาใหม่ในวันที่จัดงาน`);
       } else if (body.error === "ended") {
@@ -419,6 +434,7 @@ async function loadSelectedDayStream(day, forceMode = null) {
         code: currentAccessCode,
         dayNumber: dayNumber,
         session_token: currentSessionToken,
+        deviceId: DEVICE_ID,
         forceTakeover: true
       }),
     });
@@ -523,7 +539,7 @@ function startHeartbeat() {
       if (res.ok && body.active === false) {
         // เซิร์ฟเวอร์ยืนยันชัดเจนว่า session ถูกแย่งไปแล้วเท่านั้น ถึงจะเด้งผู้ใช้ออก
         clearInterval(heartbeatInterval);
-        alert("รหัสนี้ถูกนำไปเปิดใช้งานบนเครื่องอื่น ระบบจะทำการออกจากหน้าชมสด");
+        alert("รหัสนี้ถูกใช้ครบ 2 เครื่องแล้ว และเครื่องนี้ถูกสลับออก ระบบจะทำการออกจากหน้าชมสด");
         resetToCodeScreen();
       } else if (!res.ok) {
         // error อื่นๆ (ฟังก์ชันล่ม/deploy ไม่ครบ/เน็ตสะดุด) แค่ log ไว้ ไม่เด้งผู้ใช้ออก
@@ -548,6 +564,8 @@ async function handleExitSession() {
         },
         body: JSON.stringify({
           code: currentAccessCode,
+          deviceId: DEVICE_ID,
+          sessionToken: currentSessionToken,
           action: "leave"
         }),
       });
