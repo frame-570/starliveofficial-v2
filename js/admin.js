@@ -945,6 +945,38 @@ const ORDER_STATUS_LABELS = {
 
 document.getElementById("orderStatusFilter").addEventListener("change", loadOrders);
 
+// ---------- กรองออเดอร์ตามงาน (จำค่าที่เลือกไว้ในเครื่องแอดมิน) ----------
+const orderEventFilter = document.getElementById("orderEventFilter");
+const ORDER_EVENT_FILTER_KEY = "slo_admin_order_event_filter";
+let orderEventOptionsSig = "";
+
+async function loadOrderEventOptions() {
+  const { data } = await supabase.from("events").select("id, title").order("created_at", { ascending: false });
+  const events = data || [];
+  const sig = JSON.stringify(events);
+  if (sig === orderEventOptionsSig) return;
+  orderEventOptionsSig = sig;
+
+  let saved = orderEventFilter.value;
+  if (!saved) {
+    try {
+      saved = localStorage.getItem(ORDER_EVENT_FILTER_KEY) || "";
+    } catch {}
+  }
+  orderEventFilter.innerHTML =
+    `<option value="">ทุกงาน</option>` +
+    events.map((ev) => `<option value="${escapeAttr(ev.id)}">${escapeHtml(ev.title)}</option>`).join("");
+  orderEventFilter.value = events.some((ev) => String(ev.id) === String(saved)) ? saved : "";
+}
+
+orderEventFilter.addEventListener("change", () => {
+  try {
+    localStorage.setItem(ORDER_EVENT_FILTER_KEY, orderEventFilter.value);
+  } catch {}
+  lastOrdersSignature = null;
+  loadOrders();
+});
+
 // ปุ่มรีเฟรชกลม (ข้างช่องค้นหา): โหลดใหม่ทันที หมุนระหว่างโหลด
 const orderRefreshBtn = document.getElementById("orderRefreshBtn");
 orderRefreshBtn.addEventListener("click", async () => {
@@ -993,14 +1025,17 @@ async function loadOrders({ silent = false } = {}) {
   const emptyEl = document.getElementById("orderEmptyState");
   const filter = document.getElementById("orderStatusFilter").value;
   const searchTerm = orderSearchInput.value.trim();
+  await loadOrderEventOptions();
+  const eventFilter = orderEventFilter.value;
 
   let query = supabase
     .from("orders")
     .select("*, events(title, status, rerun_special_notes, line_group_url, event_days(event_date)), ticket_packages(num_days), ticket_package_day_options(label)")
     .order("created_at", { ascending: false })
-    .limit(100);
+    .limit(eventFilter ? 500 : 100);
 
   if (filter) query = query.eq("status", filter);
+  if (eventFilter) query = query.eq("event_id", eventFilter);
 
   if (searchTerm) {
     const term = searchTerm.replace(/[%,]/g, ""); // กันอักขระที่ไปชนกับ syntax ของ .or()
@@ -1046,7 +1081,7 @@ async function loadOrders({ silent = false } = {}) {
   listEl.replaceChildren(fragment);
 
   emptyEl.style.display = data.length === 0 ? "block" : "none";
-  emptyEl.textContent = searchTerm ? "ไม่พบออเดอร์ที่ตรงกับคำค้นหา" : "ไม่มีออเดอร์ในหมวดนี้";
+  emptyEl.textContent = searchTerm ? "ไม่พบออเดอร์ที่ตรงกับคำค้นหา" : eventFilter ? "ยังไม่มีออเดอร์ของงานนี้ในหมวดนี้" : "ไม่มีออเดอร์ในหมวดนี้";
 
   // คงตำแหน่งที่ผู้ใช้เลื่อนดูอยู่ (ทั้งทันทีและหลังเบราว์เซอร์จัดเลย์เอาต์เสร็จ กันมือถือดีดกลับ)
   if (window.scrollY !== scrollY) window.scrollTo(0, scrollY);
@@ -1554,6 +1589,7 @@ manualResultCopyBtn.addEventListener("click", async () => {
 // กำลังดูอยู่ตอนนี้ (Live viewers — อิงจาก viewing_sessions ที่ heartbeat จริง)
 // ============================================================
 const LIVE_VIEWERS_POLL_MS = 10000;
+const MAX_DEVICES_PER_CODE = 2; // 1 รหัสดูพร้อมกันได้กี่เครื่อง (ต้องตรงกับ verify-access-code)
 const HEARTBEAT_TIMEOUT_SECONDS = 30; // ต้องตรงกับค่าใน Edge Function verify-access-code/heartbeat
 const VIEW_START_STORAGE_KEY = "slo_admin_view_starts";
 let liveViewersPollTimer = null;
@@ -1664,36 +1700,52 @@ async function loadLiveViewers({ silent = false } = {}) {
   }
 
   const sessions = data || [];
-  countEl.textContent = sessions.length;
+  countEl.textContent = sessions.length; // จำนวนเครื่องที่กำลังดู
 
   listEl.innerHTML = "";
   emptyEl.style.display = sessions.length === 0 ? "block" : "none";
 
+  // รวมเป็น 1 การ์ดต่อ 1 รหัส แล้วแสดง "n/2 เครื่อง" ว่าใช้ไปกี่เครื่องจากที่ได้
+  const byOrder = new Map();
   sessions.forEach((s) => {
-    const lastSeenMs = new Date(s.last_seen_at).getTime();
-    const start = resolveViewStart(s);
+    const key = s.order_id || s.id;
+    if (!byOrder.has(key)) byOrder.set(key, []);
+    byOrder.get(key).push(s);
+  });
 
-    const matchedDay = s.orders?.events?.event_days?.find((d) => d.day_number === s.day_number);
-    const dayLabel = formatDayLabel(matchedDay?.event_date, s.day_number);
+  byOrder.forEach((list) => {
+    const first = list[0];
+    const full = list.length >= MAX_DEVICES_PER_CODE;
+
+    const deviceLines = list
+      .map((s, i) => {
+        const lastSeenMs = new Date(s.last_seen_at).getTime();
+        const start = resolveViewStart(s);
+        const matchedDay = s.orders?.events?.event_days?.find((d) => d.day_number === s.day_number);
+        const dayLabel = formatDayLabel(matchedDay?.event_date, s.day_number);
+        return `
+        <div style="font-size:12px; margin-top:4px; display:flex; gap:10px; flex-wrap:wrap; align-items:center;">
+          <span class="muted">เครื่อง ${i + 1}</span>
+          <span class="muted">${dayLabel}</span>
+          <span style="color:#46c882;" data-watched-start="${start.ms}" data-watched-exact="${start.exact ? 1 : 0}">${formatWatchedLabel(start.ms, start.exact)}</span>
+          <span class="muted" data-last-seen="${lastSeenMs}">${formatLastSeenLabel(lastSeenMs)}</span>
+        </div>`;
+      })
+      .join("");
 
     const row = document.createElement("div");
     row.className = "session-row";
     row.innerHTML = `
       <div style="min-width:0;">
         <div style="font-family:'Prompt',sans-serif; font-weight:600; font-size:14.5px; margin-bottom:4px;">
-          ${escapeHtml(s.orders?.events?.title || "-")} — ${dayLabel}
+          ${escapeHtml(first.orders?.events?.title || "-")}
         </div>
         <div class="muted" style="font-size:12px;">
-          ${escapeHtml(s.orders?.order_number || "-")} · รหัส ${escapeHtml(s.orders?.access_code || "-")}
+          ${escapeHtml(first.orders?.order_number || "-")} · รหัส ${escapeHtml(first.orders?.access_code || "-")}
         </div>
-        <div style="font-size:12px; margin-top:4px; display:flex; gap:10px; flex-wrap:wrap;">
-          <span style="color:#46c882;" data-watched-start="${start.ms}" data-watched-exact="${start.exact ? 1 : 0}">
-            ${formatWatchedLabel(start.ms, start.exact)}
-          </span>
-          <span class="muted" data-last-seen="${lastSeenMs}">${formatLastSeenLabel(lastSeenMs)}</span>
-        </div>
+        ${deviceLines}
       </div>
-      <span class="status-pill" style="color:#46c882; font-size:12.5px; flex-shrink:0;">${svgDot(9)}กำลังดู</span>
+      <span class="status-pill" style="color:${full ? "var(--amber)" : "#46c882"}; font-size:12.5px; flex-shrink:0;" title="ใช้ไป ${list.length} จาก ${MAX_DEVICES_PER_CODE} เครื่อง">${svgDot(9)}${list.length}/${MAX_DEVICES_PER_CODE} เครื่อง</span>
     `;
     listEl.appendChild(row);
   });
