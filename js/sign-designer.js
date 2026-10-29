@@ -193,25 +193,28 @@ function drawCell(ctx, x, y, w, h, c, iconImg) {
   // พื้นช่อง: กระจกเข้มอมสีของช่อง
   ctx.save();
   rr(ctx, x, y, w, h, R);
-  const g = ctx.createLinearGradient(x, y, x + w, y + h);
-  g.addColorStop(0, mix(accent, "#0a0f24", 0.42));
-  g.addColorStop(1, mix(accent, "#0a0f24", 0.58));
-  ctx.globalAlpha = 0.55;
-  ctx.fillStyle = g;
-  ctx.fill();
-  ctx.globalAlpha = 1;
-  ctx.clip();
-  const glow = ctx.createRadialGradient(x + w / 2, y + h * 0.35, 20, x + w / 2, y + h * 0.35, w * 0.8);
-  glow.addColorStop(0, rgba(accent, 0.22));
-  glow.addColorStop(1, rgba(accent, 0));
-  ctx.fillStyle = glow;
-  ctx.fillRect(x, y, w, h);
-  // เงาแสงเฉียงบนช่อง
-  const sheen = ctx.createLinearGradient(x, y, x + w, y + h * 0.5);
-  sheen.addColorStop(0, "rgba(255,255,255,0.10)");
-  sheen.addColorStop(0.5, "rgba(255,255,255,0)");
-  ctx.fillStyle = sheen;
-  ctx.fillRect(x, y, w, h);
+  // สีพื้นในกรอบ: เปิด/ปิดได้ (ปิด = กรอบโปร่งใส เห็นสีธีมล้วน เหลือแค่ขอบนีออน)
+  if (rm.fill !== false) {
+    const g = ctx.createLinearGradient(x, y, x + w, y + h);
+    g.addColorStop(0, mix(accent, "#0a0f24", 0.42));
+    g.addColorStop(1, mix(accent, "#0a0f24", 0.58));
+    ctx.globalAlpha = 0.55;
+    ctx.fillStyle = g;
+    ctx.fill();
+    ctx.globalAlpha = 1;
+    ctx.clip();
+    const glow = ctx.createRadialGradient(x + w / 2, y + h * 0.35, 20, x + w / 2, y + h * 0.35, w * 0.8);
+    glow.addColorStop(0, rgba(accent, 0.22));
+    glow.addColorStop(1, rgba(accent, 0));
+    ctx.fillStyle = glow;
+    ctx.fillRect(x, y, w, h);
+    // เงาแสงเฉียงบนช่อง
+    const sheen = ctx.createLinearGradient(x, y, x + w, y + h * 0.5);
+    sheen.addColorStop(0, "rgba(255,255,255,0.10)");
+    sheen.addColorStop(0.5, "rgba(255,255,255,0)");
+    ctx.fillStyle = sheen;
+    ctx.fillRect(x, y, w, h);
+  }
   ctx.restore();
 
   // ขอบนีออน
@@ -521,6 +524,10 @@ function buildUI(root) {
             <option value="large">ใหญ่ 2500×1686 (มาตรฐานริชเมนู LINE)</option>
             <option value="small">เล็ก 1200×810</option>
           </select>
+          <label style="display:flex; align-items:center; gap:8px; margin-bottom:14px; cursor:pointer; font-size:13.5px;">
+            <input type="checkbox" id="signRmFill" />
+            <span>มีสีพื้นในกรอบ <span class="muted" style="font-size:12px;">(ปิด = กรอบโปร่งใส เห็นสีธีมเต็มๆ เหลือแค่ขอบ)</span></span>
+          </label>
           <div style="display:grid; grid-template-columns:repeat(auto-fill,minmax(220px,1fr)); gap:10px;">${cellEditors}</div>
           <button type="button" id="signRmReset" class="icon-btn ghost" style="margin-top:12px;">คืนค่าเริ่มต้นของริชเมนู</button>
         </div>
@@ -565,6 +572,7 @@ function buildUI(root) {
   // ตั้งค่าเริ่มต้นของช่องกรอก
   $("signRmTheme").value = rm.theme;
   $("signRmSize").value = rm.size;
+  $("signRmFill").checked = rm.fill !== false;
   root.querySelectorAll(".sign-cell-card").forEach((card, i) => {
     card.querySelector(".sign-cell-icon").value = rm.cells[i].icon;
   });
@@ -596,6 +604,10 @@ function bindUI(root) {
     rm.theme = e.target.value;
     refresh();
   });
+  $("signRmFill").addEventListener("change", (e) => {
+    rm.fill = e.target.checked;
+    refresh();
+  });
   $("signRmSize").addEventListener("change", (e) => {
     rm.size = e.target.value;
     saveLSSoon();
@@ -623,6 +635,7 @@ function bindUI(root) {
     if (!confirm("คืนค่าริชเมนูเป็นค่าเริ่มต้น (ข้อความ สี ไอคอนทุกช่อง) ใช่ไหม?")) return;
     rm.cells = DEFAULT_CELLS.map((c) => ({ ...c }));
     rm.theme = "st";
+    rm.fill = true;
     buildUI(root);
     bindUI(root);
     mode = "richmenu";
