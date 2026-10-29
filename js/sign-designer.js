@@ -36,6 +36,12 @@ const DEFAULT_CELLS = [
   { title: "โปรโมชั่นช่วงนี้", sub: "รับข้อเสนอสุดพิเศษ", color: "#ff4fd8", icon: "gift" },
 ];
 
+// สีสำเร็จรูปสำหรับเลือกเร็ว (โทนนีออนที่เข้ากับธีมป้าย)
+const COLOR_PRESETS = [
+  "#ff3b4a", "#ff6a3d", "#ff9a3c", "#f2b705", "#ffd84a", "#b6ff3b", "#46c882", "#1de9b6",
+  "#27c5ff", "#3d8bff", "#7a5cff", "#b44dff", "#ff4fd8", "#ff7a9c", "#ffffff", "#9aa3b5",
+];
+
 let inited = false;
 let mode = "richmenu";
 let rm = loadLS(LS_RM, null) || { theme: "st", size: "large", cells: DEFAULT_CELLS.map((c) => ({ ...c })) };
@@ -495,7 +501,8 @@ function buildUI(root) {
       <div class="sign-cell-card" data-cell="${i}">
         <div style="display:flex; align-items:center; justify-content:space-between; gap:8px; margin-bottom:8px;">
           <strong style="font-size:13px;">ช่อง ${i + 1}</strong>
-          <input type="color" class="sign-cell-color" value="${esc(c.color)}" title="สีช่อง" style="width:44px; height:30px; padding:0; border:1px solid var(--line); border-radius:8px; background:none; cursor:pointer;" />
+          <button type="button" class="sign-cell-swatch" title="เลือกสีช่อง" aria-label="เลือกสีช่อง ${i + 1}" style="width:44px; height:30px; padding:0; border:2px solid rgba(255,255,255,0.55); border-radius:8px; cursor:pointer; background:${esc(c.color)};"></button>
+          <input type="color" class="sign-cell-color" value="${esc(c.color)}" tabindex="-1" aria-hidden="true" style="position:absolute; width:0; height:0; opacity:0; pointer-events:none;" />
         </div>
         <input class="field-input sign-cell-title" value="${esc(c.title)}" placeholder="หัวข้อ" maxlength="24" style="margin-bottom:6px;" />
         <input class="field-input sign-cell-sub" value="${esc(c.sub)}" placeholder="ข้อความรอง" maxlength="30" style="margin-bottom:6px;" />
@@ -524,6 +531,10 @@ function buildUI(root) {
             <option value="large">ใหญ่ 2500×1686 (มาตรฐานริชเมนู LINE)</option>
             <option value="small">เล็ก 1200×810</option>
           </select>
+          <button type="button" id="signRmAllSame" class="icon-btn ghost" style="display:flex; align-items:center; gap:8px; margin-bottom:12px;">
+            <span id="signRmAllSwatch" style="width:18px; height:18px; border-radius:50%; border:2px solid rgba(255,255,255,0.6); display:inline-block;"></span>
+            <span>ใช้สีเดียวกันทั้งหมด <span class="muted" style="font-size:12px;">(ใช้สีที่เลือกล่าสุด)</span></span>
+          </button>
           <label style="display:flex; align-items:center; gap:8px; margin-bottom:14px; cursor:pointer; font-size:13.5px;">
             <input type="checkbox" id="signRmFill" />
             <span>มีสีพื้นในกรอบ <span class="muted" style="font-size:12px;">(ปิด = กรอบโปร่งใส เห็นสีธีมเต็มๆ เหลือแค่ขอบ)</span></span>
@@ -583,6 +594,71 @@ function buildUI(root) {
   $("signPayAccent").value = pay.accent;
 }
 
+// ---------- เลือกสีช่อง (แทนตัวเลือกสีของเบราว์เซอร์) ----------
+function updateAllSameSwatch() {
+  const sw = $("signRmAllSwatch");
+  if (sw) sw.style.background = rm.lastColor || rm.cells[0].color;
+}
+
+function setCellColor(root, i, color, { remember = true } = {}) {
+  rm.cells[i].color = color;
+  if (remember) rm.lastColor = color;
+  const card = root.querySelector(`.sign-cell-card[data-cell="${i}"]`);
+  if (card) {
+    card.querySelector(".sign-cell-swatch").style.background = color;
+    card.querySelector(".sign-cell-color").value = color;
+  }
+  updateAllSameSwatch();
+  refresh();
+}
+
+function closeColorPopover() {
+  document.getElementById("signColorPop")?.remove();
+}
+
+function openColorPopover(root, card, i) {
+  closeColorPopover();
+  const current = rm.cells[i].color;
+  const pop = document.createElement("div");
+  pop.id = "signColorPop";
+  pop.style.cssText =
+    "position:fixed; z-index:100002; background:#1a1730; border:1px solid var(--line); border-radius:14px; padding:12px; box-shadow:0 12px 40px rgba(0,0,0,0.55); width:232px;";
+  pop.innerHTML = `
+    <div style="display:grid; grid-template-columns:repeat(8,1fr); gap:8px;">
+      ${COLOR_PRESETS.map(
+        (c) =>
+          `<button type="button" data-c="${c}" aria-label="${c}" style="width:22px; height:22px; border-radius:50%; background:${c}; cursor:pointer; padding:0; border:2px solid ${c.toLowerCase() === String(current).toLowerCase() ? "#fff" : "rgba(255,255,255,0.18)"};"></button>`
+      ).join("")}
+    </div>
+    <button type="button" id="signColorCustom" class="icon-btn ghost" style="width:100%; margin-top:10px; font-size:12.5px;">เลือกสีเอง…</button>
+  `;
+  document.body.appendChild(pop);
+
+  const r = card.querySelector(".sign-cell-swatch").getBoundingClientRect();
+  const left = Math.max(8, Math.min(window.innerWidth - 240, r.right - 232));
+  const below = r.bottom + 8;
+  const top = below + 150 > window.innerHeight ? Math.max(8, r.top - 150) : below;
+  pop.style.left = left + "px";
+  pop.style.top = top + "px";
+
+  pop.addEventListener("click", (e) => {
+    e.stopPropagation();
+    const b = e.target.closest("[data-c]");
+    if (b) {
+      setCellColor(root, i, b.dataset.c);
+      closeColorPopover();
+    }
+  });
+  pop.querySelector("#signColorCustom").addEventListener("click", () => {
+    closeColorPopover();
+    card.querySelector(".sign-cell-color").click();
+  });
+  setTimeout(() => {
+    document.addEventListener("click", closeColorPopover, { once: true });
+    window.addEventListener("scroll", closeColorPopover, { once: true, passive: true });
+  }, 0);
+}
+
 function bindUI(root) {
   // สลับหัวข้อย่อย
   $("signSubTabs").addEventListener("click", (e) => {
@@ -622,20 +698,29 @@ function bindUI(root) {
       rm.cells[i].sub = e.target.value;
       refresh();
     });
+    card.querySelector(".sign-cell-swatch").addEventListener("click", (e) => {
+      e.stopPropagation();
+      openColorPopover(root, card, i);
+    });
     card.querySelector(".sign-cell-color").addEventListener("input", (e) => {
-      rm.cells[i].color = e.target.value;
-      refresh();
+      setCellColor(root, i, e.target.value);
     });
     card.querySelector(".sign-cell-icon").addEventListener("change", (e) => {
       rm.cells[i].icon = e.target.value;
       refresh();
     });
   });
+  updateAllSameSwatch();
+  $("signRmAllSame").addEventListener("click", () => {
+    const c = rm.lastColor || rm.cells[0].color;
+    rm.cells.forEach((_, i) => setCellColor(root, i, c, { remember: false }));
+  });
   $("signRmReset").addEventListener("click", () => {
     if (!confirm("คืนค่าริชเมนูเป็นค่าเริ่มต้น (ข้อความ สี ไอคอนทุกช่อง) ใช่ไหม?")) return;
     rm.cells = DEFAULT_CELLS.map((c) => ({ ...c }));
     rm.theme = "st";
     rm.fill = true;
+    rm.lastColor = null;
     buildUI(root);
     bindUI(root);
     mode = "richmenu";
