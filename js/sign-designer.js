@@ -687,11 +687,39 @@ async function renderMulti(canvas, outW, outH) {
     const lines = mpPriceLines(ev, pick);
     const px = cx + s + 14;
     const pw = colW - s - 14;
+    // ชื่องาน: ชิดบนเท่าขอบบนของโปสเตอร์ สูงสุด 2 บรรทัด
+    let titleH = 0;
+    if (pw > 60 && ev.title) {
+      const tsz = 28;
+      setFont(ctx, 700, tsz);
+      const tl = [];
+      let curT = "";
+      for (const ch of Array.from(String(ev.title))) {
+        if (ctx.measureText(curT + ch).width > pw && curT) {
+          tl.push(curT);
+          curT = ch.trim() ? ch : "";
+        } else curT += ch;
+      }
+      if (curT) tl.push(curT);
+      if (tl.length > 2) {
+        tl.length = 2;
+        let last = tl[1];
+        while (last.length > 1 && ctx.measureText(last + "…").width > pw) last = last.slice(0, -1);
+        tl[1] = last + "…";
+      }
+      ctx.save();
+      ctx.textAlign = "left";
+      ctx.shadowColor = "rgba(0,0,0,0.45)";
+      ctx.shadowBlur = 8;
+      ctx.fillStyle = "#ffffff";
+      tl.forEach((t, k) => ctx.fillText(t, px, cy + tsz * 0.95 + k * tsz * 1.25));
+      ctx.restore();
+      titleH = tl.length * tsz * 1.25 + 10;
+    }
     if (lines.length && pw > 60) {
       const lg = 8;
-      const lh = Math.min(58, (s - lg * (lines.length - 1)) / lines.length);
-      const blockH = lh * lines.length + lg * (lines.length - 1);
-      const by = cy + (s - blockH) / 2;
+      const lh = Math.min(52, (s - titleH - lg * (lines.length - 1)) / lines.length);
+      const by = cy + titleH;
       lines.forEach((line, k) => {
         const { label, price } = parsePriceLine(line);
         const ly = by + k * (lh + lg);
