@@ -545,6 +545,39 @@ function drawContain(ctx, img, x, y, w, h) {
   ctx.drawImage(img, x + (w - dw) / 2, y + (h - dh) / 2, dw, dh);
 }
 
+// ตัดข้อความเป็นบรรทัดตามคำ (ภาษาไทยใช้ตัวตัดคำของเบราว์เซอร์) คำเดียวที่ยาวเกินค่อยหั่นตามตัวอักษร
+function mpWrapWords(ctx, text, maxW) {
+  let words;
+  try {
+    words = Array.from(new Intl.Segmenter("th", { granularity: "word" }).segment(text), (x) => x.segment);
+  } catch {
+    words = text.split(/(\s+)/);
+  }
+  const out = [];
+  let cur = "";
+  const push = () => {
+    if (cur.trim()) out.push(cur.trim());
+    cur = "";
+  };
+  for (const w of words) {
+    if (ctx.measureText(cur + w).width <= maxW) {
+      cur += w;
+      continue;
+    }
+    push();
+    if (ctx.measureText(w.trim()).width <= maxW) {
+      cur = w.trimStart();
+    } else {
+      for (const ch of Array.from(w)) {
+        if (ctx.measureText(cur + ch).width > maxW && cur) push();
+        cur += ch;
+      }
+    }
+  }
+  push();
+  return out;
+}
+
 // เลือกไอคอน svg ให้แต่ละบรรทัดรายละเอียดตามคำในบรรทัด (ไม่เจอคำ = วนตามลำดับ)
 function mpRowIcon(text, k) {
   const t = String(text);
@@ -600,20 +633,20 @@ async function renderMulti(canvas, outW, outH) {
 
   // ---------- หัวโปสเตอร์: โลโก้ร้านมุมซ้ายบน + ชื่อกลาง ----------
   if (logoImg) {
-    const box = 120;
+    const box = 172;
     const k = Math.min(box / logoImg.width, box / logoImg.height);
     const lw = logoImg.width * k;
     const lh = logoImg.height * k;
     ctx.save();
     ctx.shadowColor = "rgba(0,0,0,0.4)";
     ctx.shadowBlur = 16;
-    ctx.drawImage(logoImg, 44, 34 + (box - lh) / 2, lw, lh);
+    ctx.drawImage(logoImg, 36, 16 + (box - lh) / 2, lw, lh);
     ctx.restore();
   }
   const title = mp.title || "";
-  const titleMax = logoImg ? 700 : 960;
+  const titleMax = logoImg ? 680 : 960;
   const ts = fitFont(ctx, title, 800, titleMax, 76, 40);
-  fancyText(ctx, title, MP_W / 2 + (logoImg ? 70 : 0), 105, ts, accent);
+  fancyText(ctx, title, MP_W / 2 + (logoImg ? 100 : 0), 105, ts, accent);
   if (mp.subtitle) {
     ctx.save();
     ctx.textAlign = "center";
@@ -621,7 +654,7 @@ async function renderMulti(canvas, outW, outH) {
     ctx.shadowColor = "rgba(0,0,0,0.35)";
     ctx.shadowBlur = 10;
     ctx.fillStyle = "rgba(255,255,255,0.92)";
-    ctx.fillText(mp.subtitle, MP_W / 2 + (logoImg ? 70 : 0), 152);
+    ctx.fillText(mp.subtitle, MP_W / 2 + (logoImg ? 100 : 0), 152);
     ctx.restore();
   }
 
@@ -690,17 +723,14 @@ async function renderMulti(canvas, outW, outH) {
     // ชื่องาน: ชิดบนเท่าขอบบนของโปสเตอร์ สูงสุด 2 บรรทัด
     let titleH = 0;
     if (pw > 60 && ev.title) {
-      const tsz = 28;
-      setFont(ctx, 700, tsz);
-      const tl = [];
-      let curT = "";
-      for (const ch of Array.from(String(ev.title))) {
-        if (ctx.measureText(curT + ch).width > pw && curT) {
-          tl.push(curT);
-          curT = ch.trim() ? ch : "";
-        } else curT += ch;
+      // ตัดบรรทัดตามคำ (ไม่หั่นกลางคำ) ถ้ายังเกิน 2 บรรทัดให้ลดขนาดตัวอักษรลง
+      let tsz = 28;
+      let tl = [];
+      for (; tsz >= 20; tsz -= 2) {
+        setFont(ctx, 700, tsz);
+        tl = mpWrapWords(ctx, String(ev.title), pw);
+        if (tl.length <= 2) break;
       }
-      if (curT) tl.push(curT);
       if (tl.length > 2) {
         tl.length = 2;
         let last = tl[1];
