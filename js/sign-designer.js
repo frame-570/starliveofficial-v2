@@ -6,6 +6,7 @@
 // ============================================================
 import { POSTER_THEMES, drawBackground } from "./poster.js";
 import { SIGN_ICON_LIST, signIconSvg, signIllustrationSvg } from "./icons.js";
+import { adminSupabase as supabase } from "./supabaseClient.js";
 
 const $ = (id) => document.getElementById(id);
 
@@ -42,10 +43,31 @@ const COLOR_PRESETS = [
   "#27c5ff", "#3d8bff", "#7a5cff", "#b44dff", "#ff4fd8", "#ff7a9c", "#ffffff", "#9aa3b5",
 ];
 
+// ---------- โปสเตอร์รวม (หลายงานในแผ่นเดียว) ----------
+const MP_W = 1080;
+const MP_DETAIL_MAX = 4;
+const MP_H = 1528; // สัดส่วนใกล้ A4 ตามแบบที่ร่างไว้
+const MP_MAX = 8;
+const LS_MP = "starlive_sign_multi_v1";
+const THAI_MONTHS_FULL = ["มกราคม", "กุมภาพันธ์", "มีนาคม", "เมษายน", "พฤษภาคม", "มิถุนายน", "กรกฎาคม", "สิงหาคม", "กันยายน", "ตุลาคม", "พฤศจิกายน", "ธันวาคม"];
+
 let inited = false;
 let mode = "richmenu";
 let rm = loadLS(LS_RM, null) || { theme: "st", size: "large", cells: DEFAULT_CELLS.map((c) => ({ ...c })) };
 let pay = loadLS(LS_PAY, null) || { theme: "st", accent: THEME_ACCENT.st, line1: "ช่องทาง", line2: "ชำระเงิน", name: "", qr: "" };
+let mp = loadLS(LS_MP, null) || {
+  theme: "st",
+  title: "STARLIVE OFFICIAL",
+  subtitle: "",
+  footer: "STARLIVE OFFICIAL",
+  lineId: "",
+  logo: "",
+  detailImg: "",
+  details: "สั่งซื้อผ่านเว็บ 24 ชม. ระบบอัตโนมัติ\nรับชมได้ทั้งถ่ายทอดสดและรีรัน",
+  picks: [],
+};
+let mpEvents = []; // รายการงานจากฐานข้อมูล
+let mpLoaded = false;
 let qrImage = null;
 let renderToken = 0;
 let saveTimer = 0;
@@ -66,6 +88,9 @@ function saveLSSoon() {
   saveTimer = setTimeout(() => {
     try {
       localStorage.setItem(LS_RM, JSON.stringify(rm));
+    } catch {}
+    try {
+      localStorage.setItem(LS_MP, JSON.stringify(mp));
     } catch {}
     try {
       localStorage.setItem(LS_PAY, JSON.stringify(pay));
@@ -430,6 +455,380 @@ async function renderPay(canvas, outW, outH) {
 }
 
 // ------------------------------------------------------------
+// วาดโปสเตอร์รวม: ซ้าย = โปสเตอร์งาน, ขวา = ราคา, รายละเอียดอยู่ด้านล่าง (สูงสุด 8 งาน)
+// ------------------------------------------------------------
+const mpImgCache = new Map();
+function loadPosterImage(url) {
+  if (!url) return Promise.resolve(null);
+  if (!mpImgCache.has(url)) {
+    mpImgCache.set(
+      url,
+      new Promise((resolve) => {
+        const im = new Image();
+        im.crossOrigin = "anonymous"; // ถ้าเซิร์ฟเวอร์ไม่อนุญาต จะ error แล้วใช้กรอบแทน (ไม่ทำให้ไฟล์ดาวน์โหลดพัง)
+        im.onload = () => resolve(im);
+        im.onerror = () => resolve(null);
+        im.src = url;
+      })
+    );
+  }
+  return mpImgCache.get(url);
+}
+
+function mpEventDateLabel(ev) {
+  const dates = (ev.event_days || []).map((d) => d.event_date).filter(Boolean).sort();
+  if (!dates.length) return "";
+  const nums = dates.map((d) => new Date(d).getDate());
+  const last = new Date(dates[dates.length - 1]);
+  return `${nums.join("-")} ${THAI_MONTHS_FULL[last.getMonth()]}`;
+}
+
+function mpAutoPriceLines(ev) {
+  return [...(ev.ticket_packages || [])]
+    .sort((a, b) => a.num_days - b.num_days)
+    .map((p) => `${p.num_days} วัน ${Number(p.price).toLocaleString("th-TH")}฿`);
+}
+
+function mpPriceLines(ev, pick) {
+  const raw = pick.priceText !== undefined ? pick.priceText : mpAutoPriceLines(ev).join("\n");
+  return String(raw)
+    .split("\n")
+    .map((s) => s.trim())
+    .filter(Boolean)
+    .slice(0, 4);
+}
+
+function parsePriceLine(line) {
+  const m = line.match(/^(.*?)\s*([\d,]+(?:\.\d+)?\s*฿|ฟรี)$/);
+  return m ? { label: m[1].trim(), price: m[2].replace(/\s+/g, "") } : { label: "", price: line };
+}
+
+function mpResolvedPicks() {
+  return mp.picks
+    .map((p) => ({ pick: p, ev: mpEvents.find((e) => String(e.id) === String(p.id)) }))
+    .filter((x) => x.ev)
+    .slice(0, MP_MAX);
+}
+
+function drawCover(ctx, img, x, y, w, h) {
+  const k = Math.max(w / img.width, h / img.height);
+  const dw = img.width * k;
+  const dh = img.height * k;
+  ctx.drawImage(img, x + (w - dw) / 2, y, dw, dh); // ชิดบน (โปสเตอร์ส่วนมากหัวข้ออยู่บน)
+}
+
+function fileToDataUrl(file, maxDim, mime, quality) {
+  return new Promise((resolve, reject) => {
+    const fr = new FileReader();
+    fr.onload = () => {
+      const im = new Image();
+      im.onload = () => {
+        const k = Math.min(1, maxDim / Math.max(im.width, im.height));
+        const c = document.createElement("canvas");
+        c.width = Math.max(1, Math.round(im.width * k));
+        c.height = Math.max(1, Math.round(im.height * k));
+        c.getContext("2d").drawImage(im, 0, 0, c.width, c.height);
+        resolve(c.toDataURL(mime, quality));
+      };
+      im.onerror = reject;
+      im.src = fr.result;
+    };
+    fr.onerror = reject;
+    fr.readAsDataURL(file);
+  });
+}
+
+function drawContain(ctx, img, x, y, w, h) {
+  const k = Math.min(w / img.width, h / img.height);
+  const dw = img.width * k;
+  const dh = img.height * k;
+  ctx.drawImage(img, x + (w - dw) / 2, y + (h - dh) / 2, dw, dh);
+}
+
+// เลือกไอคอน svg ให้แต่ละบรรทัดรายละเอียดตามคำในบรรทัด (ไม่เจอคำ = วนตามลำดับ)
+function mpRowIcon(text, k) {
+  const t = String(text);
+  if (/line|ไลน์|แอด|สอบถาม|ติดต่อ/i.test(t)) return "support";
+  if (/สั่งซื้อ|ซื้อ|ชำระ|จ่าย|ราคา/.test(t)) return "cart";
+  if (/ถ่ายทอด|ไลฟ์|รีรัน|รับชม|ดู/.test(t)) return "live";
+  if (/บัตร|รหัส|เครื่อง|เข้างาน/.test(t)) return "ticket";
+  if (/โปร|ส่วนลด|แถม|ของขวัญ/.test(t)) return "gift";
+  if (/รีวิว|ดาว/.test(t)) return "star";
+  return ["star", "heart", "megaphone", "chat"][k % 4];
+}
+function mpDetailRows() {
+  const rows = String(mp.details || "")
+    .split("\n")
+    .map((x) => x.trim())
+    .filter(Boolean)
+    .slice(0, MP_DETAIL_MAX)
+    .map((t, k) => ({ t, icon: mpRowIcon(t, k) }));
+  const id = String(mp.lineId || "").trim();
+  if (id) rows.push({ t: `LINE ID: ${id}`, icon: "chat", strong: true });
+  return rows;
+}
+
+async function renderMulti(canvas, outW, outH) {
+  const token = ++renderToken;
+  const rowsData = mpDetailRows();
+  await ensureFonts(mp.title + mp.subtitle + mp.details + mp.lineId + mpResolvedPicks().map((x) => x.ev.title).join(""));
+  try {
+    await Promise.all([document.fonts.load("600 30px Mali", "ก"), document.fonts.load("700 30px Mali", "ก")]);
+  } catch {}
+  const items = mpResolvedPicks();
+  const accent0 = THEME_ACCENT[mp.theme] || "#ffd84a";
+  const [images, logoImg, detailImg, rowIcons, artIcon] = await Promise.all([
+    Promise.all(items.map((x) => loadPosterImage(x.ev.banner_url))),
+    loadPosterImage(mp.logo),
+    loadPosterImage(mp.detailImg),
+    Promise.all(rowsData.map((r) => svgImage(signIconSvg(r.icon, "#ffffff", 128, 6)))),
+    svgImage(signIconSvg("live", lighten(accent0, 0.55), 512, 4)),
+  ]);
+  if (token !== renderToken) return false;
+
+  canvas.width = outW;
+  canvas.height = outH;
+  const ctx = canvas.getContext("2d");
+  ctx.save();
+  ctx.scale(outW / MP_W, outH / MP_H);
+  ctx.textBaseline = "alphabetic";
+
+  const accent = THEME_ACCENT[mp.theme] || "#ffd84a";
+  paintTheme(ctx, MP_W, MP_H, mp.theme);
+  ctx.fillStyle = "rgba(0,0,0,0.1)";
+  ctx.fillRect(0, 0, MP_W, MP_H);
+
+  // ---------- หัวโปสเตอร์: โลโก้ร้านมุมซ้ายบน + ชื่อกลาง ----------
+  if (logoImg) {
+    const box = 120;
+    const k = Math.min(box / logoImg.width, box / logoImg.height);
+    const lw = logoImg.width * k;
+    const lh = logoImg.height * k;
+    ctx.save();
+    ctx.shadowColor = "rgba(0,0,0,0.4)";
+    ctx.shadowBlur = 16;
+    ctx.drawImage(logoImg, 44, 34 + (box - lh) / 2, lw, lh);
+    ctx.restore();
+  }
+  const title = mp.title || "";
+  const titleMax = logoImg ? 700 : 960;
+  const ts = fitFont(ctx, title, 800, titleMax, 76, 40);
+  fancyText(ctx, title, MP_W / 2 + (logoImg ? 70 : 0), 105, ts, accent);
+  if (mp.subtitle) {
+    ctx.save();
+    ctx.textAlign = "center";
+    fitFont(ctx, mp.subtitle, 600, titleMax, 36, 22);
+    ctx.shadowColor = "rgba(0,0,0,0.35)";
+    ctx.shadowBlur = 10;
+    ctx.fillStyle = "rgba(255,255,255,0.92)";
+    ctx.fillText(mp.subtitle, MP_W / 2 + (logoImg ? 70 : 0), 152);
+    ctx.restore();
+  }
+
+  // ---------- ตารางงาน: 2 คอลัมน์ ซ้าย = โปสเตอร์ (จัตุรัส) ขวา = ราคา ----------
+  const top = 190;
+  const bottom = 1148;
+  const n = items.length;
+  if (n === 0) {
+    ctx.save();
+    ctx.textAlign = "center";
+    setFont(ctx, 600, 38);
+    ctx.fillStyle = "rgba(255,255,255,0.75)";
+    ctx.fillText("เลือกงานที่จะใส่ในโปสเตอร์ (สูงสุด 8 งาน)", MP_W / 2, (top + bottom) / 2);
+    ctx.restore();
+  }
+  const rows = Math.max(1, Math.ceil(n / 2));
+  const gapY = 18;
+  const gapX = 28;
+  const colW = (MP_W - 80 - gapX) / 2;
+  const cellH = Math.min(262, (bottom - top - gapY * (rows - 1)) / rows);
+  const gridH = cellH * rows + gapY * (rows - 1);
+  const startY = top + (bottom - top - gridH) / 2;
+
+  items.forEach(({ pick, ev }, i) => {
+    const col = i % 2;
+    const row = Math.floor(i / 2);
+    const cx = 40 + col * (colW + gapX);
+    const cy = startY + row * (cellH + gapY);
+
+    // โปสเตอร์ทรงจัตุรัส
+    const s = cellH;
+    ctx.save();
+    rr(ctx, cx, cy, s, s, 22);
+    ctx.shadowColor = "rgba(0,0,0,0.45)";
+    ctx.shadowBlur = 18;
+    ctx.fillStyle = "#0a0f24";
+    ctx.fill();
+    ctx.shadowBlur = 0;
+    ctx.clip();
+    const img = images[i];
+    if (img) {
+      drawCover(ctx, img, cx, cy, s, s);
+    } else {
+      const g = ctx.createLinearGradient(cx, cy, cx + s, cy + s);
+      g.addColorStop(0, mix(accent, "#0a0f24", 0.55));
+      g.addColorStop(1, mix(accent, "#0a0f24", 0.8));
+      ctx.fillStyle = g;
+      ctx.fillRect(cx, cy, s, s);
+      ctx.fillStyle = "#fff";
+      ctx.textAlign = "center";
+      fitFont(ctx, ev.title || "", 700, s - 24, 28, 14);
+      ctx.fillText(ev.title || "", cx + s / 2, cy + s / 2 + 8);
+    }
+    ctx.restore();
+    ctx.save();
+    rr(ctx, cx, cy, s, s, 22);
+    ctx.lineWidth = 3;
+    ctx.strokeStyle = rgba(accent, 0.9);
+    ctx.stroke();
+    ctx.restore();
+
+    // ราคาอยู่ขวาของโปสเตอร์ เรียงเป็นบรรทัด
+    const lines = mpPriceLines(ev, pick);
+    const px = cx + s + 14;
+    const pw = colW - s - 14;
+    if (lines.length && pw > 60) {
+      const lg = 8;
+      const lh = Math.min(58, (s - lg * (lines.length - 1)) / lines.length);
+      const blockH = lh * lines.length + lg * (lines.length - 1);
+      const by = cy + (s - blockH) / 2;
+      lines.forEach((line, k) => {
+        const { label, price } = parsePriceLine(line);
+        const ly = by + k * (lh + lg);
+        ctx.save();
+        rr(ctx, px, ly, pw, lh, 16);
+        ctx.fillStyle = "rgba(10,12,30,0.6)";
+        ctx.fill();
+        ctx.lineWidth = 2;
+        ctx.strokeStyle = rgba(accent, 0.85);
+        ctx.stroke();
+        const base = ly + lh / 2 + lh * 0.17;
+        if (label) {
+          ctx.textAlign = "left";
+          setFont(ctx, 600, Math.round(lh * 0.38));
+          ctx.fillStyle = "rgba(255,255,255,0.9)";
+          const lw = ctx.measureText(label).width;
+          ctx.fillText(label, px + 14, base);
+          ctx.textAlign = "right";
+          fitFont(ctx, price, 800, pw - lw - 44, Math.round(lh * 0.56), 14);
+          ctx.fillStyle = lighten(accent, 0.55);
+          ctx.fillText(price, px + pw - 14, base);
+        } else {
+          ctx.textAlign = "center";
+          fitFont(ctx, price, 800, pw - 24, Math.round(lh * 0.56), 14);
+          ctx.fillStyle = lighten(accent, 0.55);
+          ctx.fillText(price, px + pw / 2, base);
+        }
+        ctx.restore();
+      });
+    }
+  });
+
+  // ---------- กรอบรายละเอียดด้านล่าง ----------
+  const dy = 1170;
+  const dh = 272;
+  ctx.save();
+  rr(ctx, 40, dy, 1000, dh, 34);
+  ctx.fillStyle = "rgba(10,12,30,0.62)";
+  ctx.shadowColor = "rgba(0,0,0,0.4)";
+  ctx.shadowBlur = 22;
+  ctx.fill();
+  ctx.shadowBlur = 0;
+  ctx.lineWidth = 3;
+  ctx.strokeStyle = rgba(accent, 0.85);
+  ctx.stroke();
+  ctx.restore();
+
+  // ซ้ายของกรอบ: รูปที่อัปโหลด หรือถ้าไม่มี = ภาพ svg ตกแต่ง
+  const ib = dh - 48;
+  const ax = 64;
+  const ay = dy + 24;
+  if (detailImg) {
+    ctx.save();
+    rr(ctx, ax, ay, ib, ib, 26);
+    ctx.clip();
+    const k = Math.max(ib / detailImg.width, ib / detailImg.height);
+    ctx.drawImage(detailImg, ax + (ib - detailImg.width * k) / 2, ay + (ib - detailImg.height * k) / 2, detailImg.width * k, detailImg.height * k);
+    ctx.restore();
+    ctx.save();
+    rr(ctx, ax, ay, ib, ib, 26);
+    ctx.lineWidth = 3;
+    ctx.strokeStyle = rgba(accent, 0.9);
+    ctx.stroke();
+    ctx.restore();
+  } else {
+    ctx.save();
+    const g = ctx.createRadialGradient(ax + ib * 0.4, ay + ib * 0.35, 10, ax + ib / 2, ay + ib / 2, ib * 0.62);
+    g.addColorStop(0, rgba(accent, 0.55));
+    g.addColorStop(1, rgba(accent, 0.12));
+    rr(ctx, ax, ay, ib, ib, 26);
+    ctx.fillStyle = g;
+    ctx.fill();
+    ctx.lineWidth = 3;
+    ctx.strokeStyle = rgba(accent, 0.9);
+    ctx.stroke();
+    ctx.shadowColor = rgba(accent, 0.9);
+    ctx.shadowBlur = 22;
+    const isz = ib * 0.66;
+    ctx.drawImage(artIcon, ax + (ib - isz) / 2, ay + (ib - isz) / 2, isz, isz);
+    ctx.restore();
+  }
+
+  // ขวา: แถวรายละเอียด ไอคอนกลมซ้าย + ข้อความ
+  if (rowsData.length) {
+    const tx0 = ax + ib + 30;
+    const rowsH = dh - 36;
+    const lh = Math.min(60, rowsH / rowsData.length);
+    const total = lh * rowsData.length;
+    const y0 = dy + (dh - total) / 2;
+    const ic = Math.min(52, lh - 4);
+    rowsData.forEach((d, k) => {
+      const cy = y0 + k * lh + lh / 2;
+      ctx.save();
+      ctx.beginPath();
+      ctx.arc(tx0 + ic / 2, cy, ic / 2, 0, Math.PI * 2);
+      const gg = ctx.createLinearGradient(tx0, cy - ic / 2, tx0 + ic, cy + ic / 2);
+      gg.addColorStop(0, lighten(accent, 0.1));
+      gg.addColorStop(1, mix(accent, "#000000", 0.35));
+      ctx.fillStyle = gg;
+      ctx.fill();
+      ctx.lineWidth = 2;
+      ctx.strokeStyle = "rgba(255,255,255,0.75)";
+      ctx.stroke();
+      const isz2 = ic * 0.72;
+      ctx.drawImage(rowIcons[k], tx0 + (ic - isz2) / 2, cy - isz2 / 2, isz2, isz2);
+      ctx.restore();
+
+      ctx.save();
+      ctx.textAlign = "left";
+      const tx = tx0 + ic + 16;
+      const tw = 1016 - tx;
+      const weight = d.strong ? 700 : 600;
+      fitFont(ctx, d.t, weight, tw, Math.round(lh * (d.strong ? 0.66 : 0.56)), 16, "Mali");
+      ctx.shadowColor = "rgba(0,0,0,0.35)";
+      ctx.shadowBlur = 6;
+      ctx.fillStyle = d.strong ? lighten(accent, 0.6) : "#ffffff";
+      ctx.fillText(d.t, tx, cy + lh * 0.2);
+      ctx.restore();
+    });
+  }
+
+  // ท้ายโปสเตอร์
+  ctx.save();
+  ctx.textAlign = "center";
+  setFont(ctx, 700, 34);
+  if ("letterSpacing" in ctx) ctx.letterSpacing = "5px";
+  ctx.shadowColor = rgba(accent, 0.8);
+  ctx.shadowBlur = 16;
+  ctx.fillStyle = "#ffffff";
+  ctx.fillText(mp.footer ?? "STARLIVE OFFICIAL", MP_W / 2 + 2, 1492);
+  ctx.restore();
+
+  ctx.restore();
+  return true;
+}
+
+// ------------------------------------------------------------
 // ดาวน์โหลด
 // ------------------------------------------------------------
 const toBlob = (canvas, type, q) => new Promise((r) => canvas.toBlob(r, type, q));
@@ -468,6 +867,9 @@ async function download(kind) {
     const small = rm.size === "small";
     ok = await renderRichMenu(full, small ? 1200 : RM_W, small ? 810 : RM_H);
     base = "starlive-richmenu";
+  } else if (mode === "multi") {
+    ok = await renderMulti(full, MP_W, MP_H);
+    base = "starlive-multi-poster";
   } else {
     ok = await renderPay(full, PAY_W, PAY_H);
     base = "starlive-payment";
@@ -515,6 +917,7 @@ function buildUI(root) {
     <div style="display:flex; gap:8px; flex-wrap:wrap; margin-bottom:14px;" id="signSubTabs">
       <button type="button" class="icon-btn sign-sub active" data-sub="richmenu">ริชเมนู</button>
       <button type="button" class="icon-btn ghost sign-sub" data-sub="pay">ช่องทางชำระเงิน</button>
+      <button type="button" class="icon-btn ghost sign-sub" data-sub="multi">โปสเตอร์รวม</button>
     </div>
 
     <div style="display:flex; gap:18px; flex-wrap:wrap; align-items:flex-start;">
@@ -564,6 +967,42 @@ function buildUI(root) {
           </div>
         </div>
 
+        <!-- โปสเตอร์รวม -->
+        <div id="signPanelMulti" class="admin-card" style="padding:16px; display:none;">
+          <h3 class="display" style="margin:0 0 4px;">โปสเตอร์รวม (สูงสุด ${MP_MAX} งาน)</h3>
+          <p class="muted" style="font-size:12.5px; margin:0 0 12px; line-height:1.6;">โปสเตอร์โปรโมทหลายงานในแผ่นเดียว เรียง 2 คอลัมน์ แต่ละงานซ้าย = โปสเตอร์ ขวา = ราคา มีโลโก้ร้านมุมซ้ายบน และกรอบรายละเอียดด้านล่าง ดึงงานและราคาจากระบบให้อัตโนมัติ</p>
+          <label class="field-label" for="signMpTheme">ธีมพื้นหลัง</label>
+          <select id="signMpTheme" class="field-input" style="margin-bottom:10px;">${themeOptions}</select>
+          <label class="field-label" for="signMpTitle">หัวข้อ</label>
+          <input id="signMpTitle" class="field-input" maxlength="40" style="margin-bottom:10px;" />
+          <label class="field-label" for="signMpSub">ข้อความใต้หัวข้อ <span class="muted" style="font-size:11px;">(ไม่บังคับ)</span></label>
+          <input id="signMpSub" class="field-input" maxlength="60" style="margin-bottom:10px;" />
+          <label class="field-label" for="signMpLogo">โลโก้ร้าน (มุมซ้ายบน) <span class="muted" style="font-size:11px;">(รูป PNG/JPG)</span></label>
+          <div style="display:flex; gap:8px; margin-bottom:10px;">
+            <input id="signMpLogo" type="file" accept="image/*" class="field-input" style="flex:1; min-width:0;" />
+            <button type="button" id="signMpLogoClear" class="icon-btn ghost">ลบ</button>
+          </div>
+          <label class="field-label" for="signMpFooter">ข้อความท้ายโปสเตอร์</label>
+          <input id="signMpFooter" class="field-input" maxlength="40" style="margin-bottom:12px;" />
+
+          <label class="field-label">งานในโปสเตอร์ <span id="signMpCount" class="muted" style="font-size:12px;"></span></label>
+          <div style="display:flex; gap:8px; margin-bottom:10px;">
+            <select id="signMpAddSelect" class="field-input" style="flex:1; min-width:0;"></select>
+            <button type="button" id="signMpAddBtn" class="icon-btn">เพิ่มงาน</button>
+          </div>
+          <div id="signMpList" style="display:flex; flex-direction:column; gap:10px; margin-bottom:12px;"></div>
+
+          <label class="field-label" for="signMpDetails">รายละเอียดในกรอบด้านล่าง <span class="muted" style="font-size:11px;">(1 บรรทัด = 1 แถว สูงสุด 4 บรรทัด ระบบใส่ไอคอนให้ตามคำ)</span></label>
+          <textarea id="signMpDetails" class="field-input" rows="4" maxlength="300" style="resize:vertical; font-family:'Sarabun',sans-serif; line-height:1.6; margin-bottom:10px;"></textarea>
+          <label class="field-label" for="signMpLineId">LINE ID <span class="muted" style="font-size:11px;">(แสดงในกรอบเป็น "LINE ID: ..." เว้นว่าง = ไม่แสดง)</span></label>
+          <input id="signMpLineId" class="field-input" maxlength="40" placeholder="เช่น @starlive" style="margin-bottom:10px;" />
+          <label class="field-label" for="signMpDetailImg">รูปประกอบในกรอบรายละเอียด <span class="muted" style="font-size:11px;">(ไม่บังคับ)</span></label>
+          <div style="display:flex; gap:8px;">
+            <input id="signMpDetailImg" type="file" accept="image/*" class="field-input" style="flex:1; min-width:0;" />
+            <button type="button" id="signMpDetailImgClear" class="icon-btn ghost">ลบ</button>
+          </div>
+        </div>
+
         <div class="admin-card" style="padding:16px; margin-top:12px;">
           <div style="display:flex; gap:10px; flex-wrap:wrap;">
             <button type="button" id="signDlPng" class="icon-btn">ดาวน์โหลด PNG</button>
@@ -587,11 +1026,155 @@ function buildUI(root) {
   root.querySelectorAll(".sign-cell-card").forEach((card, i) => {
     card.querySelector(".sign-cell-icon").value = rm.cells[i].icon;
   });
+  $("signMpTheme").value = mp.theme;
+  $("signMpTitle").value = mp.title;
+  $("signMpSub").value = mp.subtitle;
+  $("signMpDetails").value = mp.details;
+  $("signMpFooter").value = mp.footer ?? "STARLIVE OFFICIAL";
+  $("signMpLineId").value = mp.lineId || "";
   $("signPayTheme").value = pay.theme;
   $("signPayLine1").value = pay.line1;
   $("signPayLine2").value = pay.line2;
   $("signPayName").value = pay.name;
   $("signPayAccent").value = pay.accent;
+}
+
+// ---------- โปสเตอร์รวม: รายการงาน ----------
+function mpLastDate(ev) {
+  const t = (ev.event_days || []).map((d) => new Date(d.event_date).getTime()).filter((n) => !isNaN(n));
+  return t.length ? Math.max(...t) : -Infinity;
+}
+
+async function loadMpEvents() {
+  const list = $("signMpList");
+  if (list) list.innerHTML = '<p class="muted" style="font-size:12.5px; margin:0;">กำลังโหลดรายการงาน...</p>';
+  const { data, error } = await supabase
+    .from("events")
+    .select("id, title, banner_url, event_days(event_date), ticket_packages(num_days, price)");
+  if (error) {
+    if (list) list.innerHTML = `<p class="error-text">โหลดรายการงานไม่สำเร็จ: ${esc(error.message)}</p>`;
+    return;
+  }
+  mpEvents = [...(data || [])].sort((a, b) => mpLastDate(b) - mpLastDate(a));
+  mpLoaded = true;
+  // ตัดงานที่ถูกลบออกจากระบบแล้วออกจากรายการที่จำไว้
+  mp.picks = mp.picks.filter((p) => mpEvents.some((e) => String(e.id) === String(p.id))).slice(0, MP_MAX);
+  renderMpList();
+  refresh();
+}
+
+function renderMpList() {
+  const list = $("signMpList");
+  const sel = $("signMpAddSelect");
+  if (!list || !sel) return;
+  const picked = new Set(mp.picks.map((p) => String(p.id)));
+  const rest = mpEvents.filter((e) => !picked.has(String(e.id)));
+  sel.innerHTML = rest.length
+    ? rest.map((e) => `<option value="${esc(e.id)}">${esc(e.title)}</option>`).join("")
+    : `<option value="">— ไม่มีงานให้เพิ่มแล้ว —</option>`;
+  const full = mp.picks.length >= MP_MAX;
+  $("signMpAddBtn").disabled = full || rest.length === 0;
+  $("signMpCount").textContent = `(${mp.picks.length}/${MP_MAX})`;
+
+  list.innerHTML = mp.picks
+    .map((p, i) => {
+      const ev = mpEvents.find((e) => String(e.id) === String(p.id));
+      if (!ev) return "";
+      const priceText = p.priceText !== undefined ? p.priceText : mpAutoPriceLines(ev).join("\n");
+      return `
+      <div class="sign-cell-card" data-mp="${i}">
+        <div style="display:flex; align-items:center; gap:6px; margin-bottom:6px;">
+          <strong style="font-size:13px; flex:1; min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">${i + 1}. ${esc(ev.title)}</strong>
+          <button type="button" class="icon-btn ghost" data-act="up" style="padding:2px 8px;" ${i === 0 ? "disabled" : ""} aria-label="เลื่อนขึ้น">▲</button>
+          <button type="button" class="icon-btn ghost" data-act="down" style="padding:2px 8px;" ${i === mp.picks.length - 1 ? "disabled" : ""} aria-label="เลื่อนลง">▼</button>
+          <button type="button" class="icon-btn ghost" data-act="del" style="padding:2px 8px; color:var(--crimson);" aria-label="เอาออก">✕</button>
+        </div>
+        <textarea class="field-input mp-price" rows="2" maxlength="120" placeholder="ราคา (1 บรรทัด = 1 ป้าย เช่น 1 วัน 299฿)" style="resize:vertical;">${esc(priceText)}</textarea>
+        <button type="button" class="icon-btn ghost" data-act="reset" style="margin-top:6px; font-size:12px; padding:3px 10px;">ใช้ราคาจากระบบ</button>
+      </div>`;
+    })
+    .join("");
+}
+
+function bindMulti() {
+  $("signMpTheme").addEventListener("change", (e) => {
+    mp.theme = e.target.value;
+    refresh();
+  });
+  $("signMpTitle").addEventListener("input", (e) => {
+    mp.title = e.target.value;
+    refresh();
+  });
+  $("signMpSub").addEventListener("input", (e) => {
+    mp.subtitle = e.target.value;
+    refresh();
+  });
+  $("signMpFooter").addEventListener("input", (e) => {
+    mp.footer = e.target.value;
+    refresh();
+  });
+  $("signMpLineId").addEventListener("input", (e) => {
+    mp.lineId = e.target.value;
+    refresh();
+  });
+  $("signMpLogo").addEventListener("change", async (e) => {
+    const f = e.target.files[0];
+    if (!f) return;
+    try {
+      mp.logo = await fileToDataUrl(f, 400, "image/png");
+      refresh();
+    } catch {}
+  });
+  $("signMpLogoClear").addEventListener("click", () => {
+    mp.logo = "";
+    $("signMpLogo").value = "";
+    refresh();
+  });
+  $("signMpDetailImg").addEventListener("change", async (e) => {
+    const f = e.target.files[0];
+    if (!f) return;
+    try {
+      mp.detailImg = await fileToDataUrl(f, 700, "image/jpeg", 0.85);
+      refresh();
+    } catch {}
+  });
+  $("signMpDetailImgClear").addEventListener("click", () => {
+    mp.detailImg = "";
+    $("signMpDetailImg").value = "";
+    refresh();
+  });
+  $("signMpDetails").addEventListener("input", (e) => {
+    mp.details = e.target.value;
+    refresh();
+  });
+  $("signMpAddBtn").addEventListener("click", () => {
+    const id = $("signMpAddSelect").value;
+    if (!id || mp.picks.length >= MP_MAX) return;
+    mp.picks.push({ id });
+    renderMpList();
+    refresh();
+  });
+  const list = $("signMpList");
+  list.addEventListener("click", (e) => {
+    const b = e.target.closest("[data-act]");
+    const card = e.target.closest("[data-mp]");
+    if (!b || !card) return;
+    const i = Number(card.dataset.mp);
+    const act = b.dataset.act;
+    if (act === "del") mp.picks.splice(i, 1);
+    else if (act === "up" && i > 0) [mp.picks[i - 1], mp.picks[i]] = [mp.picks[i], mp.picks[i - 1]];
+    else if (act === "down" && i < mp.picks.length - 1) [mp.picks[i + 1], mp.picks[i]] = [mp.picks[i], mp.picks[i + 1]];
+    else if (act === "reset") delete mp.picks[i].priceText;
+    renderMpList();
+    refresh();
+  });
+  list.addEventListener("input", (e) => {
+    const ta = e.target.closest(".mp-price");
+    const card = e.target.closest("[data-mp]");
+    if (!ta || !card) return;
+    mp.picks[Number(card.dataset.mp)].priceText = ta.value;
+    refresh();
+  });
 }
 
 // ---------- เลือกสีช่อง (แทนตัวเลือกสีของเบราว์เซอร์) ----------
@@ -664,13 +1247,15 @@ function bindUI(root) {
   $("signSubTabs").addEventListener("click", (e) => {
     const b = e.target.closest(".sign-sub");
     if (!b) return;
-    mode = b.dataset.sub === "pay" ? "pay" : "richmenu";
+    mode = b.dataset.sub === "pay" ? "pay" : b.dataset.sub === "multi" ? "multi" : "richmenu";
     root.querySelectorAll(".sign-sub").forEach((x) => {
       x.classList.toggle("active", x === b);
       x.classList.toggle("ghost", x !== b);
     });
     $("signPanelRich").style.display = mode === "richmenu" ? "block" : "none";
     $("signPanelPay").style.display = mode === "pay" ? "block" : "none";
+    $("signPanelMulti").style.display = mode === "multi" ? "block" : "none";
+    if (mode === "multi" && !mpLoaded) loadMpEvents();
     $("signStatus").textContent = "";
     refresh();
   });
@@ -726,6 +1311,9 @@ function bindUI(root) {
     mode = "richmenu";
     refresh();
   });
+
+  // โปสเตอร์รวม
+  bindMulti();
 
   // ป้ายชำระเงิน
   $("signPayTheme").addEventListener("change", (e) => {
@@ -795,6 +1383,7 @@ function refresh() {
     const canvas = $("signCanvas");
     if (!canvas) return;
     if (mode === "richmenu") renderRichMenu(canvas, 1250, 843);
+    else if (mode === "multi") renderMulti(canvas, MP_W, MP_H);
     else renderPay(canvas, PAY_W, PAY_H);
   });
 }
