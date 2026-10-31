@@ -1114,6 +1114,9 @@ function renderOrderRow(order, discountCodeById = new Map(), profileById = new M
     if (name && email) buyerText = `ซื้อโดย ${escapeHtml(name)} (${escapeHtml(email)})`;
     else if (name || email) buyerText = `ซื้อโดย ${escapeHtml(name || email)}`;
     else buyerText = "ซื้อโดย (ไม่พบข้อมูลสมาชิก)";
+  } else if (order.guest_token) {
+    // สั่งผ่านเว็บแบบไม่สมัครสมาชิก (ชื่อ/LINE ID ที่กรอกอยู่ในช่อง customer_note ที่แสดงด้านบน)
+    buyerText = "ซื้อผ่านเว็บ (ไม่สมัครสมาชิก)";
   } else {
     buyerText = "ซื้อผ่าน Line";
   }
