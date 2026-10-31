@@ -13,6 +13,15 @@ const THAI_MONTHS = [
 
 const params = new URLSearchParams(window.location.search);
 const eventId = params.get("id");
+// ลิงก์สั้นของงาน เช่น /dewteefancon (Vercel rewrite มาที่หน้านี้) — อ่านชื่อจาก path
+const pathSlug = (() => {
+  let seg = "";
+  try {
+    seg = decodeURIComponent(window.location.pathname.replace(/^\/+|\/+$/g, ""));
+  } catch {}
+  if (!seg || seg.includes("/") || /^event-detail(\.html)?$/i.test(seg)) return "";
+  return seg.toLowerCase();
+})();
 
 const loadingText = document.getElementById("loadingText");
 const notFoundText = document.getElementById("notFoundText");
@@ -41,18 +50,16 @@ function showLoginHintIfNeeded() {
   // เดิมบังคับล็อกอินก่อนใช้โค้ด/ชำระเงิน — ตอนนี้แขกสั่งซื้อและใช้โค้ดได้ จึงไม่ต้องเตือนอะไร
 }
 
-if (!eventId) {
+if (!eventId && !pathSlug) {
   showNotFound();
 } else {
   loadEvent();
 }
 
 async function loadEvent() {
-  const { data, error } = await supabase
-    .from("events")
-    .select("*, event_days(*), ticket_packages(*, ticket_package_day_options(*))")
-    .eq("id", eventId)
-    .maybeSingle();
+  let eventQuery = supabase.from("events").select("*, event_days(*), ticket_packages(*, ticket_package_day_options(*))");
+  eventQuery = eventId ? eventQuery.eq("id", eventId) : eventQuery.eq("slug", pathSlug);
+  const { data, error } = await eventQuery.maybeSingle();
 
   loadingText.style.display = "none";
 
@@ -64,6 +71,13 @@ async function loadEvent() {
   currentEvent = data;
   renderEvent(data);
   shell.style.display = "block";
+
+  // เปิดผ่านลิงก์เก่า (?id=...) แต่งานนี้มีลิงก์สั้นแล้ว -> เปลี่ยนแถบที่อยู่เป็นลิงก์สั้น (ไม่โหลดหน้าใหม่)
+  if (data.slug && eventId) {
+    const u = new URL(window.location.href);
+    u.searchParams.delete("id");
+    history.replaceState(null, "", `/${data.slug}${u.search}`);
+  }
 
   // กลับมาจากหน้าล็อกอินพร้อมโค้ดที่พิมพ์ค้างไว้ -> เติมให้และกดใช้โค้ดให้อัตโนมัติ
   const pendingCode = params.get("code");
