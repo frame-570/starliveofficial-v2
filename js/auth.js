@@ -1,4 +1,5 @@
 import { supabase } from "./supabaseClient.js";
+import { hasGuestOrders } from "./guest.js";
 
 // ---------- Session helpers ----------
 export async function getSession() {
@@ -49,7 +50,11 @@ export async function renderHeaderAuth() {
   const session = await getSession();
 
   if (!session) {
-    area.innerHTML = `<a href="./login.html" class="icon-btn ghost" style="text-decoration:none; display:inline-block;">เข้าสู่ระบบ</a>`;
+    // เครื่องนี้เคยสั่งซื้อแบบไม่สมัครสมาชิก -> มีทางเข้าประวัติที่เก็บในเครื่อง
+    const historyLink = hasGuestOrders()
+      ? `<a href="./orders.html" class="icon-btn ghost" style="text-decoration:none; display:inline-block; margin-right:6px;">ประวัติการสั่งซื้อ</a>`
+      : "";
+    area.innerHTML = `${historyLink}<a href="./login.html" class="icon-btn ghost" style="text-decoration:none; display:inline-block;">เข้าสู่ระบบ</a>`;
     return;
   }
 
