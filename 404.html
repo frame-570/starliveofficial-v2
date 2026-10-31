@@ -1,0 +1,24 @@
+<!doctype html>
+<html lang="th">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>STAR LIVE OFFICIAL</title>
+<style>body{margin:0;min-height:100vh;display:flex;align-items:center;justify-content:center;background:#08070d;color:#9791ab;font-family:sans-serif}</style>
+</head>
+<body>
+<p>กำลังโหลด...</p>
+<script>
+  // หน้านี้ Vercel ใช้แสดงเมื่อไม่พบไฟล์ตามลิงก์ — ถ้าเป็นลิงก์ชื่อสั้นของงาน (เช่น /dewteefancon)
+  // ส่งต่อไปหน้างานพร้อมชื่อลิงก์ แล้วหน้างานจะเปลี่ยนแถบที่อยู่กลับเป็นลิงก์สั้นเอง (รีเฟรชก็ยังใช้ได้)
+  (function () {
+    var seg = location.pathname.replace(/^\/+|\/+$/g, "");
+    if (seg && seg.indexOf("/") < 0 && seg.indexOf(".") < 0) {
+      location.replace("/event-detail.html?slug=" + encodeURIComponent(seg) + (location.search ? "&" + location.search.slice(1) : ""));
+    } else {
+      location.replace("/index.html");
+    }
+  })();
+</script>
+</body>
+</html>
