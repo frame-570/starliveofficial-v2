@@ -1,5 +1,11 @@
 {
   "cleanUrls": true,
+  "rewrites": [
+    {
+      "source": "/:slug([a-z0-9][a-z0-9-]{1,48}[a-z0-9])",
+      "destination": "/event-detail.html"
+    }
+  ],
   "redirects": [
     {
       "source": "/Review",
