@@ -47,7 +47,7 @@ document.getElementById("goSignIn")?.addEventListener("click", () => {
 function goGuest() {
   const hasRedirect = !!new URLSearchParams(window.location.search).get("redirect");
   // กลับไปเฉพาะหน้างาน (ที่กดชำระเงินแบบแขกได้) หน้าอื่นอย่างหน้าชำระเงิน/ประวัติต้องมีออเดอร์แขกในเครื่องก่อน จึงไปหน้าแรกให้เลือกงาน
-  if (hasRedirect && /event-detail/.test(redirectTarget)) {
+  if (hasRedirect && (/event-detail/.test(redirectTarget) || /[?&]pkg=/.test(redirectTarget))) {
     // กลับหน้างานเดิม พร้อมสั่งให้เปิดหน้าต่างกรอกชื่อสำหรับสั่งซื้อแบบแขก
     const u = new URL(redirectTarget, window.location.origin);
     u.searchParams.set("guest", "1");
