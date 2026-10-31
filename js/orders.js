@@ -1,12 +1,15 @@
 import { supabase } from "./supabaseClient.js";
 import { renderHeaderAuth, getSession } from "./auth.js";
 import { lineLogo } from "./icons.js";
+import { getGuestOrders, guestCall, guestNoticeHtml } from "./guest.js";
 
 renderHeaderAuth();
 
 const session = await getSession();
 if (!session) {
-  window.location.href = `./login.html?redirect=${encodeURIComponent(window.location.href)}`;
+  // ไม่ได้ล็อกอิน: ถ้าเครื่องนี้เคยสั่งซื้อแบบไม่สมัครสมาชิก ให้แสดงประวัติที่เก็บไว้ในเครื่อง ไม่งั้นพาไปเข้าสู่ระบบ
+  if (getGuestOrders().length) loadGuestOrders();
+  else window.location.href = `./login.html?redirect=${encodeURIComponent(window.location.href)}`;
 } else {
   loadOrders(session.user);
 }
@@ -21,6 +24,54 @@ const STATUS_LABEL = {
   failed: "ตรวจสอบไม่สำเร็จ",
   cancelled: "ยกเลิก",
 };
+
+// ประวัติของแขก: อ่านรายการ {id, token} จาก localStorage แล้วให้ guest-order ส่งรายละเอียดกลับมา
+async function loadGuestOrders() {
+  const loadingText = document.getElementById("loadingText");
+  const emptyText = document.getElementById("emptyText");
+  const orderList = document.getElementById("orderList");
+
+  const notice = document.createElement("div");
+  notice.style.marginBottom = "14px";
+  notice.innerHTML = guestNoticeHtml("หากเปลี่ยนเครื่องหรือล้างข้อมูลเบราว์เซอร์ ประวัติจะหายไป (รหัสเข้าชมยังใช้ได้ตามเดิม ควรคัดลอกเก็บไว้) หรือสมัครสมาชิกเพื่อเก็บประวัติไว้ในบัญชี");
+  orderList.parentElement.insertBefore(notice, orderList);
+
+  let result;
+  try {
+    result = await guestCall({
+      action: "list",
+      orders: getGuestOrders().map((o) => ({ orderId: o.id, guestToken: o.token })),
+    });
+  } catch {
+    loadingText.style.display = "none";
+    emptyText.textContent = "โหลดข้อมูลไม่สำเร็จ กรุณาลองใหม่";
+    emptyText.style.display = "block";
+    return;
+  }
+
+  openchatUrl = result.settings?.line_openchat_url || "";
+  openchatMessage = result.settings?.line_openchat_message || "เข้าร่วมกลุ่ม LINE เพื่อรับข่าวสารและอัปเดตล่าสุดจากเรา";
+  loadingText.style.display = "none";
+
+  const orders = (result.orders || []).filter((o) => o.status !== "cancelled");
+  if (!orders.length) {
+    emptyText.style.display = "block";
+    return;
+  }
+  orderList.innerHTML = orders.map(renderOrderCard).join("");
+  bindCopyButtons(orderList);
+}
+
+function bindCopyButtons(orderList) {
+  orderList.querySelectorAll("[data-copy-code]").forEach((btn) => {
+    btn.addEventListener("click", () => {
+      navigator.clipboard?.writeText(btn.dataset.copyCode);
+      const original = btn.textContent;
+      btn.textContent = "คัดลอกแล้ว";
+      setTimeout(() => (btn.textContent = original), 1500);
+    });
+  });
+}
 
 async function loadOrders(user) { 
   const loadingText = document.getElementById("loadingText");
