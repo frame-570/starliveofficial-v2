@@ -4,6 +4,7 @@ import { renderHeaderAuth, getSession } from "./auth.js";
 import promptpayQr from "https://cdn.jsdelivr.net/npm/promptpay-qr@0.5.0/+esm";
 import QRCode from "https://esm.sh/qrcode@1.5.3";
 import { svgIcon, lineLogo } from "./icons.js";
+import { getGuestToken, guestCall, guestNoticeHtml } from "./guest.js";
 
 renderHeaderAuth();
 
@@ -22,7 +23,10 @@ let paymentSettings = null;
 let currentPromptpayPayload = null;
 
 const session = await getSession();
-if (!session) {
+// แขก (สั่งซื้อโดยไม่สมัครสมาชิก): ไม่มี session แต่เครื่องนี้เก็บ guest token ของออเดอร์นี้ไว้
+const guestToken = !session && orderId ? getGuestToken(orderId) : null;
+const isGuest = !session && !!guestToken;
+if (!session && !isGuest) {
   window.location.href = `./login.html?redirect=${encodeURIComponent(window.location.href)}`;
 } else if (!orderId) {
   showNotFound("ไม่พบคำสั่งซื้อ");
@@ -30,12 +34,53 @@ if (!session) {
   init();
 }
 
-async function init() {
+// ข้อความเตือนสำหรับแขก: แทรกไว้บนสุดของหน้าชำระเงิน และในหน้ารหัสเข้าชม
+function showGuestNotices() {
+  if (!isGuest) return;
+  const top = document.getElementById("paymentCard");
+  if (top && !document.getElementById("guestNoticePay")) {
+    const d = document.createElement("div");
+    d.id = "guestNoticePay";
+    d.style.marginBottom = "14px";
+    d.innerHTML = guestNoticeHtml();
+    top.prepend(d);
+  }
+  const ok = document.getElementById("successCard");
+  if (ok && !document.getElementById("guestNoticeOk")) {
+    const d = document.createElement("div");
+    d.id = "guestNoticeOk";
+    d.style.margin = "16px 0 0";
+    d.innerHTML = guestNoticeHtml("กรุณาคัดลอกรหัสเข้าชมเก็บไว้ด้วย หากเปลี่ยนเครื่องหรือล้างข้อมูลเบราว์เซอร์ ประวัติในเครื่องจะหายไป");
+    const anchor = document.getElementById("watchNowBtn")?.parentElement;
+    anchor ? anchor.before(d) : ok.append(d);
+  }
+}
+
+// ดึงออเดอร์ (+ค่าตั้งค่าร้าน): สมาชิกอ่านตรงจากฐานข้อมูล แขกอ่านผ่านฟังก์ชัน guest-order
+async function fetchOrder() {
+  if (isGuest) {
+    try {
+      const r = await guestCall({ action: "get", orderId, guestToken });
+      if (r.settings) {
+        openchatSettings = r.settings;
+        paymentSettings = r.settings;
+      }
+      return { order: r.order, error: null };
+    } catch (err) {
+      return { order: null, error: err };
+    }
+  }
   const { data: order, error } = await supabase
     .from("orders")
     .select("*, events(title, status, viewing_duration_months, rerun_special_notes, line_group_url), ticket_packages(num_days), ticket_package_day_options(label)")
     .eq("id", orderId)
     .maybeSingle();
+  return { order, error };
+}
+
+async function init() {
+  const { order, error } = await fetchOrder();
+  showGuestNotices();
 
   loadingText.style.display = "none";
 
@@ -74,7 +119,7 @@ async function claimFreeOrder() {
     const { data: sessionData } = await supabase.auth.getSession();
     const accessToken = sessionData.session?.access_token;
     const { data: result, error: fnError } = await supabase.functions.invoke("claim-free-order", {
-      body: { orderId: currentOrder.id },
+      body: { orderId: currentOrder.id, guestToken: isGuest ? guestToken : undefined },
       headers: accessToken ? { Authorization: `Bearer ${accessToken}` } : {},
     });
     if (fnError || !result?.success) {
@@ -91,7 +136,7 @@ document.getElementById("freeRetryBtn")?.addEventListener("click", claimFreeOrde
 
 // ดึงแถวแรกของ app_settings ครั้งเดียว ใช้ทั้งหน้าชำระเงิน หน้ารหัสเข้าชม และปุ่มเข้ากลุ่ม
 async function ensureSettings() {
-  if (paymentSettings) return paymentSettings;
+  if (paymentSettings) return paymentSettings; // แขก: ได้มาพร้อมกับออเดอร์แล้ว
   const { data: settingsList } = await supabase
     .from("app_settings")
     .select("promptpay_id, promptpay_name, promptpay_logo_url, shop_name, line_oa_url, line_openchat_url, line_openchat_message")
@@ -238,22 +283,40 @@ async function submitSlip() {
 
   try {
     const ext = selectedFile.name.split(".").pop() || "jpg";
-    const storagePath = `${session.user.id}/${currentOrder.id}-${Date.now()}.${ext}`;
+    let storagePath;
 
-    const { error: uploadError } = await supabase.storage
-      .from("payment-slips")
-      .upload(storagePath, selectedFile, { upsert: false });
+    if (isGuest) {
+      // แขกเขียน storage ตรงไม่ได้ ขอลิงก์อัปโหลดจากฟังก์ชัน guest-order แล้วอัปผ่านลิงก์นั้น
+      let up;
+      try {
+        up = await guestCall({ action: "slip-upload", orderId: currentOrder.id, guestToken, ext });
+      } catch {
+        showFail("อัปโหลดสลิปไม่สำเร็จ กรุณาลองใหม่");
+        return;
+      }
+      storagePath = up.path;
+      const { error: upErr } = await supabase.storage.from("payment-slips").uploadToSignedUrl(up.path, up.token, selectedFile);
+      if (upErr) {
+        showFail("อัปโหลดสลิปไม่สำเร็จ กรุณาลองใหม่");
+        return;
+      }
+    } else {
+      storagePath = `${session.user.id}/${currentOrder.id}-${Date.now()}.${ext}`;
+      const { error: uploadError } = await supabase.storage
+        .from("payment-slips")
+        .upload(storagePath, selectedFile, { upsert: false });
 
-    if (uploadError) {
-      showFail("อัปโหลดสลิปไม่สำเร็จ กรุณาลองใหม่");
-      return;
+      if (uploadError) {
+        showFail("อัปโหลดสลิปไม่สำเร็จ กรุณาลองใหม่");
+        return;
+      }
     }
 
     const { data: sessionData } = await supabase.auth.getSession();
     const accessToken = sessionData.session?.access_token;
 
     const { data: result, error: fnError } = await supabase.functions.invoke("verify-slip", {
-      body: { orderId: currentOrder.id, storagePath },
+      body: { orderId: currentOrder.id, storagePath, guestToken: isGuest ? guestToken : undefined },
       headers: accessToken ? { Authorization: `Bearer ${accessToken}` } : {},
     });
 
@@ -287,13 +350,22 @@ async function showSuccess(result, { reopened = false } = {}) {
   // ดึงวันหมดอายุของรหัสจากฐานข้อมูล (ถ้าได้) เพื่อบอกลูกค้าว่าดูได้ถึงเมื่อไหร่
   let expiresLabel = "";
   try {
-    const { data: fresh } = await supabase
-      .from("orders")
-      .select("access_code_expires_at")
-      .eq("id", currentOrder.id)
-      .maybeSingle();
-    if (fresh?.access_code_expires_at) {
-      expiresLabel = new Date(fresh.access_code_expires_at).toLocaleDateString("th-TH", {
+    let freshExpires = result.access_code_expires_at || null;
+    if (!freshExpires) {
+      if (isGuest) {
+        const r = await guestCall({ action: "get", orderId: currentOrder.id, guestToken });
+        freshExpires = r.order?.access_code_expires_at || null;
+      } else {
+        const { data: fresh } = await supabase
+          .from("orders")
+          .select("access_code_expires_at")
+          .eq("id", currentOrder.id)
+          .maybeSingle();
+        freshExpires = fresh?.access_code_expires_at || null;
+      }
+    }
+    if (freshExpires) {
+      expiresLabel = new Date(freshExpires).toLocaleDateString("th-TH", {
         year: "numeric",
         month: "long",
         day: "numeric",
