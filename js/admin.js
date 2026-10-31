@@ -380,6 +380,49 @@ const evStatus = document.getElementById("evStatus");
 const evPreviewUrl = document.getElementById("evPreviewUrl");
 const evRerunMonths = document.getElementById("evRerunMonths");
 const evLineGroupUrl = document.getElementById("evLineGroupUrl");
+const evSlug = document.getElementById("evSlug");
+const evSlugPreview = document.getElementById("evSlugPreview");
+let slugColumnExists = false; // true เมื่อตาราง events มีคอลัมน์ slug แล้ว (ดูจากข้อมูลงานที่โหลดมา)
+const RESERVED_SLUGS = ["admin", "login", "orders", "payment", "watch", "promotion", "review", "cardshop", "cardshop-admin", "event-detail", "index", "js", "css", "api", "assets", "static", "favicon"];
+// สร้างชื่อลิงก์จากชื่องาน: เอาเฉพาะตัวอักษรอังกฤษ/ตัวเลข ที่เหลือแทนด้วยขีด (ชื่อภาษาไทยล้วนจะได้ค่าว่าง)
+function slugifyTitle(t) {
+  return String(t || "")
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-+|-+$/g, "")
+    .slice(0, 50)
+    .replace(/-+$/, "");
+}
+function isValidSlug(s) {
+  return /^[a-z0-9][a-z0-9-]{1,48}[a-z0-9]$/.test(s) && !RESERVED_SLUGS.includes(s);
+}
+function updateSlugPreview() {
+  if (!evSlug || !evSlugPreview) return;
+  const v = evSlug.value.trim().toLowerCase();
+  if (v) {
+    evSlugPreview.textContent = `ลิงก์ที่ได้: ${window.location.origin}/${v}`;
+    return;
+  }
+  const auto = slugifyTitle(document.getElementById("evTitle")?.value);
+  evSlugPreview.textContent = isValidSlug(auto)
+    ? `เว้นว่าง = ใช้ชื่องานอัตโนมัติ → ${window.location.origin}/${auto}`
+    : "เว้นว่าง = ใช้ชื่องานอัตโนมัติ (ถ้าชื่องานเป็นภาษาไทยล้วน สร้างให้ไม่ได้ จะใช้ลิงก์แบบเดิม ควรตั้งเองเป็นภาษาอังกฤษ)";
+}
+// หาชื่อที่ยังว่างจริง: ถ้าซ้ำกับงานอื่นให้ต่อ -2, -3 ... (ไม่นับงานที่กำลังแก้อยู่เอง)
+async function pickFreeSlug(base, selfId) {
+  if (!isValidSlug(base)) return "";
+  const { data, error } = await supabase.from("events").select("id, slug").ilike("slug", `${base}%`);
+  if (error) return ""; // ยังไม่มีคอลัมน์ slug ฯลฯ — ข้ามการสร้างอัตโนมัติ
+  const taken = new Set((data || []).filter((r) => String(r.id) !== String(selfId)).map((r) => String(r.slug || "").toLowerCase()));
+  if (!taken.has(base)) return base;
+  for (let n = 2; n < 100; n++) {
+    const cand = `${base.slice(0, 46).replace(/-+$/, "")}-${n}`;
+    if (!taken.has(cand)) return cand;
+  }
+  return "";
+}
+evSlug?.addEventListener("input", updateSlugPreview);
+document.getElementById("evTitle")?.addEventListener("input", updateSlugPreview);
 const dayRows = document.getElementById("dayRows");
 const packageRows = document.getElementById("packageRows");
 const eventFormError = document.getElementById("eventFormError");
@@ -586,6 +629,9 @@ function openEventForm(event = null) {
     if (evPreviewUrl) evPreviewUrl.value = event.preview_youtube_url || "";
     if (evRerunMonths) evRerunMonths.value = event.rerun_duration_months || 6;
     if (evLineGroupUrl) evLineGroupUrl.value = event.line_group_url || "";
+    slugColumnExists = "slug" in event;
+    if (evSlug) evSlug.value = event.slug || "";
+    updateSlugPreview();
     currentBannerUrl = event.banner_url || "";
     if (currentBannerUrl) {
       evBannerPreview.src = currentBannerUrl;
@@ -611,6 +657,9 @@ function openEventForm(event = null) {
     if (evPreviewUrl) evPreviewUrl.value = "";
     if (evRerunMonths) evRerunMonths.value = 6;
     if (evLineGroupUrl) evLineGroupUrl.value = "";
+    slugColumnExists = false;
+    if (evSlug) evSlug.value = "";
+    updateSlugPreview();
     addDayRow();
   }
 
@@ -681,11 +730,25 @@ eventForm.addEventListener("submit", async (e) => {
     return;
   }
 
+  let slugVal = evSlug ? evSlug.value.trim().toLowerCase() : "";
+  if (slugVal && (!/^[a-z0-9][a-z0-9-]{1,48}[a-z0-9]$/.test(slugVal) || RESERVED_SLUGS.includes(slugVal))) {
+    eventFormError.textContent = RESERVED_SLUGS.includes(slugVal)
+      ? "ชื่อลิงก์นี้ชนกับหน้าอื่นของเว็บ กรุณาตั้งชื่ออื่น"
+      : "ชื่อลิงก์ใช้ได้เฉพาะตัวอักษรอังกฤษพิมพ์เล็ก ตัวเลข และขีด (-) ความยาว 3-50 ตัว และต้องไม่ขึ้นต้น/ลงท้ายด้วยขีด";
+    return;
+  }
+
   const saveBtn = document.getElementById("saveEventBtn");
   saveBtn.disabled = true;
   saveBtn.textContent = "กำลังบันทึก...";
 
   try {
+    // ไม่ได้กรอกชื่อลิงก์ -> สร้างจากชื่องานให้อัตโนมัติ (ชื่อภาษาไทยล้วนสร้างไม่ได้ จะไม่ตั้งลิงก์สั้นให้)
+    if (!slugVal && evSlug) {
+      slugVal = await pickFreeSlug(slugifyTitle(evTitle.value), eventIdInput.value);
+      if (slugVal) evSlug.value = slugVal;
+    }
+
     let bannerUrl = currentBannerUrl;
     const file = evBannerFile.files[0];
     if (file) {
@@ -708,16 +771,18 @@ eventForm.addEventListener("submit", async (e) => {
       viewing_duration_months: rerunMonthsVal,
       rerun_duration_months: rerunMonthsVal,
     };
+    // ส่ง slug เมื่อมีค่า หรือเมื่อคอลัมน์มีอยู่แล้ว (เพื่อให้ลบ/ล้างได้) — ถ้ายังไม่ได้รัน SQL และไม่ได้กรอก จะไม่แตะคอลัมน์นี้
+    if (slugVal || slugColumnExists) eventPayload.slug = slugVal || null;
 
     const eventId = eventIdInput.value;
     let savedEventId = eventId;
 
     if (eventId) {
       const { error } = await supabase.from("events").update(eventPayload).eq("id", eventId);
-      if (error) throw new Error(error.message);
+      if (error) throw new Error(slugErrorMessage(error));
     } else {
       const { data, error } = await supabase.from("events").insert(eventPayload).select().single();
-      if (error) throw new Error(error.message);
+      if (error) throw new Error(slugErrorMessage(error));
       savedEventId = data.id;
     }
 
@@ -1025,6 +1090,13 @@ function stopOrdersPolling() {
 }
 
 let lastOrdersSignature = null;
+
+function slugErrorMessage(error) {
+  const m = error.message || "";
+  if (/slug/i.test(m) && /(duplicate|unique)/i.test(m)) return "ชื่อลิงก์นี้ถูกใช้กับงานอื่นแล้ว กรุณาตั้งชื่ออื่น";
+  if (/slug/i.test(m) && /(column|schema)/i.test(m)) return "ยังไม่ได้รัน SQL เพิ่มคอลัมน์ slug (ไฟล์ setup-event-slug.sql) ใน Supabase";
+  return m;
+}
 
 async function loadOrders({ silent = false } = {}) {
   const listEl = document.getElementById("adminOrderList");
