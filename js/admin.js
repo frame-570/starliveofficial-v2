@@ -4,6 +4,7 @@ import { openPosterMaker } from "./poster.js";
 import { svgIcon, svgDot } from "./icons.js";
 import { loadReviewsAdmin } from "./review-admin.js";
 import { initSignDesigner } from "./sign-designer.js";
+import { initMessageMaker } from "./message-maker.js";
 
 // ============================================================
 // Styled confirm/alert modal
@@ -301,6 +302,7 @@ document.querySelectorAll(".admin-tab-btn").forEach((btn) => {
     document.getElementById("slipcheckTab").style.display = btn.dataset.tab === "slipcheck" ? "block" : "none";
     document.getElementById("reviewsTab").style.display = btn.dataset.tab === "reviews" ? "block" : "none";
     document.getElementById("signsTab").style.display = btn.dataset.tab === "signs" ? "block" : "none";
+    document.getElementById("messagesTab").style.display = btn.dataset.tab === "messages" ? "block" : "none";
 
     if (btn.dataset.tab === "orders") {
       loadOrders();
@@ -338,6 +340,10 @@ document.querySelectorAll(".admin-tab-btn").forEach((btn) => {
 
     if (btn.dataset.tab === "signs") {
       initSignDesigner();
+    }
+
+    if (btn.dataset.tab === "messages") {
+      initMessageMaker(supabase);
     }
 
     if (btn.dataset.tab === "reviews") {
