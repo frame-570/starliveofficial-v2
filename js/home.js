@@ -59,7 +59,8 @@ async function loadEvents() {
 
   grid.querySelectorAll("[data-event-id]").forEach((el) => {
     el.addEventListener("click", () => {
-      window.location.href = `./event-detail.html?id=${el.dataset.eventId}`;
+      const ev = sortedEvents.find((x) => String(x.id) === String(el.dataset.eventId));
+      window.location.href = ev?.slug ? `/${ev.slug}` : `./event-detail.html?id=${el.dataset.eventId}`;
     });
   });
 }
