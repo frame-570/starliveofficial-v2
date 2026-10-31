@@ -2,6 +2,7 @@ import { supabase } from "./supabaseClient.js";
 import { renderHeaderAuth, getSession } from "./auth.js";
 import { SUPABASE_ANON_KEY, FUNCTIONS_URL } from "./config.js";
 import { svgIcon } from "./icons.js";
+import { saveGuestOrder, getGuestContact, saveGuestContact, guestNoticeHtml } from "./guest.js";
 
 renderHeaderAuth();
 
@@ -21,22 +22,23 @@ let currentEvent = null;
 let selectedPackage = null;
 let selectedDayOptionId = null;
 let appliedDiscount = null; // { code, discountedAmount, discountAmount, discountLabel }
-let currentSession = await getSession(); // ใช้เช็กว่าล็อกอินหรือยัง (โค้ดส่วนลดบังคับล็อกอิน)
+let currentSession = await getSession(); // ใช้เช็กว่าล็อกอินหรือยัง (ไม่ล็อกอินก็สั่งซื้อและใช้โค้ดส่วนลดได้แบบแขก)
 
 // พาไปหน้าเข้าสู่ระบบ แล้วกลับมาที่หน้างานเดิม พร้อมจำโค้ดส่วนลดที่พิมพ์ค้างไว้
 function gotoLogin(code) {
   const target = new URL(window.location.href);
+  target.searchParams.delete("guest");
   if (code) target.searchParams.set("code", code);
+  // จำแพ็กเกจ/วันที่เลือกไว้ จะได้กลับมาที่เดิมโดยไม่ต้องเลือกใหม่ (ทั้งตอนล็อกอินและตอนเลือกสั่งซื้อแบบไม่สมัครสมาชิก)
+  if (selectedPackage) target.searchParams.set("pkg", selectedPackage.id);
+  if (selectedDayOptionId) target.searchParams.set("opt", selectedDayOptionId);
   const redirect = target.pathname + target.search;
   window.location.href = `./login.html?redirect=${encodeURIComponent(redirect)}`;
 }
 
 // แสดงข้อความเตือนใต้ช่องโค้ดส่วนลด เมื่อยังไม่ได้ล็อกอิน
 function showLoginHintIfNeeded() {
-  if (currentSession) return;
-  const resultText = document.getElementById("discountResultText");
-  if (!resultText || resultText.textContent) return;
-  resultText.textContent = "ต้องเข้าสู่ระบบก่อน จึงจะใช้โค้ดส่วนลดและชำระเงินได้";
+  // เดิมบังคับล็อกอินก่อนใช้โค้ด/ชำระเงิน — ตอนนี้แขกสั่งซื้อและใช้โค้ดได้ จึงไม่ต้องเตือนอะไร
 }
 
 if (!eventId) {
@@ -68,7 +70,28 @@ async function loadEvent() {
   const discountInput = document.getElementById("discountCodeInput");
   if (pendingCode && discountInput) {
     discountInput.value = pendingCode.toUpperCase();
-    if (currentSession) document.getElementById("applyDiscountBtn")?.click();
+  }
+
+  // กลับมาจากหน้าเข้าสู่ระบบ: คืนแพ็กเกจ/วันที่ที่เลือกไว้
+  const pkgParam = params.get("pkg");
+  if (pkgParam) {
+    document.querySelector(`.package-tab[data-package-id="${CSS.escape(pkgParam)}"]`)?.click();
+    const optParam = params.get("opt");
+    if (optParam) document.querySelector(`.day-card-item[data-day-id="${CSS.escape(optParam)}"]`)?.click();
+  }
+  // โค้ดส่วนลดที่พิมพ์ค้างไว้ต้องกดใช้หลังคืนแพ็กเกจแล้ว (การเลือกแพ็กเกจจะล้างโค้ด)
+  if (pendingCode && discountInput) {
+    document.getElementById("applyDiscountBtn")?.click();
+  }
+
+  // เลือก "สั่งซื้อโดยไม่สมัครสมาชิก" จากหน้าเข้าสู่ระบบ -> เปิดหน้าต่างกรอกชื่อให้ทันที
+  if (params.get("guest") === "1" && !currentSession) {
+    const url = new URL(window.location.href);
+    url.searchParams.delete("guest");
+    history.replaceState(null, "", url.pathname + url.search);
+    const applyBtn = document.getElementById("applyDiscountBtn");
+    for (let i = 0; i < 40 && applyBtn?.disabled; i++) await new Promise((r) => setTimeout(r, 100));
+    if (selectedPackage && (selectedDayOptionId || document.getElementById("payBtn")?.disabled === false)) openGuestDialog();
   }
 
   showLoginHintIfNeeded();
@@ -295,17 +318,6 @@ document.getElementById("applyDiscountBtn").addEventListener("click", async () =
     return;
   }
 
-  // ---------- บังคับล็อกอินก่อนใช้โค้ดส่วนลด ----------
-  currentSession = await getSession();
-  if (!currentSession) {
-    appliedDiscount = null;
-    updateTotal();
-    resultText.textContent = "ต้องเข้าสู่ระบบก่อนจึงจะใช้โค้ดส่วนลดได้ กำลังพาไปหน้าเข้าสู่ระบบ...";
-    resultText.classList.add("error-text");
-    setTimeout(() => gotoLogin(code), 900);
-    return;
-  }
-
   applyBtn.disabled = true;
   applyBtn.textContent = "กำลังตรวจสอบ...";
 
@@ -374,10 +386,9 @@ document.getElementById("payBtn").addEventListener("click", async () => {
   const session = await getSession();
   currentSession = session;
   if (!session) {
-    // ยังไม่ล็อกอิน -> ตัดส่วนลดออกก่อน (กันใช้ส่วนลดโดยไม่ล็อกอิน) แล้วพาไปหน้าเข้าสู่ระบบ
+    // ยังไม่ล็อกอิน -> พาไปหน้าเข้าสู่ระบบ ซึ่งมีปุ่ม "สั่งซื้อโดยไม่สมัครสมาชิก" ให้ลูกค้าเลือกเอง
+    // (ส่วนลดที่ใช้ไว้ถูกตัดออกก่อน แล้วจำโค้ดไว้ให้กดใช้ใหม่ตอนกลับมา)
     const pendingCode = appliedDiscount?.code || document.getElementById("discountCodeInput")?.value.trim().toUpperCase();
-    appliedDiscount = null;
-    updateTotal();
     gotoLogin(pendingCode);
     return;
   }
@@ -443,6 +454,92 @@ document.getElementById("payBtn").addEventListener("click", async () => {
 
   window.location.href = `./payment.html?order=${order.id}`;
 });
+
+// ============================================================
+// สั่งซื้อโดยไม่สมัครสมาชิก (แขก)
+// ============================================================
+function openGuestDialog() {
+  document.getElementById("guestOverlay")?.remove();
+  const saved = getGuestContact();
+  const overlay = document.createElement("div");
+  overlay.id = "guestOverlay";
+  overlay.className = "modal-overlay";
+  overlay.style.cssText = "display:flex; z-index:100001;";
+  overlay.innerHTML = `
+    <div class="admin-card modal-card" style="text-align:left; max-width:420px;">
+      <h2 class="display" style="font-size:18px; margin:0 0 12px; text-align:center;">สั่งซื้อโดยไม่สมัครสมาชิก</h2>
+      <div style="margin-bottom:14px;">${guestNoticeHtml()}</div>
+      <label class="field-label" for="guestName">ชื่อ <span class="muted" style="font-size:11px;">(ไว้ให้แอดมินตรวจสอบสลิป)</span></label>
+      <input id="guestName" class="field-input" maxlength="60" autocomplete="name" value="${escapeHtml(saved.name || "")}" style="margin-bottom:10px;" />
+      <label class="field-label" for="guestLine">LINE ID <span class="muted" style="font-size:11px;">(ไม่บังคับ ไว้ให้แอดมินติดต่อกลับ)</span></label>
+      <input id="guestLine" class="field-input" maxlength="40" value="${escapeHtml(saved.line || "")}" style="margin-bottom:6px;" />
+      <p id="guestError" class="error-text" style="min-height:18px; margin:6px 0 10px; font-size:13px;"></p>
+      <div style="display:flex; flex-direction:column; gap:10px;">
+        <button type="button" id="guestGoBtn" class="btn-marquee" style="margin:0;">ดำเนินการสั่งซื้อ</button>
+        <button type="button" id="guestLoginBtn" class="icon-btn ghost">เข้าสู่ระบบ / สมัครสมาชิกแทน</button>
+        <button type="button" id="guestCancelBtn" class="icon-btn ghost">ยกเลิก</button>
+      </div>
+    </div>`;
+  document.body.appendChild(overlay);
+
+  const close = () => overlay.remove();
+  overlay.addEventListener("click", (e) => {
+    if (e.target === overlay) close();
+  });
+  document.getElementById("guestCancelBtn").addEventListener("click", close);
+  document.getElementById("guestLoginBtn").addEventListener("click", () => {
+    // ไปเข้าสู่ระบบ: ตัดส่วนลดออกก่อน แล้วจำโค้ดไว้ให้กรอกใหม่ตอนกลับมา (เหมือนเดิม)
+    const pendingCode = appliedDiscount?.code || document.getElementById("discountCodeInput")?.value.trim().toUpperCase();
+    gotoLogin(pendingCode);
+  });
+  document.getElementById("guestGoBtn").addEventListener("click", () => submitGuestOrder(overlay));
+  document.getElementById("guestName").focus();
+}
+
+async function submitGuestOrder(overlay) {
+  const errEl = document.getElementById("guestError");
+  const goBtn = document.getElementById("guestGoBtn");
+  const name = document.getElementById("guestName").value.trim();
+  const line = document.getElementById("guestLine").value.trim();
+  errEl.textContent = "";
+  if (!name) {
+    errEl.textContent = "กรุณากรอกชื่อ";
+    return;
+  }
+
+  goBtn.disabled = true;
+  goBtn.textContent = "กำลังสร้างออเดอร์...";
+  try {
+    const res = await fetch(`${FUNCTIONS_URL}/create-order-with-discount`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json", apikey: SUPABASE_ANON_KEY, Authorization: `Bearer ${SUPABASE_ANON_KEY}` },
+      body: JSON.stringify({
+        eventId: currentEvent.id,
+        packageId: selectedPackage.id,
+        dayOptionId: selectedDayOptionId,
+        code: appliedDiscount?.code || "",
+        guestName: name,
+        guestLine: line,
+      }),
+    });
+    const body = await res.json().catch(() => ({}));
+    if (!res.ok || !body.success || !body.guestToken) throw new Error(body.error || "สร้างออเดอร์ไม่สำเร็จ");
+
+    saveGuestContact(name, line);
+    saveGuestOrder({
+      id: body.orderId,
+      token: body.guestToken,
+      order_number: body.orderNumber,
+      title: currentEvent.title,
+      amount: body.amount,
+    });
+    window.location.href = `./payment.html?order=${body.orderId}`;
+  } catch (err) {
+    goBtn.disabled = false;
+    goBtn.textContent = "ดำเนินการสั่งซื้อ";
+    errEl.textContent = err.message || "สร้างออเดอร์ไม่สำเร็จ กรุณาลองใหม่";
+  }
+}
 
 function escapeHtml(str) {
   const div = document.createElement("div");
