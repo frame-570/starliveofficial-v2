@@ -67,6 +67,7 @@ async function fetchOrder() {
       }
       return { order: r.order, error: null };
     } catch (err) {
+      console.error("guest-order get failed:", err);
       return { order: null, error: err };
     }
   }
@@ -85,7 +86,8 @@ async function init() {
   loadingText.style.display = "none";
 
   if (error || !order) {
-    showNotFound("ไม่พบคำสั่งซื้อ หรือคุณไม่มีสิทธิ์เข้าถึง");
+    // แขก: แสดงสาเหตุจริงจากเซิร์ฟเวอร์ต่อท้าย จะได้รู้ว่าเป็นเรื่องฟังก์ชัน/ฐานข้อมูล ไม่ใช่ลูกค้าทำผิด
+    showNotFound("ไม่พบคำสั่งซื้อ หรือคุณไม่มีสิทธิ์เข้าถึง" + (isGuest && error?.message ? ` [${error.message}]` : ""));
     return;
   }
 
