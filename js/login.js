@@ -43,6 +43,22 @@ document.getElementById("goSignIn")?.addEventListener("click", () => {
   loginMode.style.display = "block";
 });
 
+// --- สั่งซื้อโดยไม่สมัครสมาชิก: กลับไปหน้าที่ตั้งใจไว้ (หน้างาน) แล้วกดชำระเงินได้เลย ระบบจะถามชื่อเพื่อสั่งแบบแขก ---
+function goGuest() {
+  const hasRedirect = !!new URLSearchParams(window.location.search).get("redirect");
+  // กลับไปเฉพาะหน้างาน (ที่กดชำระเงินแบบแขกได้) หน้าอื่นอย่างหน้าชำระเงิน/ประวัติต้องมีออเดอร์แขกในเครื่องก่อน จึงไปหน้าแรกให้เลือกงาน
+  if (hasRedirect && /event-detail/.test(redirectTarget)) {
+    // กลับหน้างานเดิม พร้อมสั่งให้เปิดหน้าต่างกรอกชื่อสำหรับสั่งซื้อแบบแขก
+    const u = new URL(redirectTarget, window.location.origin);
+    u.searchParams.set("guest", "1");
+    window.location.href = u.pathname + u.search;
+  } else {
+    window.location.href = "./index.html";
+  }
+}
+document.getElementById("guestBtnLogin")?.addEventListener("click", goGuest);
+document.getElementById("guestBtnSignUp")?.addEventListener("click", goGuest);
+
 // --- OAuth (Google) ---
 document.getElementById("googleBtn")?.addEventListener("click", () => signInWithGoogle(redirectTarget));
 document.getElementById("googleBtnSignUp")?.addEventListener("click", () => signInWithGoogle(redirectTarget));
