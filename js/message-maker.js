@@ -66,7 +66,8 @@ function buildMessage(ev, timeText) {
     "💬 สอบถามแอดมินได้ครับ",
     "",
     "🛒 สนใจสั่งซื้อ:",
-    window.location.origin, // ใช้โดเมนที่เปิดอยู่ จึงไม่ต้องแก้เมื่อเปลี่ยนโดเมนใหม่
+    // ใช้โดเมนที่เปิดอยู่ (ไม่ต้องแก้เมื่อเปลี่ยนโดเมนใหม่) ถ้างานมีชื่อลิงก์ จะพาไปหน้างานนั้นตรงๆ
+    ev.slug ? `${window.location.origin}/${ev.slug}` : window.location.origin,
     "",
     "💬 ไม่สะดวกสั่งผ่านเว็บไซต์ พิมพ์ “สนใจ” ได้เลยครับ แอดมินจะส่งข้อมูลชำระเงินให้ครับ 💖"
   );
@@ -120,7 +121,7 @@ export async function initMessageMaker(supabase) {
 
   const { data, error } = await sb
     .from("events")
-    .select("id, title, rerun_duration_months, event_days(event_date), ticket_packages(num_days, price)")
+    .select("*, event_days(event_date), ticket_packages(num_days, price)")
     .order("created_at", { ascending: false });
   if (error) {
     $("msgEvent").innerHTML = `<option>โหลดงานไม่สำเร็จ: ${esc(error.message)}</option>`;
