@@ -61,7 +61,10 @@ export async function guestCall(payload) {
     body: JSON.stringify(payload),
   });
   const body = await res.json().catch(() => ({}));
-  if (!res.ok) throw new Error(body.error || "เชื่อมต่อเซิร์ฟเวอร์ไม่ได้");
+  if (!res.ok) {
+    const msg = body.error || body.message || `HTTP ${res.status}`;
+    throw new Error(body.detail ? `${msg} (${body.detail})` : msg);
+  }
   return body;
 }
 
