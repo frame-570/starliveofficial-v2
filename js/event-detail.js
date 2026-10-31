@@ -19,7 +19,7 @@ const pathSlug = (() => {
   try {
     seg = decodeURIComponent(window.location.pathname.replace(/^\/+|\/+$/g, ""));
   } catch {}
-  if (!seg || seg.includes("/") || /^event-detail(\.html)?$/i.test(seg)) return "";
+  if (!seg || seg.includes("/") || /^event-detail(\.html)?$/i.test(seg)) return (params.get("slug") || "").trim().toLowerCase();
   return seg.toLowerCase();
 })();
 
@@ -73,9 +73,10 @@ async function loadEvent() {
   shell.style.display = "block";
 
   // เปิดผ่านลิงก์เก่า (?id=...) แต่งานนี้มีลิงก์สั้นแล้ว -> เปลี่ยนแถบที่อยู่เป็นลิงก์สั้น (ไม่โหลดหน้าใหม่)
-  if (data.slug && eventId) {
+  if (data.slug && (eventId || params.get("slug"))) {
     const u = new URL(window.location.href);
     u.searchParams.delete("id");
+    u.searchParams.delete("slug");
     history.replaceState(null, "", `/${data.slug}${u.search}`);
   }
 
