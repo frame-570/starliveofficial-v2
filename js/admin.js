@@ -2642,6 +2642,9 @@ const KICK_RESERVED_PATHS = ["video", "videos", "categories", "category", "brows
 // รองรับ: ลิงก์ช่อง (ถ่ายทอดสด) และลิงก์วิดีโอย้อนหลัง kick.com/video/<id> หรือ kick.com/<ช่อง>/videos/<id> (รีรันชั่วคราว)
 function normalizeKickUrl(raw) {
   const v = String(raw || "").trim();
+  // ลิงก์ Google Drive: drive.google.com/file/d/<id>/view?... หรือ drive.google.com/open?id=<id> -> เก็บแบบมาตรฐาน (รีรันชั่วคราว)
+  const drive = v.match(/^(?:https?:\/\/)?drive\.google\.com\/(?:file\/d\/([A-Za-z0-9_-]{15,80})|(?:open|uc)\?(?:[^#]*&)?id=([A-Za-z0-9_-]{15,80}))/i);
+  if (drive) return `https://drive.google.com/file/d/${drive[1] || drive[2]}/view`;
   const vid = v.match(/^(?:https?:\/\/)?(?:www\.|player\.)?kick\.com\/(?:video\/|[A-Za-z0-9_-]{1,30}\/videos?\/)([A-Za-z0-9-]{8,64})\/?(?:\?.*)?$/i);
   if (vid) return `https://kick.com/video/${vid[1]}`;
   const m = v.match(/^(?:https?:\/\/)?(?:www\.|player\.)?(?:kick\.com\/)?([A-Za-z0-9_-]{1,30})\/?(?:\?.*)?$/i);
@@ -2670,7 +2673,7 @@ async function loadKickEventOptions() {
   kickEventSelect.innerHTML =
     `<option value="">-- เลือกงาน --</option>` +
     (evRes.data || [])
-      .map((ev) => `<option value="${escapeAttr(ev.id)}">${escapeHtml(ev.title)}${active.has(ev.id) ? " ● เปิดใช้ Kick" : ""}</option>`)
+      .map((ev) => `<option value="${escapeAttr(ev.id)}">${escapeHtml(ev.title)}${active.has(ev.id) ? " ● เปิดใช้การรับชมพิเศษ" : ""}</option>`)
       .join("");
 }
 
@@ -2699,7 +2702,7 @@ kickEventSelect.addEventListener("change", async () => {
       <div>
         <label class="field-label">${escapeHtml(formatEphotoDayLabel(day))}</label>
         <input type="text" class="field-input kick-url-input" data-day="${escapeAttr(day.day_number)}" autocomplete="off"
-          placeholder="ลิงก์ช่อง (ไลฟ์) หรือ kick.com/video/... (รีรัน) · เว้นว่าง = ใช้ไลฟ์ปกติ" value="${escapeAttr(linkByDay.get(Number(day.day_number)) || "")}" />
+          placeholder="ลิงก์ช่อง Kick (ไลฟ์) · kick.com/video/... หรือลิงก์ Google Drive (รีรัน) · เว้นว่าง = ใช้ปกติ" value="${escapeAttr(linkByDay.get(Number(day.day_number)) || "")}" />
       </div>`
     )
     .join("");
@@ -2724,7 +2727,7 @@ saveKickBtn.addEventListener("click", async () => {
     }
     const url = normalizeKickUrl(raw);
     if (!url) {
-      kickError.textContent = `ลิงก์ของวันที่ ${dayNumber} ไม่ถูกต้อง — ใส่ลิงก์ช่อง https://kick.com/ชื่อช่อง (ไลฟ์สด) หรือลิงก์วิดีโอ https://kick.com/video/รหัส (รีรัน) · ไม่รองรับลิงก์คลิป`;
+      kickError.textContent = `ลิงก์ของวันที่ ${dayNumber} ไม่ถูกต้อง — ใส่ลิงก์ช่อง https://kick.com/ชื่อช่อง (ไลฟ์สด) หรือลิงก์วิดีโอ Kick / ลิงก์ Google Drive (รีรัน) · ไม่รองรับลิงก์คลิป`;
       return;
     }
     toSave.push({ event_id: eventId, day_number: dayNumber, url, updated_at: new Date().toISOString() });
