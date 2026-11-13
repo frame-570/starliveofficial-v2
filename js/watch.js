@@ -474,6 +474,12 @@ function loadVideoStream(streamData) {
       const code = streamData.customer_code || "ohx74kd7koi6qp2a";
       src = `https://customer-${code}.cloudflarestream.com/${streamData.token}/iframe?autoplay=true`;
     }
+  } else if (streamData.platform === "drive") {
+    // รีรันชั่วคราวจาก Google Drive: รับเฉพาะหน้า preview ของ Drive เท่านั้น
+    const u = String(streamData.streamUrl || "");
+    if (/^https:\/\/drive\.google\.com\/file\/d\/[A-Za-z0-9_-]{15,80}\/preview$/.test(u)) {
+      src = u;
+    }
   } else if (streamData.platform === "kick") {
     // การรับชมพิเศษ (Kick): รับเฉพาะ player ของ Kick เท่านั้น กันลิงก์แปลกปลอมใส่ใน iframe
     const u = String(streamData.streamUrl || "");
@@ -486,6 +492,17 @@ function loadVideoStream(streamData) {
     if (videoId) {
       src = `https://www.youtube.com/embed/${videoId}?autoplay=1&rel=0`;
     }
+  }
+
+  // Drive มีปุ่ม "เปิดในหน้าต่างใหม่" มุมขวาบนของเครื่องเล่น ซึ่งจะเปิดไฟล์บน Drive ตรงๆ (หลุดจากระบบรหัส)
+  // วางแผ่นโปร่งใสบังมุมนั้นไว้กันการกดโดยไม่ตั้งใจ — เฉพาะตอนเล่นจาก Drive
+  const aspect = streamFrame.parentElement;
+  aspect?.querySelector("#driveShield")?.remove();
+  if (src && streamData.platform === "drive" && aspect) {
+    const shield = document.createElement("div");
+    shield.id = "driveShield";
+    shield.style.cssText = "position:absolute; top:0; right:0; width:72px; height:64px; z-index:5; background:transparent;";
+    aspect.appendChild(shield);
   }
 
   if (src) {
