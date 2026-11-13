@@ -53,7 +53,10 @@ async function loadEvents() {
     return;
   }
 
-  const sortedEvents = [...visibleEvents].sort((a, b) => getLastEventDate(b) - getLastEventDate(a));
+  // งานที่ปักหมุด (ขายดี) ขึ้นก่อน แล้วเรียงตามวันจัดงานล่าสุดเหมือนเดิมภายในกลุ่มเดียวกัน
+  const sortedEvents = [...visibleEvents].sort(
+    (a, b) => Number(!!b.is_pinned) - Number(!!a.is_pinned) || getLastEventDate(b) - getLastEventDate(a)
+  );
 
   grid.innerHTML = sortedEvents.map(renderCard).join("");
 
@@ -87,6 +90,7 @@ function renderCard(event) {
         ${!banner ? `<div class="event-card-banner-fallback">${escapeHtml(event.title)}</div>` : ""}
         ${isLive ? `<span class="live-badge event-card-badge"><span class="live-dot"></span> LIVE</span>` : ""}
         ${isRerun ? `<span class="event-card-badge event-card-badge-rerun">รีรัน</span>` : ""}
+        ${event.is_pinned ? `<span class="event-card-hot"><svg viewBox="0 0 24 24" width="13" height="13" fill="currentColor" aria-hidden="true"><path d="M13.5 1.5c.4 2.7-.6 4.4-2 6-1.3 1.5-2.5 3-2.5 5.2 0 1 .3 1.9.8 2.6-1.9-.5-3.3-2.3-3.3-4.6 0-.5.1-1 .2-1.5C4.9 10.6 4 12.7 4 15c0 4.4 3.6 8 8 8s8-3.6 8-8c0-5-3.2-8.2-6.5-13.5z"/></svg> ขายดี</span>` : ""}
       </div>
       <div class="event-card-body">
         <h3 class="display event-card-title">${escapeHtml(event.title)}</h3>
