@@ -928,9 +928,18 @@ async function loadEvents() {
     return;
   }
 
+  // จำนวนออเดอร์ที่ชำระแล้วของแต่ละงาน (ไว้ดูประกอบการปักหมุดงานขายดี)
+  await Promise.all(
+    data.map(async (ev) => {
+      const { count } = await supabase.from("orders").select("id", { count: "exact", head: true }).eq("event_id", ev.id).eq("status", "paid");
+      ev._paidCount = count ?? 0;
+    })
+  );
+
   eventListWrap.innerHTML = "";
   eventEmptyState.style.display = data.length === 0 ? "block" : "none";
-  data.forEach((ev) => eventListWrap.appendChild(renderEventRow(ev)));
+  // งานที่ปักหมุดไว้แสดงบนสุดของรายการ
+  [...data].sort((a, b) => Number(!!b.is_pinned) - Number(!!a.is_pinned)).forEach((ev) => eventListWrap.appendChild(renderEventRow(ev)));
 }
 
 const STATUS_LABELS = { upcoming: "กำลังจะถึง", live: "กำลังถ่ายทอดสด", rerun: "รีรัน", ended: "ปิดแล้ว" };
@@ -952,12 +961,15 @@ function renderEventRow(ev) {
       <div style="display:flex; align-items:center; gap:10px; flex-wrap:wrap;">
         <span class="muted" style="font-size:12px;">${escapeHtml(dateRange)}</span>
         <span class="muted" style="font-size:12px;">${escapeHtml(priceLabel)}</span>
+        <span class="muted" style="font-size:12px;">ขายแล้ว ${Number(ev._paidCount || 0).toLocaleString("th-TH")} ออเดอร์</span>
+        ${ev.is_pinned ? `<span style="font-size:11px; font-weight:600; color:#1a1204; background:linear-gradient(135deg,#ffd84a,#ff8a3d); padding:2px 8px; border-radius:10px;">ปักหมุดขายดี</span>` : ""}
       </div>
     </div>
     <div style="display:flex; align-items:center; gap:8px; flex-shrink:0; flex-wrap:wrap;">
       <select class="field-input status-select" style="padding:8px 10px; width:auto;">
         ${Object.entries(STATUS_LABELS).map(([v, l]) => `<option value="${v}" ${ev.status === v ? "selected" : ""}>${l}</option>`).join("")}
       </select>
+      <button class="icon-btn ${ev.is_pinned ? "" : "ghost"}" data-action="pin" title="ปักหมุดไว้บนสุดของหน้าแรก พร้อมป้าย ขายดี"><svg viewBox="0 0 24 24" width="14" height="14" fill="currentColor" style="vertical-align:-2px;"><path d="M16 3l5 5-2 1-3 3 .5 4.5-1.5 1.5-3.5-3.5L6 21l-1-1 5.5-5.5L7 11l1.5-1.5L13 10l3-3 1-2z"/></svg> ${ev.is_pinned ? "เลิกปักหมุด" : "ปักหมุด"}</button>
       <button class="icon-btn ghost" data-action="poster">สร้างโปสเตอร์</button>
       <button class="icon-btn ghost" data-action="edit">แก้ไข</button>
       <button class="icon-btn" data-action="delete">ลบ</button>
@@ -979,6 +991,18 @@ function renderEventRow(ev) {
       await appAlert(`เปลี่ยนสถานะงานเป็น "${STATUS_LABELS[newStatus]}" สำเร็จ`, { type: "success" });
       loadEvents();
     }
+  });
+
+  row.querySelector('[data-action="pin"]').addEventListener("click", async () => {
+    const session = await ensureAuthSession();
+    if (!session) return;
+    const { error } = await supabase.from("events").update({ is_pinned: !ev.is_pinned }).eq("id", ev.id);
+    if (error) {
+      const hint = /is_pinned/i.test(error.message) ? "\nยังไม่ได้รัน SQL เพิ่มคอลัมน์ is_pinned (ไฟล์ setup-event-pin.sql) ใน Supabase" : "";
+      await appAlert("ปักหมุดไม่สำเร็จ: " + error.message + hint, { type: "error" });
+      return;
+    }
+    loadEvents();
   });
 
   row.querySelector('[data-action="poster"]').addEventListener("click", () => openPosterMaker(ev));
