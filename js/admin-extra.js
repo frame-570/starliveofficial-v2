@@ -202,12 +202,80 @@ async function memberFn(payload) {
   return body;
 }
 
+// หน้าต่างของเว็บเอง (แทน prompt ของเบราว์เซอร์) — คืน null = ยกเลิก, "" = ให้ระบบสุ่ม, อื่นๆ = 6 ตัวที่ระบุ
+function askNewCode(m) {
+  return new Promise((resolve) => {
+    const overlay = document.createElement("div");
+    overlay.className = "modal-overlay";
+    overlay.style.cssText = "display:flex; z-index:100003;";
+    overlay.innerHTML = `<div class="admin-card modal-card" style="text-align:left; max-width:420px;">
+      <h2 class="display" style="font-size:18px; margin:0 0 6px; text-align:center;">เปลี่ยนรหัสให้ลูกค้า</h2>
+      <p class="muted" style="font-size:13px; text-align:center; margin:0 0 14px;">${esc(m.name)} · <b style="color:var(--amber,#f2b705); letter-spacing:1.5px;">${esc(m.code)}</b></p>
+      <label class="field-label" for="ncSuffix">รหัสใหม่ (6 ตัวหลัง ST ที่ลูกค้าแจ้ง)</label>
+      <div style="display:flex; align-items:stretch;">
+        <span style="display:flex; align-items:center; padding:0 14px; font-weight:800; letter-spacing:2px; border:1px solid var(--line,rgba(255,255,255,.18)); border-right:none; border-radius:10px 0 0 10px; background:rgba(242,183,5,.12); color:var(--amber,#f2b705);">ST</span>
+        <input id="ncSuffix" class="field-input" maxlength="6" autocomplete="off" autocapitalize="characters" spellcheck="false" placeholder="เว้นว่าง = ให้ระบบสุ่มให้" style="flex:1; min-width:0; border-radius:0 10px 10px 0; letter-spacing:3px; font-weight:700; text-transform:uppercase;" />
+      </div>
+      <p class="muted" style="font-size:12px; line-height:1.6; margin:8px 0 0;">ต้องมีตัวอักษรอังกฤษอย่างน้อย 2 ตัวและตัวเลขอย่างน้อย 1 ตัว · การเปลี่ยนรหัสจะออกจากระบบทุกเครื่องที่ใช้รหัสเดิมอยู่</p>
+      <p id="ncErr" class="error-text" style="min-height:18px; margin:8px 0 6px; font-size:13px;"></p>
+      <div style="display:flex; flex-direction:column; gap:10px;">
+        <button type="button" id="ncOk" class="btn-marquee" style="margin:0;">เปลี่ยนรหัส</button>
+        <button type="button" id="ncCancel" class="icon-btn ghost" style="justify-content:center;">ยกเลิก</button>
+      </div>
+    </div>`;
+    document.body.appendChild(overlay);
+    const input = overlay.querySelector("#ncSuffix");
+    const done = (v) => {
+      overlay.remove();
+      resolve(v);
+    };
+    input.addEventListener("input", () => (input.value = input.value.toUpperCase().replace(/[^A-Z0-9]/g, "").slice(0, 6)));
+    input.addEventListener("keydown", (e) => {
+      if (e.key === "Enter") overlay.querySelector("#ncOk").click();
+    });
+    overlay.querySelector("#ncOk").onclick = () => {
+      const s = input.value;
+      if (s && s.length !== 6) {
+        overlay.querySelector("#ncErr").textContent = "ต้องกรอกให้ครบ 6 ตัว หรือเว้นว่างให้ระบบสุ่มให้";
+        return;
+      }
+      done(s);
+    };
+    overlay.querySelector("#ncCancel").onclick = () => done(null);
+    overlay.addEventListener("click", (e) => {
+      if (e.target === overlay) done(null);
+    });
+    input.focus();
+  });
+}
+
 export function initCodeMembers() {
   const root = document.getElementById("codeMembersRoot");
   if (!root) return { load() {} };
   const listEl = root.querySelector("#codeMemberList");
   const countEl = root.querySelector("#codeMemberCount");
-  const search = root.querySelector("#codeMemberSearch");
+  const search = document.getElementById("memberSearchInput");
+  const toggle = document.getElementById("codeMembersToggle");
+  const userWrap = document.getElementById("userMembersWrap");
+  const userCount = document.getElementById("memberCountLabel");
+  const userPlaceholder = search.placeholder;
+  let codeView = false;
+
+  // สลับมุมมอง: รายชื่อสมาชิก <-> รหัสประจำตัวลูกค้า (ช่องค้นหาด้านบนใช้ร่วมกัน)
+  function setView(on) {
+    codeView = on;
+    userWrap.style.display = on ? "none" : "block";
+    root.style.display = on ? "block" : "none";
+    userCount.style.display = on ? "none" : "";
+    search.placeholder = on ? "ค้นหารหัส / ชื่อ / LINE..." : userPlaceholder;
+    toggle.style.borderColor = on ? "var(--amber,#f2b705)" : "";
+    toggle.style.color = on ? "var(--amber,#f2b705)" : "";
+    toggle.textContent = on ? "← กลับรายชื่อสมาชิก" : "รหัสประจำตัวลูกค้า";
+    search.value = "";
+    search.dispatchEvent(new Event("input"));
+    if (on) load();
+  }
+  toggle.addEventListener("click", () => setView(!codeView));
   const banner = root.querySelector("#codeMemberBanner");
   let cache = [];
 
@@ -258,10 +326,7 @@ export function initCodeMembers() {
     btn.disabled = true;
     try {
       if (btn.dataset.act === "reset") {
-        const input = window.prompt(
-          `เปลี่ยนรหัสให้ "${m.name}" (${m.code})\n\nพิมพ์ 6 ตัวหลัง ST ที่ลูกค้าแจ้ง หรือเว้นว่างเพื่อให้ระบบสุ่มให้\n(ต้องมีตัวอักษรอังกฤษอย่างน้อย 2 ตัวและตัวเลข)\n\nการเปลี่ยนรหัสจะออกจากระบบทุกเครื่องที่ใช้รหัสเดิมอยู่`,
-          ""
-        );
+        const input = await askNewCode(m);
         if (input === null) return;
         const s = input.trim().toUpperCase().replace(/[^A-Z0-9]/g, "");
         const r = await memberFn({ action: "admin-reset", memberId: m.id, newCode: s ? (s.startsWith("ST") && s.length === 8 ? s : "ST" + s) : undefined });
@@ -271,12 +336,14 @@ export function initCodeMembers() {
       }
       await load();
     } catch (err) {
-      window.alert("ทำรายการไม่สำเร็จ: " + err.message);
+      showBanner(`<span style="color:#ff8a8a;">ทำรายการไม่สำเร็จ: ${esc(err.message)}</span>`);
     } finally {
       btn.disabled = false;
     }
   });
-  search.addEventListener("input", paint);
+  search.addEventListener("input", () => {
+    if (codeView) paint();
+  });
 
   async function load() {
     try {
