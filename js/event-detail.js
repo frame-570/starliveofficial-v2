@@ -3,6 +3,7 @@ import { renderHeaderAuth, getSession } from "./auth.js";
 import { SUPABASE_ANON_KEY, FUNCTIONS_URL } from "./config.js";
 import { svgIcon } from "./icons.js";
 import { saveGuestOrder, getGuestContact, saveGuestContact, guestNoticeHtml } from "./guest.js";
+import { getMember, maskCode } from "./member.js";
 
 renderHeaderAuth();
 
@@ -400,6 +401,11 @@ document.getElementById("payBtn").addEventListener("click", async () => {
 
   const session = await getSession();
   currentSession = session;
+  if (!session && getMember()) {
+    // เข้าสู่ระบบด้วยรหัสประจำตัวไว้แล้ว -> สั่งซื้อในชื่อรหัสนั้นได้เลย ไม่ต้องกรอกซ้ำ
+    openGuestDialog();
+    return;
+  }
   if (!session) {
     // ยังไม่ล็อกอิน -> พาไปหน้าเข้าสู่ระบบ ซึ่งมีปุ่ม "สั่งซื้อโดยไม่สมัครสมาชิก" ให้ลูกค้าเลือกเอง
     // (ส่วนลดที่ใช้ไว้ถูกตัดออกก่อน แล้วจำโค้ดไว้ให้กดใช้ใหม่ตอนกลับมา)
@@ -475,19 +481,24 @@ document.getElementById("payBtn").addEventListener("click", async () => {
 // ============================================================
 function openGuestDialog() {
   document.getElementById("guestOverlay")?.remove();
-  const saved = getGuestContact();
+  const member = getMember();
+  const saved = member ? { name: member.name, line: member.line } : getGuestContact();
   const overlay = document.createElement("div");
   overlay.id = "guestOverlay";
   overlay.className = "modal-overlay";
   overlay.style.cssText = "display:flex; z-index:100001;";
   overlay.innerHTML = `
     <div class="admin-card modal-card" style="text-align:left; max-width:420px;">
-      <h2 class="display" style="font-size:18px; margin:0 0 12px; text-align:center;">สั่งซื้อโดยไม่สมัครสมาชิก</h2>
-      <div style="margin-bottom:14px;">${guestNoticeHtml()}</div>
+      <h2 class="display" style="font-size:18px; margin:0 0 12px; text-align:center;">${member ? "สั่งซื้อด้วยรหัสประจำตัว" : "สั่งซื้อโดยไม่สมัครสมาชิก"}</h2>
+      <div style="margin-bottom:14px;">${
+        member
+          ? `<div style="background:rgba(242,183,5,0.1); border:1px solid rgba(242,183,5,0.45); border-radius:12px; padding:10px 12px; font-size:12.5px; line-height:1.7;"><strong style="color:var(--amber,#f2b705);">รหัสประจำตัว ${escapeHtml(maskCode(member.code))}</strong><br>ออเดอร์นี้จะถูกผูกกับรหัสของคุณ ใช้รหัสเดียวดูได้ทุกงานที่ซื้อ แม้เปลี่ยนเครื่อง</div>`
+          : guestNoticeHtml()
+      }</div>
       <label class="field-label" for="guestName">ชื่อ <span class="muted" style="font-size:11px;">(ไว้ให้แอดมินตรวจสอบสลิป)</span></label>
-      <input id="guestName" class="field-input" maxlength="60" autocomplete="name" value="${escapeHtml(saved.name || "")}" style="margin-bottom:10px;" />
-      <label class="field-label" for="guestLine">LINE ID <span class="muted" style="font-size:11px;">(ไม่บังคับ ไว้ให้แอดมินติดต่อกลับ)</span></label>
-      <input id="guestLine" class="field-input" maxlength="40" value="${escapeHtml(saved.line || "")}" style="margin-bottom:6px;" />
+      <input id="guestName" class="field-input" maxlength="60" autocomplete="name" value="${escapeHtml(saved.name || "")}" ${member ? "readonly" : ""} style="margin-bottom:10px;" />
+      <label class="field-label" for="guestLine">LINE ID <span class="muted" style="font-size:11px;">(${member ? "ตามที่ตั้งไว้กับรหัส" : "ไม่บังคับ ไว้ให้แอดมินติดต่อกลับ"})</span></label>
+      <input id="guestLine" class="field-input" maxlength="40" value="${escapeHtml(saved.line || "")}" ${member ? "readonly" : ""} style="margin-bottom:6px;" />
       <p id="guestError" class="error-text" style="min-height:18px; margin:6px 0 10px; font-size:13px;"></p>
       <div style="display:flex; flex-direction:column; gap:10px;">
         <button type="button" id="guestGoBtn" class="btn-marquee" style="margin:0;">ดำเนินการสั่งซื้อ</button>
@@ -535,12 +546,13 @@ async function submitGuestOrder(overlay) {
         code: appliedDiscount?.code || "",
         guestName: name,
         guestLine: line,
+        memberToken: getMember()?.token || undefined,
       }),
     });
     const body = await res.json().catch(() => ({}));
     if (!res.ok || !body.success || !body.guestToken) throw new Error(body.error || "สร้างออเดอร์ไม่สำเร็จ");
 
-    saveGuestContact(name, line);
+    if (!getMember()) saveGuestContact(name, line);
     saveGuestOrder({
       id: body.orderId,
       token: body.guestToken,
