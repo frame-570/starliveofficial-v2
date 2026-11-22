@@ -3,6 +3,7 @@ import { extractYouTubeId } from "./supabaseClient.js";
 // ข้อความป้ายตอนแสดงคลิปตัวอย่าง (แทนคำว่า LIVE / รีรัน) — เปลี่ยนคำได้ที่นี่ที่เดียว
 const PREVIEW_LABEL = "ทีเซอร์คอนเสิร์ต";
 import { SUPABASE_ANON_KEY, FUNCTIONS_URL } from "./config.js";
+import { getMember, memberCall, maskCode } from "./member.js";
 
 const THAI_MONTHS = [
   "มกราคม", "กุมภาพันธ์", "มีนาคม", "เมษายน", "พฤษภาคม", "มิถุนายน",
@@ -120,11 +121,124 @@ if (exitBtn && exitConfirmModal) {
   });
 }
 
+// ---------- รหัสประจำตัวลูกค้า: ใส่รหัสเดียว -> เลือกงานที่ซื้อ -> เข้าชมด้วยรหัสเข้าชมของงานนั้น ----------
+let memberMode = false;
+const memberModeBtn = document.getElementById("memberModeBtn");
+const headHint = document.querySelector("#codeScreen p.muted");
+const DEFAULT_HINT = headHint ? headHint.textContent : "";
+
+function setMemberMode(on) {
+  memberMode = on;
+  if (headHint) headHint.textContent = on ? "กรอกรหัสประจำตัวของคุณ (ST ตามด้วย 6 ตัวที่คุณตั้งไว้) แล้วเลือกงานที่ต้องการชม" : DEFAULT_HINT;
+  if (memberModeBtn) memberModeBtn.textContent = on ? "กลับไปใช้รหัสเข้าชมของงาน" : "มีรหัสประจำตัว? ใช้รหัสประจำตัวแทน";
+  if (submitBtn) submitBtn.textContent = on ? "ดูงานที่ซื้อไว้" : "เข้าสู่การถ่ายทอดสด";
+  if (errorText) errorText.textContent = "";
+  if (codeInput) {
+    codeInput.value = "";
+    codeInput.classList.remove("filled");
+    codeInput.focus();
+  }
+}
+// เครื่องนี้เข้าสู่ระบบด้วยรหัสประจำตัวอยู่แล้ว -> กดเลือกงานได้เลย ไม่ต้องพิมพ์รหัส
+if (memberModeBtn && getMember()) memberModeBtn.textContent = `เลือกจากงานของฉัน (${maskCode(getMember().code)})`;
+memberModeBtn?.addEventListener("click", async () => {
+  const m = getMember();
+  if (m) {
+    try {
+      const r = await memberCall({ action: "me", token: m.token });
+      showMemberOrderPicker(r.orders || []);
+      return;
+    } catch {
+      /* เซสชันหมดอายุ -> ใช้โหมดพิมพ์รหัสตามปกติ */
+    }
+  }
+  setMemberMode(!memberMode);
+});
+
+function showMemberOrderPicker(orders) {
+  document.getElementById("memberPickOverlay")?.remove();
+  const paid = orders.filter((o) => o.status === "paid" && o.access_code);
+  const esc = escapeHtmlText;
+  const overlay = document.createElement("div");
+  overlay.id = "memberPickOverlay";
+  overlay.className = "modal-overlay";
+  overlay.style.cssText = "display:flex; z-index:100002;";
+  const now = Date.now();
+  overlay.innerHTML = `<div class="admin-card modal-card" style="text-align:left; max-width:440px; max-height:90vh; overflow:auto;">
+    <h2 class="display" style="font-size:18px; margin:0 0 6px; text-align:center;">เลือกงานที่ต้องการชม</h2>
+    <p class="muted" style="font-size:12.5px; text-align:center; margin:0 0 14px;">งานที่คุณซื้อไว้ด้วยรหัสประจำตัวนี้</p>
+    <div style="display:flex; flex-direction:column; gap:10px;">${
+      paid.length
+        ? paid.map((o, i) => {
+            const exp = o.access_code_expires_at ? new Date(o.access_code_expires_at) : null;
+            const expired = !!exp && exp.getTime() < now;
+            const expLabel = exp ? exp.toLocaleDateString("th-TH", { year: "numeric", month: "long", day: "numeric" }) : "";
+            return `<button type="button" class="icon-btn" data-pick="${i}" ${expired ? "disabled" : ""} style="display:block; width:100%; text-align:left; padding:12px 14px; ${expired ? "opacity:.5;" : ""}">
+              <strong style="display:block; font-size:14px;">${esc(o.events?.title || "-")}</strong>
+              <span class="muted" style="font-size:12px;">${esc(o.ticket_packages?.num_days || "-")} วัน · ${esc(o.ticket_package_day_options?.label || "-")}${expLabel ? (expired ? " · หมดอายุแล้ว" : ` · ดูได้ถึง ${esc(expLabel)}`) : ""}</span>
+            </button>`;
+          }).join("")
+        : `<p class="muted" style="text-align:center; font-size:13px;">ยังไม่มีงานที่ชำระเงินสำเร็จในรหัสนี้</p>`
+    }</div>
+    <button type="button" id="memberPickClose" class="icon-btn ghost" style="width:100%; justify-content:center; margin-top:14px;">ปิด</button>
+  </div>`;
+  document.body.appendChild(overlay);
+  const close = () => overlay.remove();
+  overlay.addEventListener("click", (e) => { if (e.target === overlay) close(); });
+  overlay.querySelector("#memberPickClose").onclick = close;
+  overlay.querySelectorAll("[data-pick]").forEach((btn) => {
+    btn.onclick = () => {
+      const o = paid[Number(btn.dataset.pick)];
+      close();
+      memberMode = false;
+      setMemberMode(false);
+      codeInput.value = o.access_code;
+      codeInput.classList.add("filled");
+      codeForm.requestSubmit();
+    };
+  });
+}
+
+async function handleMemberSubmit() {
+  const code = codeInput.value.trim();
+  if (code.length !== 8 || !code.toUpperCase().startsWith("ST")) {
+    showError("กรุณากรอกรหัสประจำตัวให้ครบ 8 หลัก (ST + 6 ตัว)");
+    return;
+  }
+  if (submitBtn) {
+    submitBtn.disabled = true;
+    submitBtn.textContent = "กำลังตรวจสอบ...";
+  }
+  if (errorText) errorText.textContent = "";
+  let locked = false;
+  try {
+    // noSession: แค่ขอรายการงาน ไม่ทิ้งการเข้าสู่ระบบค้างไว้บนเครื่องนี้ (เช่นเครื่องคนอื่น)
+    const r = await memberCall({ action: "login", code, noSession: true });
+    showMemberOrderPicker(r.orders || []);
+  } catch (e) {
+    if (e.status === 429) {
+      locked = true;
+      startLockoutCountdown(e.body?.retry_after_seconds ?? 900);
+    }
+    else if (typeof e.body?.attempts_left === "number" && e.body.attempts_left > 0 && e.body.attempts_left <= 4) showError(`${e.message} (เหลืออีก ${e.body.attempts_left} ครั้งก่อนถูกพักชั่วคราว)`);
+    else showError(e.message || "เชื่อมต่อเซิร์ฟเวอร์ไม่ได้ ลองใหม่อีกครั้ง");
+  } finally {
+    if (submitBtn && !locked) {
+      submitBtn.disabled = false;
+      submitBtn.textContent = memberMode ? "ดูงานที่ซื้อไว้" : "เข้าสู่การถ่ายทอดสด";
+    }
+  }
+}
+
 // เมื่อกดปุ่ม "เข้าสู่การถ่ายทอดสด"
 if (codeForm) {
   codeForm.addEventListener("submit", async (e) => {
     e.preventDefault();
     if (!codeInput) return;
+    if (memberMode) {
+      await handleMemberSubmit();
+      return;
+    }
 
     const code = codeInput.value.trim();
     if (code.length !== 8) {
