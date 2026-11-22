@@ -1,5 +1,6 @@
 import { supabase } from "./supabaseClient.js";
 import { signInWithGoogle, signInWithPassword, signUpWithPassword } from "./auth.js";
+import { openMemberDialog } from "./member-ui.js";
 
 // Safe redirect resolver to prevent Open Redirect vulnerability
 function getSafeRedirectTarget() {
@@ -58,6 +59,24 @@ function goGuest() {
 }
 document.getElementById("guestBtnLogin")?.addEventListener("click", goGuest);
 document.getElementById("guestBtnSignUp")?.addEventListener("click", goGuest);
+
+// --- เข้าสู่ระบบโดยตั้งรหัสเอง (รหัสประจำตัวลูกค้า) ---
+function afterMember() {
+  const hasRedirect = !!new URLSearchParams(window.location.search).get("redirect");
+  if (hasRedirect && (/event-detail/.test(redirectTarget) || /[?&]pkg=/.test(redirectTarget))) {
+    // มาจากการกดสั่งซื้อ -> กลับหน้างานเดิมและเปิดหน้าต่างสั่งซื้อด้วยรหัสให้ทันที
+    const u = new URL(redirectTarget, window.location.origin);
+    u.searchParams.set("guest", "1");
+    window.location.href = u.pathname + u.search;
+  } else if (hasRedirect && /orders|watch/.test(redirectTarget)) {
+    window.location.href = redirectTarget;
+  } else {
+    window.location.href = "./orders.html";
+  }
+}
+const openMember = () => openMemberDialog({ onDone: afterMember });
+document.getElementById("memberBtnLogin")?.addEventListener("click", openMember);
+document.getElementById("memberBtnSignUp")?.addEventListener("click", openMember);
 
 // --- OAuth (Google) ---
 document.getElementById("googleBtn")?.addEventListener("click", () => signInWithGoogle(redirectTarget));
