@@ -5,6 +5,10 @@ import { svgIcon, svgDot } from "./icons.js";
 import { loadReviewsAdmin } from "./review-admin.js";
 import { initSignDesigner } from "./sign-designer.js";
 import { initMessageMaker } from "./message-maker.js";
+import { initStats, initCodeMembers } from "./admin-extra.js";
+
+const statsPanel = initStats();
+const codeMembersPanel = initCodeMembers();
 
 // ============================================================
 // Styled confirm/alert modal
@@ -332,6 +336,7 @@ document.querySelectorAll(".admin-tab-btn").forEach((btn) => {
 
     if (btn.dataset.tab === "members") {
       loadMembers();
+      codeMembersPanel.load();
     }
 
     if (btn.dataset.tab === "slipcheck") {
@@ -2328,6 +2333,7 @@ const SETTINGS_ICON_PATHS = {
   rules: '<rect x="5" y="4" width="14" height="17" rx="2"/><rect x="9" y="2" width="6" height="4" rx="1"/><path d="M9 11h6M9 15h6"/>',
   special: '<path d="M12 21s-6-5.6-6-10a6 6 0 1112 0c0 4.4-6 10-6 10z"/><circle cx="12" cy="11" r="2.2"/>',
   ephoto: '<path d="M4 8h3l1.5-2h7L17 8h3a1 1 0 011 1v9a1 1 0 01-1 1H4a1 1 0 01-1-1V9a1 1 0 011-1z"/><circle cx="12" cy="13" r="3.5"/>',
+  stats: '<path d="M4 20V10M10 20V4M16 20v-7M22 20H2"/>',
   kick: '<path d="M4 6h16a1 1 0 011 1v9a1 1 0 01-1 1H4a1 1 0 01-1-1V7a1 1 0 011-1z"/><path d="M8 21h8M12 17v4"/><path d="M10 9.5v3l3-1.5z"/>'
 };
 
@@ -2347,6 +2353,7 @@ const SETTINGS_CATEGORY_LABELS = {
   special: { icon: "special", text: "รายละเอียดพิเศษ" },
   ephoto: { icon: "ephoto", text: "E-Photo" },
   kick: { icon: "kick", text: "การรับชมพิเศษ" },
+  stats: { icon: "stats", text: "สถิติการใช้งาน" },
 };
 
 function showSettingsMenu() {
@@ -2364,7 +2371,7 @@ function showSettingsCategory(category) {
   });
   settingsBackBtn.style.display = "inline-flex";
   // หมวด "รายละเอียดพิเศษ" มีปุ่มบันทึกของตัวเองแยกต่างหาก (บันทึกต่องาน ไม่ใช่ค่าตายตัวแบบหมวดอื่น)
-  settingsFooterButtons.style.display = category === "special" || category === "ephoto" || category === "kick" ? "none" : "flex";
+  settingsFooterButtons.style.display = category === "special" || category === "ephoto" || category === "kick" || category === "stats" ? "none" : "flex";
   const label = SETTINGS_CATEGORY_LABELS[category];
   if (label) setSettingsTitle(label.icon, label.text);
   else setSettingsTitle("gear", "ตั้งค่าระบบ");
@@ -2372,6 +2379,7 @@ function showSettingsCategory(category) {
   if (category === "special") loadSpecialNotesEventOptions();
   if (category === "ephoto") loadEphotoEventOptions();
   if (category === "kick") loadKickEventOptions();
+  if (category === "stats") statsPanel.open();
 }
 
 function capitalize(str) {
