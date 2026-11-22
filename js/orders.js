@@ -61,7 +61,7 @@ async function loadMemberOrders() {
     </div>
     <span class="muted" style="font-size:12px;">ใช้ดูทุกงานที่ซื้อได้ทุกเครื่อง เก็บเป็นความลับ ลืมหรือหลุดให้ทักแอดมินเพื่อเปลี่ยนรหัส</span>
   </div>`;
-  orderList.parentElement.insertBefore(card, orderList);
+  loadingText.parentElement.insertBefore(card, loadingText);
   let shown = false;
   card.querySelector("#memberShowBtn").onclick = (e) => {
     shown = !shown;
