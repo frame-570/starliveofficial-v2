@@ -519,6 +519,8 @@ html, body {
   gap: 12px;
 }
 .home-watch-btn { text-decoration: none; display: inline-block; }
+.header-auth-row { display: flex; align-items: center; gap: 6px; }
+.header-auth-row .icon-btn { text-decoration: none; display: inline-block; }
 
 .profile-menu-wrap { position: relative; }
 .profile-avatar {
@@ -1013,7 +1015,11 @@ html, body {
   .login-brand-headline { font-size: 24px; }
   .login-form-panel { padding: 16px 20px 50px; }
   .home-hero-title { font-size: 24px; }
-  .home-header { padding: 14px 16px; }
+  .home-header { padding: 14px 14px; gap: 8px; }
+  .home-header .marquee-brand { font-size: 11px; letter-spacing: 0.05em; gap: 6px; white-space: nowrap; }
+  .home-header-right { gap: 6px; }
+  .home-header .icon-btn { font-size: 12px; padding: 7px 10px; white-space: nowrap; line-height: 1.3; }
+  .home-header .profile-avatar { width: 34px; height: 34px; font-size: 12.5px; }
   
   .event-card-body { padding: 10px 12px 14px; }
   .event-card-title { font-size: 13.5px; }
