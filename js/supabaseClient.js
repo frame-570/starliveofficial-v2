@@ -1,5 +1,6 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { SUPABASE_URL, SUPABASE_ANON_KEY } from "./config.js";
+import "./track.js"; // นับสถิติการเข้าใช้งาน (ทำงานทุกหน้าที่โหลดไฟล์นี้)
 
 // 1. Client สำหรับฝั่งลูกค้า (เข้าซื้อบัตร / หน้าเว็บหลัก / หน้าชมไลฟ์)
 export const customerSupabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
