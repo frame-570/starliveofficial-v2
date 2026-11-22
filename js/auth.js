@@ -1,6 +1,6 @@
 import { supabase } from "./supabaseClient.js";
 import { hasGuestOrders } from "./guest.js";
-import { getMember } from "./member.js";
+import { getMember, clearMember, memberCall } from "./member.js";
 
 // ---------- Session helpers ----------
 export async function getSession() {
@@ -51,11 +51,42 @@ export async function renderHeaderAuth() {
   const session = await getSession();
 
   if (!session) {
+    const member = getMember();
+    if (member) {
+      // เข้าสู่ระบบด้วยรหัสประจำตัว: แสดงโปรไฟล์เป็นตัวอักษร "ST" มีเมนูประวัติ/ออกจากระบบ
+      area.innerHTML = `
+        <div class="profile-menu-wrap">
+          <button id="profileAvatarBtn" class="profile-avatar" aria-haspopup="true" aria-expanded="false" title="${escapeHtml(member.name || "รหัสประจำตัว")}"><span>ST</span></button>
+          <div id="profileDropdown" class="profile-dropdown" style="display:none;">
+            <div style="padding:8px 12px 6px; font-size:12.5px; line-height:1.5;">
+              <strong style="color:var(--amber);">${escapeHtml(member.name || "ลูกค้า")}</strong><br>
+              <span class="muted">รหัสประจำตัว ${escapeHtml(String(member.code || "").slice(0, 2))}••••${escapeHtml(String(member.code || "").slice(-2))}</span>
+            </div>
+            <a href="./orders.html" class="profile-dropdown-item">ประวัติการสั่งซื้อ</a>
+            <button id="signOutBtn" class="profile-dropdown-item" type="button">ออกจากระบบ</button>
+          </div>
+        </div>`;
+      const btn = document.getElementById("profileAvatarBtn");
+      const dd = document.getElementById("profileDropdown");
+      btn.addEventListener("click", (e) => {
+        e.stopPropagation();
+        const open = dd.style.display === "block";
+        dd.style.display = open ? "none" : "block";
+        btn.setAttribute("aria-expanded", String(!open));
+      });
+      document.addEventListener("click", () => (dd.style.display = "none"));
+      document.getElementById("signOutBtn").addEventListener("click", async () => {
+        try { await memberCall({ action: "logout", token: member.token }); } catch {}
+        clearMember();
+        window.location.href = "./index.html";
+      });
+      return;
+    }
     // เครื่องนี้เคยสั่งซื้อแบบไม่สมัครสมาชิก -> มีทางเข้าประวัติที่เก็บในเครื่อง
-    const historyLink = hasGuestOrders() || getMember()
-      ? `<a href="./orders.html" class="icon-btn ghost" style="text-decoration:none; display:inline-block; margin-right:6px;">ประวัติการสั่งซื้อ</a>`
+    const historyLink = hasGuestOrders()
+      ? `<a href="./orders.html" class="icon-btn ghost">ประวัติ</a>`
       : "";
-    area.innerHTML = `${historyLink}<a href="./login.html" class="icon-btn ghost" style="text-decoration:none; display:inline-block;">เข้าสู่ระบบ</a>`;
+    area.innerHTML = `<div class="header-auth-row">${historyLink}<a href="./login.html" class="icon-btn ghost">เข้าสู่ระบบ</a></div>`;
     return;
   }
 
