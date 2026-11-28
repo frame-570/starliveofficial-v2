@@ -23,8 +23,14 @@ function discountLabel(p) {
 
 async function loadPromotions() {
   // ดึงผ่านฟังก์ชันฝั่งฐานข้อมูล: ได้เฉพาะโค้ดที่ควรโชว์ และไม่มีจำนวนสิทธิ์คงเหลือ
-  const { data, error } = await supabase.rpc("get_public_promotions");
+  const [{ data: all, error }, hiddenRes] = await Promise.all([
+    supabase.rpc("get_public_promotions"),
+    supabase.rpc("get_hidden_promo_codes"),
+  ]);
   loadingEl.style.display = "none";
+  // โค้ดที่แอดมินกด "ซ่อน" ไม่แสดงในหน้านี้ (ยังพิมพ์ใช้ได้ตามปกติ)
+  const hidden = new Set((hiddenRes?.data || []).map((r) => String(r.code ?? r).toUpperCase()));
+  const data = (all || []).filter((p) => !hidden.has(String(p.code).toUpperCase()));
 
   if (error) {
     emptyEl.textContent = "โหลดโค้ดส่วนลดไม่สำเร็จ กรุณาลองใหม่อีกครั้ง";
